@@ -11,12 +11,33 @@ installation, updates and reliability before adding more features.
 | macOS 14+ | Apple Silicon arm64 | DMG | tar.gz |
 | macOS 14+ | Intel x64 | DMG | tar.gz |
 | Debian/Ubuntu Linux | Intel/AMD x64 | DEB | tar.gz |
+| 64-bit Debian/Ubuntu/Raspberry Pi OS | ARM64 | Not published | tar.gz |
 
 These are candidate targets, not a statement that all platforms have passed
 release validation. Linux CI uses Ubuntu 22.04. Other Linux distributions and
-Windows/Linux ARM64 require separate runtime and installer work before support
-can be advertised. macOS currently runs x86-64 guests; Apple Silicon uses software
-emulation. GPU support must be verified separately on each advertised platform.
+Windows ARM64 requires separate runtime and installer work before support
+can be advertised. Linux ARM64 and Apple Silicon run the x86-64 guest appliance
+through software emulation; use amd64 guest images. ARM-native guests and GPU/CUDA
+are unavailable. Physical Raspberry Pi runtime acceptance remains required.
+
+The Linux ARM64 CLI and engine can be cross-built on Linux with an ARM64 GCC
+linker and an ARM64 GTK3 development sysroot. Select both the payload architecture
+and Cargo target explicitly, then verify the extracted binaries on ARM64:
+
+```sh
+export YOUGORI_RELEASE_ARCH=arm64
+export CARGO_BUILD_TARGET=aarch64-unknown-linux-gnu
+export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
+export PKG_CONFIG_ALLOW_CROSS=1
+export PKG_CONFIG_SYSROOT_DIR=/path/to/arm64-sysroot
+export PKG_CONFIG_LIBDIR="$PKG_CONFIG_SYSROOT_DIR/usr/lib/aarch64-linux-gnu/pkgconfig:$PKG_CONFIG_SYSROOT_DIR/usr/share/pkgconfig"
+npm run cli:bundle
+npm run engine:package -- --preview
+```
+
+Do this in an isolated release checkout so its bundled CLI does not replace the
+developer's host CLI. The installer selects `linux-aarch64-engine` on 64-bit Pi OS;
+32-bit ARM is not supported. QEMU and GTK3 remain system dependencies.
 
 ## Build candidates
 

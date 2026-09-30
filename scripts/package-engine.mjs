@@ -10,14 +10,14 @@ import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSyn
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { signWindowsPayload } from "./windows-payload-signing.mjs"
-import { assertMacCli, assertPortableCli, nativeTarget, portableCliBuildEnv, preflight, releaseTarget } from "./release-preflight.mjs"
+import { assertMacCli, assertPortableCli, assertLinuxCli, nativeTarget, portableCliBuildEnv, preflight, releaseTarget, releaseArchitecture } from "./release-preflight.mjs"
 import { checkCompliance } from "./compliance-check.mjs"
 import { checkInstalledLicenses } from "./check-installed-licenses.mjs"
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const tauri = join(root, "src-tauri")
 
-export function enginePlatform(platform = process.platform, arch = process.arch) {
+export function enginePlatform(platform = process.platform, arch = releaseArchitecture()) {
   nativeTarget(platform, arch)
   const os = { win32: "windows", darwin: "macos", linux: "linux" }[platform]
   const cpu = { x64: "x86_64", arm64: "aarch64" }[arch]
@@ -39,7 +39,7 @@ function run(command, args, options = {}) {
   if (result.status !== 0) throw new Error(`${command} ${args.join(" ")} failed`)
 }
 
-export function buildEngine({ projectRoot = root, platform = process.platform, arch = process.arch, env = process.env, execute = spawnSync } = {}) {
+export function buildEngine({ projectRoot = root, platform = process.platform, arch = releaseArchitecture(), env = process.env, execute = spawnSync } = {}) {
   const target = releaseTarget(env, platform, arch) || nativeTarget(platform, arch)
   const buildEnv = portableCliBuildEnv(env, platform)
   const manifest = join(projectRoot, "engine/Cargo.toml")
@@ -52,9 +52,7 @@ export function buildEngine({ projectRoot = root, platform = process.platform, a
   const bytes = readFileSync(binary)
   if (platform === "win32") assertPortableCli(bytes, "Engine")
   else if (platform === "darwin") assertMacCli(bytes, arch)
-  else if (bytes.length < 20 || bytes.toString("hex", 0, 4) !== "7f454c46" || bytes[4] !== 2 || bytes[5] !== 1 || bytes.readUInt16LE(18) !== 62) {
-    throw new Error("Expected an x86-64 Linux ELF engine")
-  }
+  else assertLinuxCli(bytes, arch, "engine")
   return binary
 }
 

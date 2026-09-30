@@ -13,7 +13,7 @@ test("local candidates reject unsafe output and unsupported or ambiguous package
   assert.throws(() => options(["--output", tmpdir()], source), /developer checkout/)
   assert.deepEqual(packageNames("1.0.0", "win32", "x64"), ["nsis/Yougori_1.0.0_x64-setup.exe", "msi/Yougori_1.0.0_x64_en-US.msi"])
   assert.throws(() => packageNames("../old", "win32", "x64"), /version/)
-  assert.throws(() => packageNames("1.0.0", "linux", "arm64"), /Supported/)
+  assert.deepEqual(packageNames("1.0.0", "linux", "arm64"), ["deb/Yougori_1.0.0_arm64.deb"])
 })
 
 test("candidate collection preserves exact bytes, refuses missing assets and cannot overwrite an earlier package", async t => {

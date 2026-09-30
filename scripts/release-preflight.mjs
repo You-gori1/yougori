@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from "node:url"
 
 export const windowsTarget = "x86_64-pc-windows-msvc"
 export const linuxTarget = "x86_64-unknown-linux-gnu"
+export const linuxArmTarget = "aarch64-unknown-linux-gnu"
 export const macIntelTarget = "x86_64-apple-darwin"
 export const macArmTarget = "aarch64-apple-darwin"
 
@@ -13,8 +14,27 @@ export function nativeTarget(platform = process.platform, arch = process.arch) {
   if (platform === "darwin" && arch === "arm64") return macArmTarget
   if (platform === "darwin" && arch === "x64") return macIntelTarget
   if (platform === "linux" && arch === "x64") return linuxTarget
+  if (platform === "linux" && arch === "arm64") return linuxArmTarget
   if (platform === "win32" && arch === "x64") return windowsTarget
-  throw new Error("Supported desktop builds: Windows/Linux x64, macOS Intel x64 or Apple Silicon arm64. Build natively on the destination platform.")
+  throw new Error("Supported desktop builds: Windows x64, Linux x64/arm64, macOS Intel x64 or Apple Silicon arm64.")
+}
+
+// Cross builds must explicitly select the Linux payload architecture. All
+// binaries are checked against it before they can enter an engine archive.
+export function releaseArchitecture(env = process.env, platform = process.platform, arch = process.arch) {
+  const selected = env.YOUGORI_RELEASE_ARCH || arch
+  if (selected !== arch && platform !== "linux") throw new Error("Cross packaging is supported for Linux only")
+  nativeTarget(platform, selected)
+  return selected
+}
+
+export function assertLinuxCli(buffer, arch, label = "CLI") {
+  const machine = { x64: 62, arm64: 183 }[arch]
+  if (!machine || buffer.length < 64 || buffer.toString("hex", 0, 4) !== "7f454c46"
+    || buffer[4] !== 2 || buffer[5] !== 1 || ![2, 3].includes(buffer.readUInt16LE(16))
+    || buffer.readUInt16LE(18) !== machine) {
+    throw new Error(`Expected a ${arch} Linux ELF ${label}`)
+  }
 }
 
 export function assertMacCli(buffer, arch) {
@@ -171,7 +191,7 @@ export async function verifyVersions(root) {
 }
 
 export async function preflight(root, env = process.env) {
-  releaseTarget(env)
+  releaseTarget(env, process.platform, releaseArchitecture(env))
   const config = await verifyVersions(root)
   if (config.bundle?.windows?.allowDowngrades !== false) throw new Error("Windows release installers must reject downgrades to older state handlers")
   const runtime = join(root, "src-tauri/resources/runtime")

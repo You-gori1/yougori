@@ -562,21 +562,22 @@ pub(crate) async fn cloudflared(root: &Path) -> Result<PathBuf, String> {
     }
     #[cfg(any(windows, target_os = "linux"))]
     {
-        // The pinned Linux download is x86-64; say so instead of failing to exec it.
-        if cfg!(target_os = "linux") && !cfg!(target_arch = "x86_64") {
+        if cfg!(target_os = "linux") && !cfg!(any(target_arch = "x86_64", target_arch = "aarch64")) {
             return Err("Public access downloads Cloudflare Tunnel for x86-64 Linux only. Install cloudflared for this CPU and set YOUGORI_CLOUDFLARED_PATH to it, then retry. Nothing was published.".into());
         }
         #[cfg(windows)]
         const HASH: &str = "83e726ed18ea78c5ad5213c4c3a3a27051393950d2bc8ed4de69bec12d14eaae";
-        #[cfg(target_os = "linux")]
+        #[cfg(all(target_os = "linux", not(target_arch = "aarch64")))]
         const HASH: &str = "f29324fe934d1e100617484c78deef803c4dc2cd351d645bbde42e96b4fccc5e";
+        #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+        const HASH: &str = "4bcfd35521a7cbc545ebfd5d57334a71ee180e2a64874981f374c81472118391";
         if path.is_file() {
             let bytes = tokio::fs::read(&path).await.map_err(|e| e.to_string())?;
             if hex::encode(Sha256::digest(&bytes)) == HASH {
                 return Ok(path);
             }
         }
-        let url = if cfg!(windows) { "https://github.com/cloudflare/cloudflared/releases/download/2026.8.3/cloudflared-windows-amd64.exe" } else { "https://github.com/cloudflare/cloudflared/releases/download/2026.8.3/cloudflared-linux-amd64" };
+        let url = if cfg!(windows) { "https://github.com/cloudflare/cloudflared/releases/download/2026.8.3/cloudflared-windows-amd64.exe" } else if cfg!(target_arch = "aarch64") { "https://github.com/cloudflare/cloudflared/releases/download/2026.8.3/cloudflared-linux-arm64" } else { "https://github.com/cloudflare/cloudflared/releases/download/2026.8.3/cloudflared-linux-amd64" };
         let mut response=reqwest::Client::new().get(url).timeout(Duration::from_secs(180)).send().await.map_err(|e|e.to_string())?.error_for_status().map_err(|e|e.to_string())?;
         if response.content_length().unwrap_or(0) > 100 * 1024 * 1024 {
             return Err("Unexpected Cloudflare download size".into());

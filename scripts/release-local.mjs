@@ -42,7 +42,7 @@ export function packageNames(version, platform = process.platform, arch = proces
   if (platform === "win32") return [
     `nsis/Yougori_${version}_x64-setup.exe`, `msi/Yougori_${version}_x64_en-US.msi`,
   ]
-  if (platform === "linux") return [`deb/Yougori_${version}_amd64.deb`]
+  if (platform === "linux") return [`deb/Yougori_${version}_${arch === "arm64" ? "arm64" : "amd64"}.deb`]
   return [`dmg/Yougori_${version}_${arch === "arm64" ? "aarch64" : "x64"}.dmg`]
 }
 

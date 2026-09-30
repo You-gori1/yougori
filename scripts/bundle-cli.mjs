@@ -3,11 +3,12 @@ import { chmodSync, copyFileSync, mkdirSync, readFileSync } from "node:fs"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { signWindowsPayload } from "./windows-payload-signing.mjs"
-import { assertPortableCli, assertMacCli, portableCliBuildEnv, releaseTarget, nativeTarget } from "./release-preflight.mjs"
+import { assertPortableCli, assertMacCli, assertLinuxCli, portableCliBuildEnv, releaseTarget, nativeTarget, releaseArchitecture } from "./release-preflight.mjs"
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const development = process.argv.includes("--dev")
-const target = development ? process.env.CARGO_BUILD_TARGET || null : releaseTarget() || nativeTarget()
+const arch = releaseArchitecture()
+const target = development ? process.env.CARGO_BUILD_TARGET || null : releaseTarget(process.env, process.platform, arch) || nativeTarget(process.platform, arch)
 const args = ["build", "--locked", ...(development ? [] : ["--release"]), "--manifest-path", join(root, "cli/Cargo.toml")]
 if (target) args.push("--target", target)
 const result = spawnSync("cargo", args, { stdio: "inherit", cwd: root, windowsHide: true, env: development ? process.env : portableCliBuildEnv() })
@@ -28,10 +29,7 @@ if (development) {
   if (!readFileSync(binary).length) throw new Error("The development CLI is empty")
 } else if (process.platform === "win32") assertPortableCli(readFileSync(binary))
 else if (process.platform === "darwin") assertMacCli(readFileSync(binary), process.arch)
-else {
-  const elf = readFileSync(binary)
-  if (elf.toString("hex", 0, 4) !== "7f454c46" || elf[4] !== 2 || elf.readUInt16LE(18) !== 62) throw new Error("Expected an x86-64 Linux ELF CLI")
-}
+else assertLinuxCli(readFileSync(binary), arch)
 copyFileSync(binary, join(destination, name))
 if (process.platform === "win32" && !development) signWindowsPayload(root, join(destination, name))
 const compatibilityName = process.platform === "win32" ? "yougori-cli.exe" : "yougori-cli"
