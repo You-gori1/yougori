@@ -1,5 +1,5 @@
 //! Host decisions are separate from the guest ISA: this preview ships x86-64
-//! guests even when the desktop itself is a native Apple Silicon executable.
+//! guests even when the host executable runs natively on ARM64.
 use std::path::PathBuf;
 
 pub(super) fn x86_accelerators(os: &str, arch: &str, micro: bool) -> &'static [&'static str] {
@@ -29,10 +29,15 @@ pub(super) fn micro_vm_kernel_options(os: &str, arch: &str, accelerator: &str) -
 }
 
 pub(super) fn guest_boot_timeout() -> std::time::Duration {
-    // Software emulation and shared hosts can need more than 35 seconds just
-    // to reach containerd. This is a maximum, not a delay: callers return as
-    // soon as the authenticated guest health probe succeeds.
-    std::time::Duration::from_secs(if cfg!(target_os = "macos") || cfg!(target_arch = "aarch64") { 180 } else { 120 })
+    guest_boot_timeout_for(std::env::consts::OS, std::env::consts::ARCH)
+}
+
+fn guest_boot_timeout_for(os: &str, arch: &str) -> std::time::Duration {
+    // ARM hosts emulate the entire x86 guest. On a Raspberry Pi the kernel
+    // can still be starting OpenRC when the former three-minute limit expires.
+    // This is a maximum, not a delay: callers return as soon as the
+    // authenticated guest health probe succeeds, and detect QEMU exits sooner.
+    std::time::Duration::from_secs(if arch == "aarch64" { 600 } else if os == "macos" { 180 } else { 120 })
 }
 
 #[cfg(test)]
@@ -41,8 +46,15 @@ mod tests {
 
     #[test]
     fn guest_boot_budget_allows_software_emulation_but_remains_bounded() {
-        assert!(guest_boot_timeout() >= std::time::Duration::from_secs(120));
-        assert!(guest_boot_timeout() <= std::time::Duration::from_secs(180));
+        use std::time::Duration;
+        for os in ["linux", "macos", "windows"] {
+            assert_eq!(guest_boot_timeout_for(os, "aarch64"), Duration::from_secs(600));
+        }
+        assert_eq!(guest_boot_timeout_for("macos", "x86_64"), Duration::from_secs(180));
+        for os in ["linux", "windows"] {
+            assert_eq!(guest_boot_timeout_for(os, "x86_64"), Duration::from_secs(120));
+        }
+        assert_eq!(guest_boot_timeout(), guest_boot_timeout_for(std::env::consts::OS, std::env::consts::ARCH));
     }
 
     #[test]

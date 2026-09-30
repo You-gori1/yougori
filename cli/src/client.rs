@@ -70,13 +70,17 @@ fn engine_error(method: &str, error: String) -> String {
 fn request_timeout(request: &Request) -> Duration {
     // Terminal calls can include guest startup plus a 25-second guest request.
     // Keep their I/O independent of the mutation queue without timing out mid-write.
+    // ARM64 hosts can spend ten minutes booting the emulated x86 guest.
+    // Leave time for the subsequent guest request too, rather than abandoning
+    // a terminal mutation while the engine is still preparing its guest.
+    let guest_timeout = Duration::from_secs(if cfg!(target_arch = "aarch64") { 660 } else { 180 });
     match request.method.as_str() {
-        "terminal_action" => Duration::from_secs(180),
+        "terminal_action" => guest_timeout,
         "list_environment_services"
         | "model_status"
         | "model_api_status"
         | "get_storage_allocation"
-        | "vault_summary" => Duration::from_secs(180),
+        | "vault_summary" => guest_timeout,
         "jobs_get" => {
             Duration::from_millis(20_000 + request.params["wait"].as_u64().unwrap_or(0).min(30_000))
         }
