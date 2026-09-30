@@ -423,6 +423,7 @@ impl Live {
         changed.retain(|p| !sync::database_member(p, &self.database_files));
         removed.retain(|p| !sync::database_member(p, &self.database_files));
         self.saved.pending.retain(|p| !sync::database_member(p, &self.database_files));
+        self.keep_remote_links(&mut changed, &mut removed).await?;
         let total = (changed.len() + removed.len()) as u64;
         let progress = (total > 0).then(|| ui::task("Syncing changed project files"));
         let mut completed = 0;

@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync, existsSync, symlinkSync, statSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync, existsSync, symlinkSync, statSync, lstatSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createHash } from 'node:crypto'
@@ -130,7 +130,36 @@ test('directory symlinks and Windows junctions cannot redirect reads or writes',
   symlinkSync(outside,join(root,'link'),process.platform === 'win32' ? 'junction' : 'dir')
   assert.throws(() => call({op:'hash',path:'link/keep'}), /Symlink/)
   assert.throws(() => call({op:'begin',path:'link/new',expected:null}), /Symlink/)
+  writeFileSync(join(root,'ordinary'),'project code')
+  const paths=['ordinary','link/keep','link/missing','missing']
+  assert.deepEqual(call({op:'hashes',paths,skipLinks:true}), {
+    hashes:{ordinary:digest('project code'),missing:null},
+    skipped:['link/keep','link/missing']
+  })
+  assert.deepEqual(call({op:'links',paths}), {skipped:['link/keep','link/missing']})
+  assert.throws(() => call({op:'hashes',paths}), /Symlink/)
+  assert.throws(() => call({op:'links',paths:['../keep']}), /Invalid/)
+  assert.throws(() => call({op:'hashes',paths:['../keep'],skipLinks:true}), /Invalid/)
+  assert.ok(lstatSync(join(root,'link')).isSymbolicLink())
   assert.equal(readFileSync(join(outside,'keep'),'utf8'),'private')
+})
+
+test('resume checks distinguish Linux npm links from missing files without following targets', t => {
+  const {root,call}=fixture(t)
+  mkdirSync(join(root,'node_modules','.bin'),{recursive:true})
+  writeFileSync(join(root,'dependency.js'),'Linux dependency')
+  try { symlinkSync('../../dependency.js',join(root,'node_modules','.bin','tool'),'file') }
+  catch(e) { if(process.platform === 'win32' && e.code === 'EPERM') { t.skip('File symlink privilege unavailable; directory links are tested separately'); return } throw e }
+  symlinkSync('../../missing.js',join(root,'node_modules','.bin','broken'),'file')
+  const paths=['node_modules/.bin/tool','node_modules/.bin/broken','dependency.js','missing.js']
+  assert.deepEqual(call({op:'hashes',paths,skipLinks:true}), {
+    hashes:{'dependency.js':digest('Linux dependency'),'missing.js':null},
+    skipped:['node_modules/.bin/tool','node_modules/.bin/broken']
+  })
+  assert.deepEqual(call({op:'links',paths}), {skipped:['node_modules/.bin/tool','node_modules/.bin/broken']})
+  assert.throws(() => call({op:'delete',path:'node_modules/.bin/tool',expected:null}), /Symlink/)
+  assert.equal(readFileSync(join(root,'dependency.js'),'utf8'),'Linux dependency')
+  assert.ok(lstatSync(join(root,'node_modules','.bin','tool')).isSymbolicLink())
 })
 test('actual sync receiver frames large replies and keeps the one-way protocol working', t => {
   const root = mkdtempSync(join(tmpdir(), 'yougori-sync-protocol-'))

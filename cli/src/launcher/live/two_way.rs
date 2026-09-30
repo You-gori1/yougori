@@ -32,6 +32,17 @@ fn change<'a>(base: Option<&'a str>, local: Option<&'a str>, remote: Option<&'a 
     }
 }
 
+fn skipped_links(reply: &Value, batch: &[String]) -> Result<BTreeSet<String>, String> {
+    let entries = reply["skipped"].as_array().ok_or("Missing sync link inspection")?;
+    let mut skipped = BTreeSet::new();
+    for entry in entries {
+        let path = entry.as_str().ok_or("Invalid sync link inspection")?;
+        if !batch.iter().any(|p| p == path) { return Err("Unexpected sync link path".into()); }
+        skipped.insert(path.to_owned());
+    }
+    Ok(skipped)
+}
+
 fn validate(relative: &str) -> Result<(), String> {
     if relative.is_empty()
         || relative.len() > 4096
@@ -211,9 +222,20 @@ impl Live {
         let paths = paths.into_iter().collect::<Vec<_>>();
         progress.progress("Comparing files", 0, paths.len() as u64, "files");
         let mut completed = 0;
+        let mut kept_links = 0;
         for batch in paths.chunks(32) {
-            let remote = self.receiver.rpc(json!({"op":"hashes","paths":batch})).await?;
+            let reply = self.receiver.rpc(json!({"op":"hashes","paths":batch,"skipLinks":true})).await?;
+            let skipped = skipped_links(&reply, batch)?;
+            let remote = &reply["hashes"];
             for path in batch {
+                // Linux package managers replace Windows command shims with links.
+                // Keep the link, never follow it, and checkpoint the host version
+                // so a reconnect does not try to overwrite it on every launch.
+                if skipped.contains(path) {
+                    if let Some(stamp) = manifest.get(path) { baseline.insert(path.clone(), *stamp); }
+                    kept_links += 1;
+                    continue;
+                }
                 let hash = remote.get(path).ok_or("Missing recovery checksum")?;
                 if let Some(stamp) = manifest.get(path) {
                     if local_hash(&self.folder, path)?.as_deref() == hash.as_str() {
@@ -227,12 +249,30 @@ impl Live {
             progress.progress("Comparing files", completed, paths.len() as u64, "files");
         }
         progress.clear();
+        if kept_links > 0 { ui::info(&format!("Kept {kept_links} container symlink paths; sync does not follow links")); }
         self.saved.files = baseline;
         self.saved.pending.clear();
         self.saved.token.clear();
         self.saved.environment = self.receiver.environment.clone();
         self.saved.two_way = false;
         self.saved.save(&self.state_path)
+    }
+
+    /// Check destinations without reading link targets or hashing large files.
+    pub(super) async fn keep_remote_links(&mut self, changed: &mut BTreeSet<String>, removed: &mut BTreeSet<String>) -> Result<(), String> {
+        let paths: Vec<_> = changed.iter().chain(removed.iter()).cloned().collect();
+        let mut skipped = BTreeSet::new();
+        for batch in paths.chunks(64) {
+            let reply = self.receiver.rpc(json!({"op":"links","paths":batch})).await?;
+            skipped.extend(skipped_links(&reply, batch)?);
+        }
+        if !skipped.is_empty() {
+            changed.retain(|p| !skipped.contains(p));
+            removed.retain(|p| !skipped.contains(p));
+            self.saved.pending.retain(|p| !skipped.contains(p));
+            ui::info(&format!("Kept {} container symlink paths; sync does not follow links", skipped.len()));
+        }
+        Ok(())
     }
 
     /// The same bounded, atomic transfer works for large one-way edits too.
@@ -714,6 +754,19 @@ mod tests {
                 execute(id, "test ! -e /workspace/interrupted.txt; test \"$(cat /workspace/remote.txt)\" = guest; test \"$(cat /workspace/code.txt)\" = changed-offline").await?;
                 // Package managers create these links; they must not block all sync.
                 execute(id, "mkdir -p /workspace/node_modules/.bin; ln -s ../../code.txt /workspace/node_modules/.bin/tool").await?;
+                fs::create_dir_all(folder.path().join("node_modules/.bin")).map_err(|e| e.to_string())?;
+                fs::write(folder.path().join("node_modules/.bin/tool"), "Windows npm shim").map_err(|e| e.to_string())?;
+                live.sync_folders(false).await?;
+                let resumed = sync::scan(folder.path(), &sync::Filter::load(folder.path(), false)?)?;
+                live.reconcile_one_way(&resumed).await?;
+                verify(live.sync_to(resumed.clone()).await? == 0, "Resume recopied a Windows shim onto a Linux link")?;
+                fs::write(folder.path().join("node_modules/.bin/tool"), "edited Windows shim").map_err(|e| e.to_string())?;
+                let edited = sync::scan(folder.path(), &sync::Filter::load(folder.path(), false)?)?;
+                verify(live.sync_to(edited).await? == 0, "An edited shim overwrote a Linux link")?;
+                fs::remove_file(folder.path().join("node_modules/.bin/tool")).map_err(|e| e.to_string())?;
+                let deleted = sync::scan(folder.path(), &sync::Filter::load(folder.path(), false)?)?;
+                verify(live.sync_to(deleted).await? == 0, "Deleting a Windows shim removed a Linux link")?;
+                execute(id, "test -L /workspace/node_modules/.bin/tool; test \"$(cat /workspace/code.txt)\" = changed-offline").await?;
                 live.sync_both(false).await?;
                 verify(local_sql(folder.path(), "SELECT value FROM records WHERE id='guest'")?.contains("guest-only"), "Two-way SQLite sync did not pull a guest record")?;
                 fs::write(folder.path().join("local-delete.txt"), "old").map_err(|e| e.to_string())?;

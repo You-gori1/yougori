@@ -9,14 +9,19 @@ module.exports = function create(root) {
   let upload;
   const sqlite = require('./sqlite.cjs')(relative => target(relative));
   const hashes = new Map();
-  function target(relative, directory = false) {
+  function target(relative, directory = false, inspectLinks = false) {
     if (relative === '' && directory) return root;
     if (typeof relative !== 'string' || !relative || relative.length > 4096 || /[\\\x00-\x1f:]/.test(relative) || relative.split('/').some(p => !p || p === '.' || p === '..' || p.startsWith('.yougori-sync-'))) throw Error('Invalid sync path');
     let current = root;
     if (fs.lstatSync(root).isSymbolicLink()) throw Error('Workspace is a symlink');
     for (const part of relative.split('/')) {
       current = path.join(current, part);
-      try { if (fs.lstatSync(current).isSymbolicLink()) throw Error(`Symlink blocks sync: ${relative}`); }
+      try {
+        if (fs.lstatSync(current).isSymbolicLink()) {
+          if (inspectLinks) return null;
+          throw Error(`Symlink blocks sync: ${relative}`);
+        }
+      }
       catch (e) { if (e.code !== 'ENOENT') throw e; }
     }
     return current;
@@ -72,7 +77,20 @@ module.exports = function create(root) {
       }
       case 'hashes': {
         if (!Array.isArray(r.paths) || r.paths.length > 64) throw Error('Invalid hash batch');
+        if (r.skipLinks === true) {
+          const values = {}, skipped = [];
+          for (const p of r.paths) {
+            const file = target(p, false, true);
+            if (file === null) skipped.push(p);
+            else values[p] = cachedHash(file);
+          }
+          return { hashes: values, skipped };
+        }
         return Object.fromEntries(r.paths.map(p => [p, cachedHash(target(p))]));
+      }
+      case 'links': {
+        if (!Array.isArray(r.paths) || r.paths.length > 64) throw Error('Invalid link batch');
+        return { skipped: r.paths.filter(p => target(p, false, true) === null) };
       }
       case 'list': {
         const dir = target(r.path, true);
