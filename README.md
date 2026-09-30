@@ -189,7 +189,7 @@ You'll need **Git**, **Node.js 24 LTS** and **Rust stable**.
 <br>
 
 ```powershell
-git clone https://github.com/You-gori1/yougori.git
+git clone https://github.com/you-gori/yougori.git
 Set-Location yougori
 rustup default stable-x86_64-pc-windows-msvc
 npm ci
@@ -211,7 +211,7 @@ sudo apt install -y build-essential pkg-config libwebkit2gtk-4.1-dev \
   libssl-dev libxdo-dev qemu-system-x86 qemu-utils ovmf \
   openssh-client ca-certificates
 
-git clone https://github.com/You-gori1/yougori.git
+git clone https://github.com/you-gori/yougori.git
 cd yougori
 npm ci
 npm run cli:bundle
@@ -226,7 +226,7 @@ npm run desktop:dev
 <br>
 
 ```bash
-git clone https://github.com/You-gori1/yougori.git
+git clone https://github.com/you-gori/yougori.git
 cd yougori
 npm ci
 npm run macos:setup
