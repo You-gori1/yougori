@@ -10,13 +10,13 @@ const bash = process.platform === "win32" ? "C:/Program Files/Git/bin/bash.exe" 
 const unix = path => path.replaceAll("\\", "/").replace(/^([A-Za-z]):/, (_, drive) => `/${drive.toLowerCase()}`)
 const script = readFileSync(new URL("./install/install.sh", import.meta.url), "utf8").replaceAll("\r\n", "\n")
 
-function install(t, { extension = "deb", badHash = false, aptExit = "0", engineOnly = "0", os = "Linux", assetKey = "linux-x86_64" } = {}) {
+function install(t, { extension = "deb", badHash = false, aptExit = "0", engineOnly = "0", os = "Linux", arch = "x86_64", assetKey = "linux-x86_64" } = {}) {
   const root = mkdtempSync(join(tmpdir(), "yougori-installer-"))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const bin = join(root, "bin")
   mkdirSync(bin)
   const stubs = {
-    uname: 'if [ "$1" = "-s" ]; then echo "$FIXTURE_OS"; else echo x86_64; fi',
+    uname: 'if [ "$1" = "-s" ]; then echo "$FIXTURE_OS"; else echo "$FIXTURE_ARCH"; fi',
     id: 'echo 1000',
     curl: 'case "$*" in *latest.json*) printf "%s" "$FIXTURE_MANIFEST" ;; *) while [ "$#" -gt 0 ]; do if [ "$1" = "-o" ]; then shift; printf "package" > "$1"; exit 0; fi; shift; done; exit 1 ;; esac',
     sudo: 'exec "$@"',
@@ -34,7 +34,7 @@ function install(t, { extension = "deb", badHash = false, aptExit = "0", engineO
   const sha = createHash("sha256").update("package").digest("hex")
   const log = join(root, "apt.log")
   const env = { ...process.env, HOME: unix(join(root, "home")), FIXTURE_BIN: unix(bin), FIXTURE_OS: os,
-      YOUGORI_ENGINE_ONLY: engineOnly, YOUGORI_AUTOSTART: "", YOUGORI_RELEASES_URL: "https://fixture.invalid/latest.json",
+      FIXTURE_ARCH: arch, YOUGORI_ENGINE_ONLY: engineOnly, YOUGORI_AUTOSTART: "", YOUGORI_RELEASES_URL: "https://fixture.invalid/latest.json",
       FIXTURE_APT_LOG: unix(log), FIXTURE_APT_EXIT: aptExit,
       FIXTURE_MANIFEST: JSON.stringify({ version: "1.0.0", assets: { [assetKey]: { url: `https://fixture.invalid/Yougori.${extension}`, sha256: badHash ? "0".repeat(64) : sha } } }),
   }
@@ -45,6 +45,13 @@ function install(t, { extension = "deb", badHash = false, aptExit = "0", engineO
   if (result.error) throw result.error
   return { result, apt: existsSync(log) ? readFileSync(log, "utf8") : null, engineInstalled: existsSync(join(root, "home/.local/opt/yougori-engine/yougori-engine")), cliInstalled: existsSync(join(root, "home/.local/opt/yougori-engine/cli/yougori")) }
 }
+
+for (const arch of ["aarch64", "arm64"]) test(`Linux ${arch} installs the ARM64 CLI and engine`, t => {
+  const { result, apt, engineInstalled, cliInstalled } = install(t, { arch, engineOnly: null, assetKey: "linux-aarch64-engine", extension: "tar.gz" })
+  assert.equal(result.status, 0, result.stderr)
+  assert.equal(apt, null)
+  assert.equal(engineInstalled && cliInstalled, true)
+})
 
 for (const [os, platform] of [["Linux", "linux"], ["Darwin", "macos"]]) {
   for (const engineOnly of [null, "", "1"]) test(`${os} command installs CLI and engine without the desktop (override ${engineOnly ?? "unset"})`, t => {

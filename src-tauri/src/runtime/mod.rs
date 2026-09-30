@@ -276,7 +276,7 @@ impl RuntimeManager {
                 name: "Yougori OCI Runtime".into(),
                 kind: ProviderKind::Container,
                 status: ProviderAvailability::Ready,
-                detail: if cfg!(target_os = "macos") { "macOS preview · x86-64 container appliance · Homebrew QEMU required; no GPU/CUDA" } else if cfg!(target_os = "linux") { "Bundled containerd appliance · Linux QEMU/KVM" } else { "Bundled containerd appliance · no external runtime required" }.into(),
+                detail: if cfg!(target_os = "macos") { "macOS preview · x86-64 container appliance · Homebrew QEMU required; no GPU/CUDA" } else if cfg!(all(target_os = "linux", target_arch = "aarch64")) { "Linux ARM64 · x86-64 container appliance through QEMU software emulation; no GPU/CUDA" } else if cfg!(target_os = "linux") { "Bundled containerd appliance · Linux QEMU/KVM" } else { "Bundled containerd appliance · no external runtime required" }.into(),
             },
             ProviderStatus {
                 id: "provider-yougori-qemu".into(),
@@ -287,6 +287,8 @@ impl RuntimeManager {
                     "Apple Silicon preview: x86-64 guests use slow software emulation, not ARM virtualization. Use amd64/x86-64 images, not ARM64. VM CPU and RAM changes require shutdown and restart. GPU/CUDA and Windows secure guests are unavailable."
                 } else if cfg!(target_os = "macos") {
                     "Intel Mac preview: HVF acceleration for containers/full VMs with software fallback; microVMs use software emulation. VM CPU and RAM changes require shutdown and restart. GPU/CUDA and Windows secure guests are unavailable."
+                } else if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
+                    "Linux ARM64: x86-64 guests use software emulation. Use amd64/x86-64 guest images. ARM KVM cannot accelerate these guests; GPU/CUDA and Windows secure guests are unavailable."
                 } else if cfg!(target_os = "linux") {
                     if std::fs::OpenOptions::new().read(true).write(true).open("/dev/kvm").is_ok() {
                         "Linux QEMU · KVM hardware acceleration available"

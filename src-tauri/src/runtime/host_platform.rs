@@ -32,7 +32,7 @@ pub(super) fn guest_boot_timeout() -> std::time::Duration {
     // Software emulation and shared hosts can need more than 35 seconds just
     // to reach containerd. This is a maximum, not a delay: callers return as
     // soon as the authenticated guest health probe succeeds.
-    std::time::Duration::from_secs(if cfg!(target_os = "macos") { 180 } else { 120 })
+    std::time::Duration::from_secs(if cfg!(target_os = "macos") || cfg!(target_arch = "aarch64") { 180 } else { 120 })
 }
 
 #[cfg(test)]
@@ -49,6 +49,7 @@ mod tests {
     fn apple_silicon_never_tries_x86_hardware_virtualization() {
         for micro in [false, true] {
             assert_eq!(x86_accelerators("macos", "aarch64", micro), &["tcg,thread=multi"]);
+            assert_eq!(x86_accelerators("linux", "aarch64", micro), &["tcg,thread=multi"]);
         }
         assert_eq!(x86_accelerators("macos", "x86_64", false)[0], "hvf");
         assert_eq!(x86_accelerators("macos", "x86_64", true), &["tcg,thread=multi"]);

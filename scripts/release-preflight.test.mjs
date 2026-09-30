@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import test from "node:test"
-import { assertPortableCli, assertMacCli, nativeTarget, macIntelTarget, macArmTarget, parseManifest, portableCliBuildEnv, releaseTarget, verifyRuntimeDirectory, verifyVersions, windowsPeImports, windowsTarget, linuxTarget } from "./release-preflight.mjs"
+import { assertPortableCli, assertMacCli, assertLinuxCli, releaseArchitecture, nativeTarget, macIntelTarget, macArmTarget, parseManifest, portableCliBuildEnv, releaseTarget, verifyRuntimeDirectory, verifyVersions, windowsPeImports, windowsTarget, linuxTarget, linuxArmTarget } from "./release-preflight.mjs"
 import { macosPaths } from "./macos-setup.mjs"
 
 const hash = value => createHash("sha256").update(value).digest("hex")
@@ -78,13 +78,33 @@ test("release target matches the bundled Windows x64 runtime", () => {
   assert.equal(releaseTarget({ CARGO_BUILD_TARGET: windowsTarget }, "win32", "x64"), windowsTarget)
   assert.equal(releaseTarget({ CARGO_BUILD_TARGET: linuxTarget }, "linux", "x64"), linuxTarget)
   assert.deepEqual(portableCliBuildEnv({ RUSTFLAGS: "-C debuginfo=0" }, "linux"), { RUSTFLAGS: "-C debuginfo=0" })
-  for (const [platform, arch] of [["linux", "arm64"], ["darwin", "ia32"], ["win32", "arm64"], ["win32", "ia32"]]) {
+  assert.equal(nativeTarget("linux", "arm64"), linuxArmTarget)
+  assert.equal(releaseTarget({ CARGO_BUILD_TARGET: linuxArmTarget }, "linux", "arm64"), linuxArmTarget)
+  for (const [platform, arch] of [["linux", "ia32"], ["darwin", "ia32"], ["win32", "arm64"], ["win32", "ia32"]]) {
     assert.throws(() => releaseTarget({}, platform, arch), /Supported desktop builds/)
   }
   for (const variable of ["TAURI_ENV_TARGET_TRIPLE", "CARGO_BUILD_TARGET"]) {
     assert.throws(() => releaseTarget({ [variable]: "aarch64-pc-windows-msvc" }, "win32", "x64"), /Unsupported/)
   }
   assert.throws(() => releaseTarget({ VITE_YOUGORI_TEST_ADAPTER: "1" }, "win32", "x64"), /test adapter/)
+})
+
+test("Linux cross packaging requires an explicit architecture and rejects foreign payloads", () => {
+  assert.equal(releaseArchitecture({ YOUGORI_RELEASE_ARCH: "arm64" }, "linux", "x64"), "arm64")
+  assert.throws(() => releaseArchitecture({ YOUGORI_RELEASE_ARCH: "arm64" }, "win32", "x64"), /Linux only/)
+  assert.throws(() => releaseTarget({ CARGO_BUILD_TARGET: linuxArmTarget }, "linux", "x64"), /Unsupported/)
+  for (const [arch, machine] of [["x64", 62], ["arm64", 183]]) {
+    const elf = Buffer.alloc(64)
+    elf.write("\x7fELF")
+    elf[4] = 2
+    elf[5] = 1
+    elf.writeUInt16LE(3, 16)
+    elf.writeUInt16LE(machine, 18)
+    assertLinuxCli(elf, arch)
+    assert.throws(() => assertLinuxCli(elf, arch === "x64" ? "arm64" : "x64"), /Linux ELF/)
+    elf[5] = 2
+    assert.throws(() => assertLinuxCli(elf, arch), /Linux ELF/)
+  }
 })
 
 test("runtime manifests reject ambiguous, duplicate and escaping Windows paths", () => {

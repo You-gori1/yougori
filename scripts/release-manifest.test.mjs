@@ -44,7 +44,7 @@ test("install.ps1 is pinned to the exact release signer and refuses to run unpin
 test("engine packages use the desktop bundle's own resource map", () => {
   assert.equal(enginePlatform("win32", "x64"), "windows-x86_64-engine")
   assert.equal(enginePlatform("darwin", "arm64"), "macos-aarch64-engine")
-  assert.throws(() => enginePlatform("linux", "arm64"), /Supported desktop builds/)
+  assert.equal(enginePlatform("linux", "arm64"), "linux-aarch64-engine")
   assert.throws(() => enginePlatform("sunos", "x64"))
   const windows = resourceMap("win32")
   assert.equal(windows["resources/runtime/"], "runtime/")
