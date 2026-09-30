@@ -75,8 +75,28 @@ replace the backing appliance of a running development environment.
 - Runtime checksums were verified against the existing records. Source material
   and preview compliance gates verified 239 matching archives. These candidates
   remain unsigned and `productionReady` is false; clean-machine install/upgrade,
-  native macOS, signing, engineering review, public source delivery and
+  native macOS, signing, engineering review and
   account-backed acceptance are still required.
+- Exact Windows and Linux candidate source ZIPs are now published and verified
+  on the public `You-gori1/yougori` repository. This completes public source
+  delivery for those recorded candidate hashes; it does not approve later source
+  edits or establish trusted signatures or clean-machine acceptance.
+
+## Production release follow-up (2026-09-30)
+
+The signing preflight still fails: neither Windows certificate store has a
+code-signing certificate and no signing service is configured. Windows Sandbox
+is not installed, and no native Mac test/build host is configured. These are
+actual outstanding prerequisites, not release labels to remove.
+
+The Windows signing helpers now load their own interpreter's security module,
+including when launched from PowerShell 7. The download manifest generator checks
+trusted signatures and timestamps, handles paths containing spaces, pins the
+publisher, and writes the production manifest after preparing the install files.
+The website has a local production importer that checks exact package hashes,
+Windows desktop/engine signatures, corresponding-source URLs and platform
+installation evidence before enabling ordinary install commands. It retains
+the unsigned preview flow until those checks pass.
 
 ## Previous evidence (2026-09-29)
 

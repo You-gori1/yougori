@@ -59,10 +59,12 @@ export function pinPublisher(script, subject) {
   return script.replace(placeholder, () => `$ExpectedPublisher = '${subject.replace(/'/g, "''")}'`)
 }
 
-function signer(path) {
-  const script = "$s = Get-AuthenticodeSignature -LiteralPath $args[0]; if ($s.Status -ne 'Valid') { exit 3 }; $s.SignerCertificate.Subject"
-  const result = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script, path], { encoding: "utf8", windowsHide: true })
-  if (result.status !== 0) throw new Error(`${path} is not validly signed; sign the release before publishing it`)
+export function windowsSigner(path) {
+  const script = "$ErrorActionPreference = 'Stop'; Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Security/Microsoft.PowerShell.Security.psd1'); $s = Get-AuthenticodeSignature -LiteralPath $env:YOUGORI_RELEASE_SIGNED_FILE; if ($s.Status -ne 'Valid' -or -not $s.TimeStamperCertificate) { exit 3 }; $s.SignerCertificate.Subject"
+  const result = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
+    env: { ...process.env, YOUGORI_RELEASE_SIGNED_FILE: resolve(path) }, encoding: "utf8", windowsHide: true,
+  })
+  if (result.status !== 0) throw new Error(`${path} needs a trusted, timestamped signature before publication`)
   return result.stdout.trim()
 }
 
@@ -81,20 +83,23 @@ async function main() {
     const bytes = readFileSync(path)
     files[key] = { name: basename(path), sha256: createHash("sha256").update(bytes).digest("hex") }
     if (key.startsWith("windows-") && path.toLowerCase().endsWith(".exe")) {
-      const subject = signer(path)
+      const subject = windowsSigner(path)
       if (publisher && publisher !== subject) throw new Error("Windows assets are signed by different publishers")
       publisher = subject
     }
   }
   const out = join(root, "artifacts/website")
   mkdirSync(join(out, "releases"), { recursive: true })
-  writeFileSync(join(out, "releases/latest.json"), JSON.stringify(manifest(version, options.notes, options.baseUrl, files, source), null, 2) + "\n")
   const windows = Object.keys(files).some(key => key.startsWith("windows-"))
   if (windows) {
     if (!publisher) throw new Error("Include the signed Windows installer (.exe) so install.ps1 can pin its publisher")
     writeFileSync(join(out, "install.ps1"), pinPublisher(readFileSync(join(root, "scripts/install/install.ps1"), "utf8"), publisher))
   }
   copyFileSync(join(root, "scripts/install/install.sh"), join(out, "install.sh"))
+  // Publish the manifest last, after the Windows publisher has been verified and pinned.
+  writeFileSync(join(out, "releases/latest.json"), JSON.stringify({
+    ...manifest(version, options.notes, options.baseUrl, files, source), channel: "production",
+  }, null, 2) + "\n")
   console.log(JSON.stringify({ version, publisher: publisher || null, folder: out, assets: Object.keys(files) }))
 }
 

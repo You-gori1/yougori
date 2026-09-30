@@ -1,9 +1,10 @@
 import assert from "node:assert/strict"
-import { readFileSync } from "node:fs"
+import { copyFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import test from "node:test"
 import { fileURLToPath } from "node:url"
-import { manifest, parseArgs, pinPublisher, sourceMetadata } from "./release-manifest.mjs"
+import { manifest, parseArgs, pinPublisher, sourceMetadata, windowsSigner } from "./release-manifest.mjs"
 import { enginePlatform, resourceMap } from "./package-engine.mjs"
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..")
@@ -50,4 +51,16 @@ test("engine packages use the desktop bundle's own resource map", () => {
   assert.equal(windows["resources/cli/yougori.exe"], "cli/yougori.exe")
   assert.equal(windows["resources/vault/yougori-vault.exe"], "vault/yougori-vault.exe")
   assert.equal(resourceMap("linux")["resources/cli/yougori"], "cli/yougori")
+})
+
+test("Windows release verification handles paths with spaces and refuses unsigned payloads", { skip: process.platform !== "win32" }, () => {
+  const folder = mkdtempSync(join(tmpdir(), "yougori-release-signature-"))
+  try {
+    const signed = join(folder, "signed executable with spaces.exe")
+    copyFileSync(join(process.env.SystemRoot ?? "C:\\Windows", "System32/cmd.exe"), signed)
+    assert.match(windowsSigner(signed), /O=Microsoft Corporation/)
+    const unsigned = join(folder, "unsigned executable with spaces.exe")
+    writeFileSync(unsigned, "Unsigned test fixture")
+    assert.throws(() => windowsSigner(unsigned), /trusted, timestamped signature/)
+  } finally { rmSync(folder, { recursive: true, force: true }) }
 })

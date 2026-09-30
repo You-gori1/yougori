@@ -5,6 +5,7 @@ param(
     [string]$TimestampUrl = 'https://timestamp.digicert.com'
 )
 $ErrorActionPreference = 'Stop'
+Import-Module (Join-Path $PSHOME 'Modules\Microsoft.PowerShell.Security\Microsoft.PowerShell.Security.psd1') -ErrorAction Stop
 if ($Action -eq 'Verify') {
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw 'Choose an existing signed executable or installer.' }
     $signature = Get-AuthenticodeSignature -LiteralPath $Path
