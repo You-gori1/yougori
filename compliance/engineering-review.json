@@ -1,0 +1,42 @@
+{
+  "status": "pending",
+  "pendingReason": "The September 29 repository audit repaired and refreshed source/notice evidence. Exact final desktop and engine artifacts, public matching-source delivery, guest-agent binary reproducibility and historical installer coverage still require release-specific verification.",
+  "reviewer": "Codex engineering review",
+  "date": "2026-09-14",
+  "evidence": "docs/compliance-status.md; compliance/evidence; docs/rebuilding-third-party.txt",
+  "scope": "Historical staging source/notices and exact runtime reviewed on 2026-09-14. The current appliance and application changes are not yet approved for distribution.",
+  "decisions": [
+    "Original Yougori code uses the owner's selected AGPL-3.0-only plus NOTICE, with a separate paid commercial option limited to rights Yougori LLC can grant. Third-party licenses remain valid. This license choice does not establish compatibility of an otherwise incompatible combination.",
+    "QEMU is built from the supplied pinned upstream source and GPL-compatible local modifications; the retired JACK/Berkeley DB import chain is absent.",
+    "QEMU exchanges TPM wire commands with a separate BSD helper; no QEMU internal objects or OpenSSL library are linked into QEMU through that helper.",
+    "GMP, Nettle and libunistring use their upstream GPL-2.0-or-later library option; original license declarations and full GPLv2 text are retained.",
+    "Package-built shared libraries have matching MSYS recipes/source inputs; ANGLE is rebuilt from the retained inputs using its separately reviewed D3D11-only profile. Recipients may rebuild/replace them and update editable integrity manifests.",
+    "Linux/appliance packages have exact aports recipes and checked distfiles. Firmware source revisions, build configuration and unchanged shipped bytes are recorded.",
+    "Static OCI libraries have corresponding Debian source/patches and application sources/build procedures for relinking; the musl-linked local helper rebuilt byte-for-byte.",
+    "NoVNC and other copyleft source materials and third-party attribution are retained independently of Yougori's root license.",
+    "Copied Coss UI components and the shared class-name helper retain MIT, with explicit file mapping, upstream attribution and pinned MIT declarations. Current original Yougori modifications are offered under AGPL-3.0-only.",
+    "Tailwind 4.3.3 is included in shipped dependency notices despite its npm development flag because its generated CSS and Preflight form part of the application.",
+    "QEMU modification notices cover all ten changed upstream files. Applying the supplemental comment patch preserves all twelve original build-source hashes after removing only the new headers; existing build records are retained.",
+    "Frontend source/assets, copied-code notices and production CSS/module imports are checked. Source index/checksum mismatches and publication evidence for an older index are rejected.",
+    "The recorded runtime tests passed. Exported QEMU source restoration, patch equivalence and configure/dependency-graph checks passed.",
+    "Public source access must be verified before distribution. Old installer source gaps remain separate and have not been declared resolved.",
+    "The two ANGLE DLL implementations were rebuilt from revision 890b5d8fa2988e3719e0d80421bf3e927db9cd5c. Their 33 reachable targets and 1,633 compiler/source inputs exclude Vulkan/SPIRV-Tools/Vulkan Loader/VMA/SwiftShader code; preprocessing confirms that Apache Roboto glyph data is absent.",
+    "ANGLE embedded notices explicitly retain Chromium helpers, xxHash, Khronos interfaces, Bison/Flex output permissions and compiler support terms. The historical AMD VMA MIT notice is also retained for the replaced MSYS2 package.",
+    "Six Khronos Apache headers contain only API declarations/constants/platform types, with no executable implementation; Apache section 1 excludes mere interface binding from its derivative-work definition. Their source headers and Apache text remain available. This narrow review does not extend to Apache implementation-bearing libraries.",
+    "GCC Runtime Library Exception, LLVM exception and Bison output exception apply to the recorded compilation/output; full terms and supplementary MinGW/Boost/zlib notices are retained. The build uses the unmodified standard GCC toolchain.",
+    "All 77 Windows PE identities/imports are explicitly pinned for native license review. The checker includes libepoxy -> EGL bridge -> ANGLE EGL -> GLES dynamic loads, exact ANGLE build identity, per-component decisions and full embedded notices.",
+    "Eight diskless GPU initialization/selection checks passed for ordinary and secure QEMU. Alpine and Ubuntu non-root hardware rendering tests passed, including physical-adapter switching. The excluded native implementation literal matches fell to zero for SPIRV-Tools, Vulkan Loader and VMA.",
+    "Twenty JavaScript compliance regressions and thirteen Python collector/native-source regressions passed; source/archive, full payload and staging CI results are recorded with the remediation evidence.",
+    "The AGPL/commercial change affects licensing text, package metadata and corresponding-source records. Native executable and DLL bytes are unchanged; paid terms cannot remove third-party GPL/LGPL/MPL obligations. A commercial license requires a separate written agreement and sufficient ownership/contributor rights.",
+    "Application source delivery now includes the tracked frontend, Rust backend, CLI, manifests/lockfiles, assets and scripts in a separate indexed application archive. The packaging gate verifies the current file manifest and actual archive entries, including omissions after archive rehashing. This extends the prior checker coverage; zero recorded blockers is not a blanket legal certification.",
+    "The unresolved September 10 installer download links were removed from staging README. COPYING is the installer license display file, and an extracted/installed-resource checker compares notices with the reviewed checkout. Actual new installer inspection is deferred until those installers are built; historical source gaps remain unresolved."
+  ],
+  "currentAudit": {
+    "date": "2026-09-29",
+    "evidence": "docs/license-review-2026-09-29.md",
+    "status": "repository-remediation-complete-release-verification-pending",
+    "dependencyRecords": 907,
+    "sourceArchives": 239,
+    "basis": "All initial 1377 tracked paths inventoried; notices and source archives refreshed; native evidence rechecked. This does not approve any final installer or waive third-party obligations."
+  }
+}

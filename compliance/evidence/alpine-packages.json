@@ -1,0 +1,542 @@
+[
+  {
+    "name": "alpine-baselayout",
+    "version": "3.7.2-r1",
+    "architecture": "x86_64",
+    "license": "GPL-2.0-only",
+    "origin": "alpine-baselayout",
+    "revision": "60a7585bbab2fa0f762504eb617dbca90216e31f",
+    "url": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/master/main/alpine-baselayout"
+  },
+  {
+    "name": "alpine-baselayout-data",
+    "version": "3.7.2-r1",
+    "architecture": "x86_64",
+    "license": "GPL-2.0-only",
+    "origin": "alpine-baselayout",
+    "revision": "60a7585bbab2fa0f762504eb617dbca90216e31f",
+    "url": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/master/main/alpine-baselayout"
+  },
+  {
+    "name": "alpine-keys",
+    "version": "2.6-r0",
+    "architecture": "x86_64",
+    "license": "MIT",
+    "origin": "alpine-keys",
+    "revision": "b9f23becced4d7b3ccc0fa0f28530243ccd314a0",
+    "url": "https://alpinelinux.org"
+  },
+  {
+    "name": "alpine-release",
+    "version": "3.24.1-r0",
+    "architecture": "x86_64",
+    "license": "MIT",
+    "origin": "alpine-base",
+    "revision": "0934530484bbcde7498e2c694c710a49616a450e",
+    "url": "https://alpinelinux.org"
+  },
+  {
+    "name": "apk-tools",
+    "version": "3.0.6-r0",
+    "architecture": "x86_64",
+    "license": "GPL-2.0-only",
+    "origin": "apk-tools",
+    "revision": "1403ea7a8ae3fb8e5a11207ddb1ff536eb8de912",
+    "url": "https://gitlab.alpinelinux.org/alpine/apk-tools"
+  },
+  {
+    "name": "bridge",
+    "version": "1.5-r5",
+    "architecture": "x86_64",
+    "license": "GPL-2.0-or-later",
+    "origin": "bridge",
+    "revision": "8bac74716d06c84627ab02d101fd9d2bafd0a34c",
+    "url": "https://wiki.alpinelinux.org/wiki/Bridge"
+  },
+  {
+    "name": "busybox",
+    "version": "1.37.0-r31",
+    "architecture": "x86_64",
+    "license": "GPL-2.0-only",
+    "origin": "busybox",
+    "revision": "c3ef5d10e6ef6528852c51f0564963e2f8c1be19",
+    "url": "https://busybox.net/"
+  },
+  {
+    "name": "busybox-binsh",
+    "version": "1.37.0-r31",
+    "architecture": "x86_64",
+    "license": "GPL-2.0-only",
+    "origin": "busybox",
+    "revision": "c3ef5d10e6ef6528852c51f0564963e2f8c1be19",
+    "url": "https://busybox.net/"
+  },
+  {
+    "name": "busybox-mdev-openrc",
+    "version": "1.37.0-r31",
+    "architecture": "x86_64",
+    "license": "GPL-2.0-only",
+    "origin": "busybox",
+    "revision": "c3ef5d10e6ef6528852c51f0564963e2f8c1be19",
+    "url": "https://busybox.net/"
+  },
+  {
+    "name": "ca-certificates",
+    "version": "20260909-r0",
+    "architecture": "x86_64",
+    "license": "MPL-2.0 AND MIT",
+    "origin": "ca-certificates",
+    "revision": "eb7078df3a16d666e8f7723f94bb92e00d4b9236",
+    "url": "https://www.mozilla.org/en-US/about/governance/policies/security-group/certs/"
+  },
+  {
+    "name": "ca-certificates-bundle",
+    "version": "20260611-r0",
+    "architecture": "x86_64",
+    "license": "MPL-2.0 AND MIT",
+    "origin": "ca-certificates",
+    "revision": "e41cbd2ae991adfe8df298ba8e8e777e90bd0e03",
+    "url": "https://www.mozilla.org/en-US/about/governance/policies/security-group/certs/"
+  },
+  {
+    "name": "cryptsetup-libs",
+    "version": "2.8.6-r0",
+    "architecture": "x86_64",
+    "license": "GPL-2.0-or-later WITH cryptsetup-OpenSSL-exception",
+    "origin": "cryptsetup",
+    "revision": "d2f0440960e65952ee22c6b840faecb14d9f0173",
+    "url": "https://gitlab.com/cryptsetup/cryptsetup"
+  },
+  {
+    "name": "device-mapper-libs",
+    "version": "2.03.35-r3",
+    "architecture": "x86_64",
+    "license": "GPL-2.0-or-later AND LGPL-2.1-or-later",
+    "origin": "device-mapper",
+    "revision": "a9f462dee63c7d522585e53f5c04b71eab563ec7",
+    "url": "https://sourceware.org/lvm2/"
+  },
+  {
+    "name": "e2fsprogs",
+    "version": "1.47.4-r0",
+    "architecture": "x86_64",
+    "license": "GPL-2.0-or-later AND LGPL-2.0-or-later AND BSD-3-Clause AND MIT",
+    "origin": "e2fsprogs",
+    "revision": "8683a6972cb245fbbdb535dad6435a9930bb9374",
+    "url": "https://e2fsprogs.sourceforge.net/"
+  },
+  {
+    "name": "e2fsprogs-extra",
+    "version": "1.47.4-r0",
+    "architecture": "x86_64",
+    "license": "GPL-2.0-or-later AND LGPL-2.0-or-later AND BSD-3-Clause AND MIT",
+    "origin": "e2fsprogs",
+    "revision": "8683a6972cb245fbbdb535dad6435a9930bb9374",
+    "url": "https://e2fsprogs.sourceforge.net/"
+  },
+  {
+    "name": "e2fsprogs-libs",
+    "version": "1.47.4-r0",
+    "architecture": "x86_64",
+    "license": "GPL-2.0-or-later AND LGPL-2.0-or-later AND BSD-3-Clause AND MIT",
+    "origin": "e2fsprogs",
+    "revision": "8683a6972cb245fbbdb535dad6435a9930bb9374",
+    "url": "https://e2fsprogs.sourceforge.net/"
+  },
+  {
+    "name": "ifupdown-ng",
+    "version": "0.13.0-r0",
+    "architecture": "x86_64",
+    "license": "ISC",
+    "origin": "ifupdown-ng",
+    "revision": "2c26ffc5e83fc3bc626f2516235b465e67606bf9",
+    "url": "https://github.com/ifupdown-ng/ifupdown-ng"
+  },
+  {
+    "name": "ifupdown-ng-iproute2",
+    "version": "0.13.0-r0",
+    "architecture": "x86_64",
+    "license": "ISC",
+    "origin": "ifupdown-ng",
+    "revision": "2c26ffc5e83fc3bc626f2516235b465e67606bf9",
+    "url": "https://github.com/ifupdown-ng/ifupdown-ng"
+  },
+  {
+    "name": "iproute2-minimal",
+    "version": "7.0.0-r0",
+    "architecture": "x86_64",
+    "license": "GPL-2.0-or-later",
+    "origin": "iproute2",
+    "revision": "3ee752ad0c8445c8105177cd5cebdd730789bcd8",
+    "url": "https://wiki.linuxfoundation.org/networking/iproute2"
+  },
+  {
+    "name": "iptables",
+    "version": "1.8.13-r0",
+    "architecture": "x86_64",
+    "license": "GPL-2.0-or-later",
+    "origin": "iptables",
+    "revision": "8848fb97f5ec1aa887b836cf412d88eaabe312b6",
+    "url": "https://www.netfilter.org/projects/iptables/index.html"
+  },
+  {
+    "name": "iptables-openrc",
+    "version": "1.8.13-r0",
+    "architecture": "x86_64",
+    "license": "GPL-2.0-or-later",
+    "origin": "iptables",
+    "revision": "8848fb97f5ec1aa887b836cf412d88eaabe312b6",
+    "url": "https://www.netfilter.org/projects/iptables/index.html"
+  },
+  {
+    "name": "json-c",
+    "version": "0.18-r1",
+    "architecture": "x86_64",
+    "license": "MIT",
+    "origin": "json-c",
+    "revision": "8e0faa63c91abd41feb359ce5fe4299a88a57ef1",
+    "url": "https://github.com/json-c/json-c/wiki"
+  },
+  {
+    "name": "kmod",
+    "version": "34.2-r1",
+    "architecture": "x86_64",
+    "license": "GPL-2.0-or-later",
+    "origin": "kmod",
+    "revision": "206e7b39f7884d62a174aba4d33a42454518c1c2",
+    "url": "http://git.kernel.org/?p=utils/kernel/kmod/kmod.git;a=summary"
+  },
+  {
+    "name": "kmod-libs",
+    "version": "34.2-r1",
+    "architecture": "x86_64",
+    "license": "LGPL-2.1-or-later",
+    "origin": "kmod",
+    "revision": "206e7b39f7884d62a174aba4d33a42454518c1c2",
+    "url": "http://git.kernel.org/?p=utils/kernel/kmod/kmod.git;a=summary"
+  },
+  {
+    "name": "lddtree",
+    "version": "1.27-r0",
+    "architecture": "x86_64",
+    "license": "GPL-2.0-only",
+    "origin": "lddtree",
+    "revision": "007305e7880a70d5c804019aa3da115da732776b",
+    "url": "https://github.com/ncopa/lddtree"
+  },
+  {
+    "name": "libapk",
+    "version": "3.0.6-r0",
+    "architecture": "x86_64",
+    "license": "GPL-2.0-only",
+    "origin": "apk-tools",
+    "revision": "1403ea7a8ae3fb8e5a11207ddb1ff536eb8de912",
+    "url": "https://gitlab.alpinelinux.org/alpine/apk-tools"
+  },
+  {
+    "name": "libblkid",
+    "version": "2.42.3-r1",
+    "architecture": "x86_64",
+    "license": "LGPL-2.1-or-later",
+    "origin": "util-linux",
+    "revision": "d98c55af59055e6ca60fbe36e171546918709965",
+    "url": "https://git.kernel.org/cgit/utils/util-linux/util-linux.git"
+  },
+  {
+    "name": "libcap2",
+    "version": "2.78-r0",
+    "architecture": "x86_64",
+    "license": "BSD-3-Clause OR GPL-2.0-only",
+    "origin": "libcap",
+    "revision": "0c35848136c4c16a1b1672cb812efa88fffef1c2",
+    "url": "https://sites.google.com/site/fullycapable/"
+  },
+  {
+    "name": "libcom_err",
+    "version": "1.47.4-r0",
+    "architecture": "x86_64",
+    "license": "GPL-2.0-or-later AND LGPL-2.0-or-later AND BSD-3-Clause AND MIT",
+    "origin": "e2fsprogs",
+    "revision": "8683a6972cb245fbbdb535dad6435a9930bb9374",
+    "url": "https://e2fsprogs.sourceforge.net/"
+  },
+  {
+    "name": "libcrypto3",
+    "version": "3.5.7-r0",
+    "architecture": "x86_64",
+    "license": "Apache-2.0",
+    "origin": "openssl",
+    "revision": "4a4352d83ab03720965454a8c7b30b1b6a996c84",
+    "url": "https://www.openssl.org/"
+  },
+  {
+    "name": "libeconf",
+    "version": "0.8.3-r0",
+    "architecture": "x86_64",
+    "license": "MIT",
+    "origin": "libeconf",
+    "revision": "62db33049768522f381410614d59c7d732f72c3a",
+    "url": "https://github.com/openSUSE/libeconf"
+  },
+  {
+    "name": "libelf",
+    "version": "0.195-r0",
+    "architecture": "x86_64",
+    "license": "GPL-3.0-or-later AND ( GPL-2.0-or-later OR LGPL-3.0-or-later )",
+    "origin": "elfutils",
+    "revision": "8f13294206888f3dd44ed74a8eb3dd9934499e81",
+    "url": "https://sourceware.org/elfutils/"
+  },
+  {
+    "name": "libfdisk",
+    "version": "2.42.3-r1",
+    "architecture": "x86_64",
+    "license": "LGPL-2.1-or-later",
+    "origin": "util-linux",
+    "revision": "d98c55af59055e6ca60fbe36e171546918709965",
+    "url": "https://git.kernel.org/cgit/utils/util-linux/util-linux.git"
+  },
+  {
+    "name": "libmnl",
+    "version": "1.0.5-r2",
+    "architecture": "x86_64",
+    "license": "LGPL-2.1-or-later",
+    "origin": "libmnl",
+    "revision": "fc95c59998285564fbcb0bfb2443898c62e10171",
+    "url": "https://www.netfilter.org/projects/libmnl/"
+  },
+  {
+    "name": "libmount",
+    "version": "2.42.3-r1",
+    "architecture": "x86_64",
+    "license": "LGPL-2.1-or-later",
+    "origin": "util-linux",
+    "revision": "d98c55af59055e6ca60fbe36e171546918709965",
+    "url": "https://git.kernel.org/cgit/utils/util-linux/util-linux.git"
+  },
+  {
+    "name": "libncursesw",
+    "version": "6.6_p20260516-r0",
+    "architecture": "x86_64",
+    "license": "X11",
+    "origin": "ncurses",
+    "revision": "2cee8a7328d061418336ad327b512d96bcd7bc5e",
+    "url": "https://invisible-island.net/ncurses/"
+  },
+  {
+    "name": "libnftnl",
+    "version": "1.3.1-r0",
+    "architecture": "x86_64",
+    "license": "GPL-2.0-or-later",
+    "origin": "libnftnl",
+    "revision": "80fae26950fd406b1645cfa15aa6eba0b850ecef",
+    "url": "https://netfilter.org/projects/libnftnl"
+  },
+  {
+    "name": "libsmartcols",
+    "version": "2.42.3-r1",
+    "architecture": "x86_64",
+    "license": "LGPL-2.1-or-later",
+    "origin": "util-linux",
+    "revision": "d98c55af59055e6ca60fbe36e171546918709965",
+    "url": "https://git.kernel.org/cgit/utils/util-linux/util-linux.git"
+  },
+  {
+    "name": "libssl3",
+    "version": "3.5.7-r0",
+    "architecture": "x86_64",
+    "license": "Apache-2.0",
+    "origin": "openssl",
+    "revision": "4a4352d83ab03720965454a8c7b30b1b6a996c84",
+    "url": "https://www.openssl.org/"
+  },
+  {
+    "name": "libuuid",
+    "version": "2.42.3-r1",
+    "architecture": "x86_64",
+    "license": "BSD-3-Clause",
+    "origin": "util-linux",
+    "revision": "d98c55af59055e6ca60fbe36e171546918709965",
+    "url": "https://git.kernel.org/cgit/utils/util-linux/util-linux.git"
+  },
+  {
+    "name": "libxtables",
+    "version": "1.8.13-r0",
+    "architecture": "x86_64",
+    "license": "GPL-2.0-or-later",
+    "origin": "iptables",
+    "revision": "8848fb97f5ec1aa887b836cf412d88eaabe312b6",
+    "url": "https://www.netfilter.org/projects/iptables/index.html"
+  },
+  {
+    "name": "linux-virt",
+    "version": "6.18.52-r0",
+    "architecture": "x86_64",
+    "license": "GPL-2.0-only",
+    "origin": "linux-lts",
+    "revision": "09a165f4c951edf370eddde03b2d1d5fd71805ed",
+    "url": "https://www.kernel.org"
+  },
+  {
+    "name": "mdev-conf",
+    "version": "4.10-r0",
+    "architecture": "x86_64",
+    "license": "MIT",
+    "origin": "mdev-conf",
+    "revision": "203310a84fe34bc9b8dad2c97cba2f5189303415",
+    "url": "https://gitlab.alpinelinux.org/alpine/mdev-conf"
+  },
+  {
+    "name": "mkinitfs",
+    "version": "3.14.1-r0",
+    "architecture": "x86_64",
+    "license": "GPL-2.0-only",
+    "origin": "mkinitfs",
+    "revision": "0baaf041a1e43e98a7381cfcaf0895a9204ab3d9",
+    "url": "https://gitlab.alpinelinux.org/alpine/mkinitfs"
+  },
+  {
+    "name": "mount",
+    "version": "2.42.3-r1",
+    "architecture": "x86_64",
+    "license": "GPL-3.0-or-later AND GPL-2.0-or-later AND GPL-2.0-only AND GPL-1.0-only AND LGPL-2.1-or-later AND BSD-1-Clause AND BSD-3-Clause AND BSD-4-Clause-UC AND MIT AND Public-Domain",
+    "origin": "util-linux",
+    "revision": "d98c55af59055e6ca60fbe36e171546918709965",
+    "url": "https://git.kernel.org/cgit/utils/util-linux/util-linux.git"
+  },
+  {
+    "name": "musl",
+    "version": "1.2.6-r2",
+    "architecture": "x86_64",
+    "license": "MIT",
+    "origin": "musl",
+    "revision": "f5640d3a10f664c9119720c60515265d3d6f6d01",
+    "url": "https://musl.libc.org/"
+  },
+  {
+    "name": "musl-utils",
+    "version": "1.2.6-r2",
+    "architecture": "x86_64",
+    "license": "MIT AND BSD-2-Clause AND GPL-2.0-or-later",
+    "origin": "musl",
+    "revision": "f5640d3a10f664c9119720c60515265d3d6f6d01",
+    "url": "https://musl.libc.org/"
+  },
+  {
+    "name": "ncurses-terminfo-base",
+    "version": "6.6_p20260516-r0",
+    "architecture": "x86_64",
+    "license": "X11",
+    "origin": "ncurses",
+    "revision": "2cee8a7328d061418336ad327b512d96bcd7bc5e",
+    "url": "https://invisible-island.net/ncurses/"
+  },
+  {
+    "name": "openrc",
+    "version": "0.63.2-r0",
+    "architecture": "x86_64",
+    "license": "BSD-2-Clause",
+    "origin": "openrc",
+    "revision": "30c61338b7a04d3c94509eabba5210b7bf81151a",
+    "url": "https://github.com/OpenRC/openrc"
+  },
+  {
+    "name": "openrc-user",
+    "version": "0.63.2-r0",
+    "architecture": "x86_64",
+    "license": "BSD-2-Clause",
+    "origin": "openrc",
+    "revision": "30c61338b7a04d3c94509eabba5210b7bf81151a",
+    "url": "https://github.com/OpenRC/openrc"
+  },
+  {
+    "name": "scanelf",
+    "version": "1.3.9-r1",
+    "architecture": "x86_64",
+    "license": "GPL-2.0-only",
+    "origin": "pax-utils",
+    "revision": "c61801eeacb3ffcd9c2025b09e402153bb93fb39",
+    "url": "https://wiki.gentoo.org/wiki/Hardened/PaX_Utilities"
+  },
+  {
+    "name": "setarch",
+    "version": "2.42.3-r1",
+    "architecture": "x86_64",
+    "license": "GPL-3.0-or-later AND GPL-2.0-or-later AND GPL-2.0-only AND GPL-1.0-only AND LGPL-2.1-or-later AND BSD-1-Clause AND BSD-3-Clause AND BSD-4-Clause-UC AND MIT AND Public-Domain",
+    "origin": "util-linux",
+    "revision": "d98c55af59055e6ca60fbe36e171546918709965",
+    "url": "https://git.kernel.org/cgit/utils/util-linux/util-linux.git"
+  },
+  {
+    "name": "skalibs-libs",
+    "version": "2.15.0.0-r0",
+    "architecture": "x86_64",
+    "license": "ISC",
+    "origin": "skalibs",
+    "revision": "f148233038fa9b35932a7996df29f110b32c2160",
+    "url": "https://skarnet.org/software/skalibs/"
+  },
+  {
+    "name": "ssl_client",
+    "version": "1.37.0-r31",
+    "architecture": "x86_64",
+    "license": "GPL-2.0-only",
+    "origin": "busybox",
+    "revision": "c3ef5d10e6ef6528852c51f0564963e2f8c1be19",
+    "url": "https://busybox.net/"
+  },
+  {
+    "name": "umount",
+    "version": "2.42.3-r1",
+    "architecture": "x86_64",
+    "license": "GPL-3.0-or-later AND GPL-2.0-or-later AND GPL-2.0-only AND GPL-1.0-only AND LGPL-2.1-or-later AND BSD-1-Clause AND BSD-3-Clause AND BSD-4-Clause-UC AND MIT AND Public-Domain",
+    "origin": "util-linux",
+    "revision": "d98c55af59055e6ca60fbe36e171546918709965",
+    "url": "https://git.kernel.org/cgit/utils/util-linux/util-linux.git"
+  },
+  {
+    "name": "util-linux-misc",
+    "version": "2.42.3-r1",
+    "architecture": "x86_64",
+    "license": "GPL-3.0-or-later AND GPL-2.0-or-later AND GPL-2.0-only AND GPL-1.0-only AND LGPL-2.1-or-later AND BSD-1-Clause AND BSD-3-Clause AND BSD-4-Clause-UC AND MIT AND Public-Domain",
+    "origin": "util-linux",
+    "revision": "d98c55af59055e6ca60fbe36e171546918709965",
+    "url": "https://git.kernel.org/cgit/utils/util-linux/util-linux.git"
+  },
+  {
+    "name": "utmps-libs",
+    "version": "0.1.3.3-r0",
+    "architecture": "x86_64",
+    "license": "ISC",
+    "origin": "utmps",
+    "revision": "900a4ecef77ae677eab8243b99f2c40cbf8ea35b",
+    "url": "https://skarnet.org/software/utmps/"
+  },
+  {
+    "name": "xz-libs",
+    "version": "5.8.4-r0",
+    "architecture": "x86_64",
+    "license": "GPL-2.0-or-later AND 0BSD AND Public-Domain AND LGPL-2.1-or-later",
+    "origin": "xz",
+    "revision": "0c088d609f9fe69eedd6b4c7f4b99cdad847c20a",
+    "url": "https://tukaani.org/xz/"
+  },
+  {
+    "name": "zlib",
+    "version": "1.3.2-r0",
+    "architecture": "x86_64",
+    "license": "Zlib",
+    "origin": "zlib",
+    "revision": "f248b33b5943c7dc69bf691031d7612ab2e8ed93",
+    "url": "https://zlib.net/"
+  },
+  {
+    "name": "zstd-libs",
+    "version": "1.5.7-r2",
+    "architecture": "x86_64",
+    "license": "BSD-3-Clause OR GPL-2.0-or-later",
+    "origin": "zstd",
+    "revision": "3c6e2ee2b16f403d53eab39c4426eb61f003c322",
+    "url": "https://facebook.github.io/zstd/"
+  }
+]

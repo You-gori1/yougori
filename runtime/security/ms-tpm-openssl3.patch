@@ -1,0 +1,135 @@
+diff --git a/TPMCmd/TpmConfiguration/TpmConfiguration/TpmProfile_Common.h b/TPMCmd/TpmConfiguration/TpmConfiguration/TpmProfile_Common.h
+index a8dc129..68d7feb 100644
+--- a/TPMCmd/TpmConfiguration/TpmConfiguration/TpmProfile_Common.h
++++ b/TPMCmd/TpmConfiguration/TpmConfiguration/TpmProfile_Common.h
+@@ -157,7 +157,7 @@
+ //***********************************************
+ // Defines controlling ACT
+ //***********************************************
+-#define ACT_SUPPORT                         YES
++#define ACT_SUPPORT                         NO
+ #define RH_ACT_0                                (YES * ACT_SUPPORT)
+ #define RH_ACT_1                                ( NO * ACT_SUPPORT)
+ #define RH_ACT_2                                ( NO * ACT_SUPPORT)
+diff --git a/TPMCmd/tpm/cryptolibs/Ossl/BnToOsslMath.c b/TPMCmd/tpm/cryptolibs/Ossl/BnToOsslMath.c
+index 92ad417..d9b7b46 100644
+--- a/TPMCmd/tpm/cryptolibs/Ossl/BnToOsslMath.c
++++ b/TPMCmd/tpm/cryptolibs/Ossl/BnToOsslMath.c
+@@ -43,12 +43,11 @@ BOOL OsslToTpmBn(bigNum bn, BIGNUM* osslBn)
+     // the results is simply to be discarded.
+     if(bn != NULL)
+     {
+-        int i;
+-        //
+-        GOTO_ERROR_UNLESS((unsigned)osslBn->top <= BnGetAllocated(bn));
+-        for(i = 0; i < osslBn->top; i++)
+-            bn->d[i] = osslBn->d[i];
+-        BnSetTop(bn, osslBn->top);
++        unsigned words = (BN_num_bits(osslBn) + RADIX_BITS - 1) / RADIX_BITS;
++        unsigned bytes = BnGetAllocated(bn) * sizeof(bn->d[0]);
++        GOTO_ERROR_UNLESS(!BN_is_negative(osslBn) && words <= BnGetAllocated(bn));
++        GOTO_ERROR_UNLESS(BN_bn2lebinpad(osslBn, (unsigned char *)bn->d, bytes) == (int)bytes);
++        BnSetTop(bn, words);
+     }
+     return TRUE;
+ Error:
+@@ -65,11 +64,10 @@ BIGNUM* BigInitialized(BIGNUM* toInit, bigConst initializer)
+         FAIL(FATAL_ERROR_PARAMETER);
+     if(toInit == NULL || initializer == NULL)
+         return NULL;
+-    toInit->d     = (BN_ULONG*)&initializer->d[0];
+-    toInit->dmax  = (int)initializer->allocated;
+-    toInit->top   = (int)initializer->size;
+-    toInit->neg   = 0;
+-    toInit->flags = 0;
++    if (!BN_lebin2bn((const unsigned char *)initializer->d,
++                    initializer->size * sizeof(initializer->d[0]), toInit))
++        FAIL(FATAL_ERROR_ALLOCATION);
++    BN_set_flags(toInit, BN_FLG_CONSTTIME);
+     return toInit;
+ }
+ 
+@@ -138,7 +136,6 @@ BOOL BnMathLibraryCompatibilityCheck(void)
+ {
+     OSSL_ENTER();
+     BIGNUM*       osslTemp = BnNewVariable(CTX);
+-    crypt_uword_t i;
+     BYTE test[] = {0x1F, 0x1E, 0x1D, 0x1C, 0x1B, 0x1A, 0x19, 0x18, 0x17, 0x16, 0x15,
+                    0x14, 0x13, 0x12, 0x11, 0x10, 0x0F, 0x0E, 0x0D, 0x0C, 0x0B, 0x0A,
+                    0x09, 0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, 0x00};
+@@ -149,12 +146,16 @@ BOOL BnMathLibraryCompatibilityCheck(void)
+     // Convert the test data to an OpenSSL BIGNUM
+     BN_bin2bn(test, sizeof(test), osslTemp);
+     // Make sure the values are consistent
+-    GOTO_ERROR_UNLESS(osslTemp->top == (int)tpmTemp->size);
+-    for(i = 0; i < tpmTemp->size; i++)
+-        GOTO_ERROR_UNLESS(osslTemp->d[i] == tpmTemp->d[i]);
++    BIGNUM* roundTrip = BigInitialized(BN_NEW(), tpmTemp);
++    GOTO_ERROR_UNLESS(BN_cmp(osslTemp, roundTrip) == 0);
++    BnSetWord(tpmTemp, 0);
++    GOTO_ERROR_UNLESS(OsslToTpmBn(tpmTemp, osslTemp));
++    BIGNUM* roundTrip2 = BigInitialized(BN_NEW(), tpmTemp);
++    GOTO_ERROR_UNLESS(BN_cmp(osslTemp, roundTrip2) == 0);
+     OSSL_LEAVE();
+     return 1;
+ Error:
++    OSSL_LEAVE();
+     return 0;
+ }
+ #  endif
+diff --git a/TPMCmd/tpm/cryptolibs/Ossl/include/Ossl/BnToOsslMath.h b/TPMCmd/tpm/cryptolibs/Ossl/include/Ossl/BnToOsslMath.h
+index 6c73a45..76d6ece 100644
+--- a/TPMCmd/tpm/cryptolibs/Ossl/include/Ossl/BnToOsslMath.h
++++ b/TPMCmd/tpm/cryptolibs/Ossl/include/Ossl/BnToOsslMath.h
+@@ -17,26 +17,11 @@
+ #include <openssl/ec.h>
+ #include <openssl/bn.h>
+ 
+-#if OPENSSL_VERSION_NUMBER >= 0x30100000L
+-// Check the bignum_st definition against the one below and either update the
+-// version check or provide the new definition for this version.
+-#  error Untested OpenSSL version
+-#elif OPENSSL_VERSION_NUMBER >= 0x10100000L
+-// from crypto/bn/bn_lcl.h (OpenSSL 1.x) or crypto/bn/bn_local.h (OpenSSL 3.0)
+-struct bignum_st
+-{
+-    BN_ULONG* d;   /* Pointer to an array of 'BN_BITS2' bit
+-                                    * chunks. */
+-    int       top; /* Index of last used d +1. */
+-                   /* The next are internal book keeping for bn_expand. */
+-    int dmax;      /* Size of the d array. */
+-    int neg;       /* one if the number is negative */
+-    int flags;
+-};
+-#else
+-#  define EC_POINT_get_affine_coordinates EC_POINT_get_affine_coordinates_GFp
+-#  define EC_POINT_set_affine_coordinates EC_POINT_set_affine_coordinates_GFp
+-#endif  // OPENSSL_VERSION_NUMBER
++/* OpenDock: use the public OpenSSL API, never private bignum_st layouts. */
++#if OPENSSL_VERSION_NUMBER < 0x30000000L
++#  error OpenDock requires OpenSSL 3 or newer
++#endif
++static inline void od_bn_free(BIGNUM **value) { BN_clear_free(*value); }
+ 
+ //** Macros and Defines
+ 
+@@ -50,16 +35,12 @@ struct bignum_st
+ // Allocate a local BIGNUM value. For the allocation, a bigNum structure is created
+ // as is a local BIGNUM. The bigNum is initialized and then the BIGNUM is
+ // set to reference the local value.
+-#define BIG_VAR(name, bits)        \
+-    BN_VAR(name##Bn, (bits));      \
+-    BIGNUM  _##name;               \
+-    BIGNUM* name = BigInitialized( \
+-        &_##name, BnInit(name##Bn, BYTES_TO_CRYPT_WORDS(sizeof(_##name##Bn.d))))
++#define BIG_VAR(name, bits) \
++    BIGNUM* name __attribute__((cleanup(od_bn_free))) = BN_new()
+ 
+ // Allocate a BIGNUM and initialize with the values in a bigNum initializer
+ #define BIG_INITIALIZED(name, initializer) \
+-    BIGNUM  _##name;                       \
+-    BIGNUM* name = BigInitialized(&_##name, initializer)
++    BIGNUM* name __attribute__((cleanup(od_bn_free))) = BigInitialized(BN_new(), initializer)
+ 
+ typedef struct
+ {

@@ -1,0 +1,68 @@
+/* Add-port only: no changes to publication, Cloudflare, or folder dialogs. */
+.service-port-workbench {
+  --service-port-secondary: #596272;
+  --service-port-surface: #f5f6f8;
+  --service-port-input: #fff;
+  --service-port-line: #dce0e6;
+  box-shadow: 0 24px 90px #0003;
+}
+.dark .service-port-workbench {
+  --service-port-secondary: #abb3c1;
+  --service-port-surface: #14171c;
+  --service-port-input: #20242b;
+  --service-port-line: #303640;
+  background: #1a1d23;
+  box-shadow: 0 24px 90px #0008;
+}
+.service-port-workbench .service-port-header { flex: 0 0 auto; flex-direction: row; align-items: center; gap: 10px; min-height: 56px; padding: 16px 58px 16px 26px; border-bottom: 1px solid var(--service-port-line); }
+.service-port-header > svg { width: 17px; height: 17px; flex-shrink: 0; color: var(--primary); }
+.service-port-title { display: flex; align-items: baseline; min-width: 0; gap: 6px; }
+.service-port-title > span:first-child { flex-shrink: 0; }
+.service-port-environment { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--service-port-secondary); font-weight: 400; }
+.service-port-columns { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); }
+.service-port-configuration, .service-port-next { min-width: 0; display: flex; flex-direction: column; gap: 20px; padding: 26px; }
+.service-port-workbench [data-slot="field-label"] { font-size: 14px; line-height: 20px; }
+.service-port-workbench .service-port-help, .service-port-detection, .service-port-status { color: var(--service-port-secondary); font-size: 13px; line-height: 1.65; }
+.service-port-input-row { position: relative; width: 100%; margin-top: 4px; }
+.service-port-workbench .service-port-input { border-color: var(--service-port-line); background: var(--service-port-input); border-radius: 12px; box-shadow: none; }
+.service-port-input input { height: 48px; padding-inline: 14px 62px; font: 500 20px/48px var(--font-mono); letter-spacing: .04em; }
+.service-port-protocol { position: absolute; right: 16px; top: 50%; transform: translateY(-50%); color: var(--service-port-secondary); font-size: 11px; font-weight: 500; pointer-events: none; }
+.service-port-range { color: var(--service-port-secondary); font-size: 11px; line-height: 18px; }
+.service-port-presets { display: flex; flex-direction: column; gap: 8px; }
+.service-port-presets > span { font-size: 12px; color: var(--service-port-secondary); }
+.service-port-presets > div { display: flex; flex-wrap: wrap; gap: 5px; }
+.service-port-preset { min-height: 34px; padding: 6px 10px; border-radius: 999px; background: var(--service-port-surface); color: var(--service-port-secondary); font: 12px/20px var(--font-mono); cursor: pointer; }
+.service-port-preset:hover { color: var(--foreground); background: color-mix(in srgb, var(--primary) 8%, transparent); }
+.service-port-preset[aria-pressed="true"] { color: var(--primary); background: color-mix(in srgb, var(--primary) 12%, transparent); }
+.service-port-preset:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
+.service-port-detection { border-top: 1px solid var(--service-port-line); padding-top: 16px; font-size: 12px; }
+.service-port-detection code { color: var(--foreground); font-size: 12px; }
+.service-port-status { padding-left: 12px; border-left: 2px solid var(--service-port-line); font-size: 12px; }
+.service-port-next { border-left: 1px solid var(--service-port-line); background: var(--service-port-surface); gap: 18px; }
+.service-port-next h2 { font-size: 14px; font-weight: 600; }
+.service-port-steps { display: flex; flex-direction: column; gap: 20px; }
+.service-port-steps li { display: flex; align-items: baseline; gap: 12px; }
+.service-port-steps li > span { color: var(--primary); font: 12px/20px var(--font-mono); }
+.service-port-steps h3 { font-size: 13px; font-weight: 500; line-height: 20px; }
+.service-port-steps p { margin-top: 4px; font-size: 12px; line-height: 1.65; color: var(--service-port-secondary); }
+.service-port-destinations { display: flex; flex-wrap: wrap; gap: 10px 16px; }
+.service-port-destinations > span { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--service-port-secondary); }
+.service-port-destinations svg { width: 14px; height: 14px; flex-shrink: 0; }
+.service-port-privacy { padding-top: 14px; border-top: 1px solid var(--service-port-line); font-size: 12px; line-height: 1.65; color: var(--service-port-secondary); }
+.service-port-workbench .service-port-footer { flex-shrink: 0; flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 26px; border-color: var(--service-port-line); background: transparent; }
+.service-port-footer-note { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--service-port-secondary); }
+.service-port-footer-note svg { width: 14px; height: 14px; }
+.service-port-actions { display: flex; align-items: center; gap: 8px; }
+.service-port-workbench .service-port-submit { height: 38px; padding-inline: 18px; border-radius: 999px; }
+.service-port-workbench .service-port-error { font-size: 12px; line-height: 1.6; }
+@media (max-width: 639px) {
+  .service-port-columns { grid-template-columns: minmax(0, 1fr); }
+  .service-port-next { border-left: 0; border-top: 1px solid var(--service-port-line); }
+  .service-port-configuration, .service-port-next { padding: 20px; }
+  .service-port-footer-note { display: none; }
+  .service-port-workbench .service-port-footer { justify-content: flex-end; padding-inline: 20px; }
+}
+@media (max-width: 479px) {
+  .service-port-workbench .service-port-header { padding-left: 20px; padding-right: 50px; }
+  .service-port-header > svg { display: none; }
+}

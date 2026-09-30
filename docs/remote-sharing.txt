@@ -1,0 +1,117 @@
+Remote sharing (requirement 33)
+
+Implemented
+-----------
+[x] Share via Tunnel on environment nodes, list rows and My PC.
+[x] Link + recipient username + password connection in Desktop and CLI.
+[x] Permanent remote entries, remote-specific settings and live status refresh.
+[x] Quick tunnels and remembered dedicated Cloudflare account/domain settings.
+[x] Separate recipient credentials, salted scrypt verifiers, HTTPS, sign-in limits.
+[x] View Only / View & Edit Files / Full Control, enforced by the owner gateway.
+[x] Environment terminals, commands and supported lifecycle controls.
+[x] Full-VM desktop and OCI/Alpine MicroVM app displays for Full Control grants.
+[x] Shared workspace Skills, app launcher, installers, windows and fullscreen.
+[x] Scoped file browsing, editing, files/folder upload and files/folder download.
+[x] Explicit PC folder consent, persistent sharing indicator and disconnect-all.
+[x] Expiration, per-recipient disconnect/revocation/password reset/permission edits.
+[x] Revocation cancels requests, closes terminals and disconnects display streams.
+[x] Bounded owner activity history with no passwords, tokens or command contents.
+[x] Removing a recipient entry never stops or deletes the original target.
+[x] Gateway stays independent of workload power; no public engine or vault API.
+
+Not complete / deliberately unavailable
+--------------------------------------
+[ ] Unrestricted My PC commands, keyboard/mouse and desktop control. This needs a
+    separate restricted OS identity/session and protected approval UI. It must
+    not inherit the local user's engine, credential-store or vault privileges.
+[ ] Cloud and GPU-container graphical desktops; these runtimes have no integrated
+    display. OCI containers and built-in Alpine MicroVM app sessions are supported.
+[ ] Cloud-provider lifecycle delegation. SSH-only nodes expose commands/files;
+    starting/stopping their provider VM is still an owner-side operation.
+[ ] Read-only VNC screens: the raw VNC bridge is Full Control only. Client-side
+    viewOnly alone is not a security boundary and is not advertised as one.
+[ ] Full-VM file/terminal guest agent integration. VM desktops and power work;
+    direct file APIs require the container, microVM or SSH agent.
+
+How to share
+------------
+1. Select Share via Tunnel on the target.
+2. Create a recipient, choose a permission and optional expiry. Choose a folder
+   if files are needed. My PC requires explicit consent for an absolute folder.
+3. Enable a quick tunnel or configure a dedicated account tunnel using the
+   existing Cloudflare setup. An active sharing tunnel is reused.
+4. Copy the recipient link and username. Send the password separately.
+5. The recipient chooses New environment > Shared environment. Connected
+   environments appear in Nodes and List; there is no additional sidebar.
+
+Sharing starts disabled. Recipient grants survive an owner restart, but enabling
+the tunnel again is explicit. Quick links change after a tunnel restart; named
+domain settings and tokens can be remembered in the OS credential store.
+Saved recipient entries remain after restart. After a successful connection,
+the share link, recipient username, password and session token are kept in the
+recipient's OS credential store. Reconnect signs in again with those saved
+details. Existing entries saved before this change need one manual sign-in to
+save their recipient credentials. A changed quick link or recipient password
+must be entered again. Removing the remote entry deletes its saved credentials.
+Session tokens expire after 12 hours, after 15 minutes idle, at the grant's
+expiration or on revocation. A new sign-in updates an existing entry for the
+same hostname and share ID.
+
+Full Control can use folders/connections already granted to the target only if
+the owner explicitly acknowledges them. File-only APIs never invoke a shell.
+Guest file APIs reject symbolic links, hard links and nested mount traversal.
+PC files use directory confinement and reject symbolic links and hard links.
+PC application, system and vault storage cannot be selected as shared roots.
+
+Cloudflare terminates the public HTTPS connection and forwards to the protected
+loopback gateway. Cloudflare can carry decrypted traffic at its edge; this is
+not an end-to-end encrypted tunnel between two Yougori installations.
+
+File limits: 64 KiB chunks and text edits; desktop single-file transfers up to
+100 MiB; native folder downloads up to 100 GiB, 50,000 entries and 64 levels.
+Downloads create a new destination subfolder and never overwrite local files.
+Partial new uploads/downloads are kept if interrupted. Text saves use an
+expected-content check and atomic replacement, not in-place partial writes.
+
+CLI
+---
+yougori remote create --file - --yes
+  stdin JSON: {"request":{"targetId":"env-ID","username":"teammate",
+    "password":"YOUR-UNIQUE-STRONG-PASSWORD","permission":"view",
+    "folder":"/workspace","expiresAt":null}}
+yougori remote start --yes
+yougori remote list
+yougori remote connect --file -
+  stdin JSON: {"link":"https://HOST/share/share-ID","username":"teammate",
+    "password":"PASSWORD-FROM-OWNER"}
+yougori remote inspect env-ID
+yougori remote files env-ID --file -
+  stdin JSON: {"params":{"operation":"list","path":""}}
+yougori remote download env-ID --destination C:/Users/Me/Downloads
+yougori remote disconnect share-ID
+yougori remote update share-ID --permission view
+yougori remote revoke share-ID
+yougori remote stop
+
+Use ordinary yougori exec/logs/start/stop/restart/rm and terminal commands with
+the recipient's environment ID. The owner still authorizes each operation.
+Use stdin or a protected request file for passwords; avoid shell-history flags.
+yougori schema METHOD describes the complete native contract.
+
+Validation
+----------
+Rust gateway tests cover HTTP sign-in, scoped files, credential reset, revocation,
+password verifiers, rate limiting, expiry, protected methods and bounded audit.
+The display bridge test uses synthetic VNC bytes, not captured user screens.
+Go and Python connector tests cover traversal, symlinks, hard links, read-only
+access, binary chunks and stale edits. Frontend tests cover capability gating,
+reconnect feedback, ordered display transport and non-mutating remote opening.
+A temporary public Cloudflare tunnel successfully exercised HTTPS sign-in,
+permitted file reads, native folder download and logout using disposable data.
+Final focused runs passed 46 frontend tests and 10 gateway/display tests.
+The frontend production build, CLI tests/bundle, Go agent tests and Python
+connector tests passed. No real remote desktop session was visually tested.
+
+After rebuilding Desktop, restart existing guests when convenient to load the
+updated boot-time/CUDA agent; reconnect SSH nodes to load the updated connector.
+No running user environment was restarted during implementation.

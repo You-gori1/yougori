@@ -1,0 +1,15 @@
+# Native runtimes and release material are not used by the web dev server.
+/src-tauri/resources/
+/runtime/
+/tmp/
+/artifacts/
+/compliance/
+/engine/target/
+/cli/target/
+/vault/target/
+*.qcow2
+*.vhdx
+*.iso
+*.deb
+*.msi
+*.exe

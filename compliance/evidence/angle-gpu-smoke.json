@@ -1,0 +1,186 @@
+[
+  {
+    "runtime": "qemu",
+    "requested": null,
+    "actual": {
+      "ok": true,
+      "luid": "00000000:000132b0",
+      "vendorId": 32902,
+      "deviceId": 32103,
+      "subSysId": 2148538282,
+      "revision": 6,
+      "memoryBytes": 134217728,
+      "name": "Intel(R) Graphics"
+    },
+    "naturalExitCode": null,
+    "disklessFixtureStopped": true,
+    "stderr": "",
+    "passed": true
+  },
+  {
+    "runtime": "qemu",
+    "requested": {
+      "luid": "00000000:000132b0",
+      "vendorId": 32902,
+      "deviceId": 32103,
+      "subSysId": 2148538282,
+      "revision": 6,
+      "memoryBytes": 134217728,
+      "name": "Intel(R) Graphics"
+    },
+    "actual": {
+      "ok": true,
+      "luid": "00000000:000132b0",
+      "vendorId": 32902,
+      "deviceId": 32103,
+      "subSysId": 2148538282,
+      "revision": 6,
+      "memoryBytes": 134217728,
+      "name": "Intel(R) Graphics"
+    },
+    "naturalExitCode": null,
+    "disklessFixtureStopped": true,
+    "stderr": "",
+    "passed": true
+  },
+  {
+    "runtime": "qemu",
+    "requested": {
+      "luid": "00000000:00013776",
+      "vendorId": 4318,
+      "deviceId": 11352,
+      "subSysId": 2148538282,
+      "revision": 161,
+      "memoryBytes": 25309478912,
+      "name": "NVIDIA GeForce RTX 5090 Laptop GPU"
+    },
+    "actual": {
+      "ok": true,
+      "luid": "00000000:00013776",
+      "vendorId": 4318,
+      "deviceId": 11352,
+      "subSysId": 2148538282,
+      "revision": 161,
+      "memoryBytes": 25309478912,
+      "name": "NVIDIA GeForce RTX 5090 Laptop GPU"
+    },
+    "naturalExitCode": null,
+    "disklessFixtureStopped": true,
+    "stderr": "",
+    "passed": true
+  },
+  {
+    "runtime": "qemu",
+    "requested": {
+      "luid": "7fffffff:ffffffff",
+      "name": "intentionally missing GPU"
+    },
+    "actual": {
+      "ok": false,
+      "error": "Graphics opened a different GPU; the requested selection was refused",
+      "luid": "00000000:000132b0",
+      "vendorId": 32902,
+      "deviceId": 32103,
+      "subSysId": 2148538282,
+      "revision": 6,
+      "memoryBytes": 134217728,
+      "name": "Intel(R) Graphics"
+    },
+    "naturalExitCode": 1,
+    "disklessFixtureStopped": false,
+    "stderr": "C:\\Users\\Argon\\Desktop\\yougori\\build\\angle-smoke-r4gpnfnu\\qemu\\qemu-system-x86_64.exe: egl: eglInitialize failed: EGL_SUCCESS\r\nC:\\Users\\Argon\\Desktop\\yougori\\build\\angle-smoke-r4gpnfnu\\qemu\\qemu-system-x86_64.exe: egl: init failed\r\n",
+    "passed": true
+  },
+  {
+    "runtime": "qemu-secure",
+    "requested": null,
+    "actual": {
+      "ok": true,
+      "luid": "00000000:000132b0",
+      "vendorId": 32902,
+      "deviceId": 32103,
+      "subSysId": 2148538282,
+      "revision": 6,
+      "memoryBytes": 134217728,
+      "name": "Intel(R) Graphics"
+    },
+    "naturalExitCode": null,
+    "disklessFixtureStopped": true,
+    "stderr": "",
+    "passed": true
+  },
+  {
+    "runtime": "qemu-secure",
+    "requested": {
+      "luid": "00000000:000132b0",
+      "vendorId": 32902,
+      "deviceId": 32103,
+      "subSysId": 2148538282,
+      "revision": 6,
+      "memoryBytes": 134217728,
+      "name": "Intel(R) Graphics"
+    },
+    "actual": {
+      "ok": true,
+      "luid": "00000000:000132b0",
+      "vendorId": 32902,
+      "deviceId": 32103,
+      "subSysId": 2148538282,
+      "revision": 6,
+      "memoryBytes": 134217728,
+      "name": "Intel(R) Graphics"
+    },
+    "naturalExitCode": null,
+    "disklessFixtureStopped": true,
+    "stderr": "",
+    "passed": true
+  },
+  {
+    "runtime": "qemu-secure",
+    "requested": {
+      "luid": "00000000:00013776",
+      "vendorId": 4318,
+      "deviceId": 11352,
+      "subSysId": 2148538282,
+      "revision": 161,
+      "memoryBytes": 25309478912,
+      "name": "NVIDIA GeForce RTX 5090 Laptop GPU"
+    },
+    "actual": {
+      "ok": true,
+      "luid": "00000000:00013776",
+      "vendorId": 4318,
+      "deviceId": 11352,
+      "subSysId": 2148538282,
+      "revision": 161,
+      "memoryBytes": 25309478912,
+      "name": "NVIDIA GeForce RTX 5090 Laptop GPU"
+    },
+    "naturalExitCode": null,
+    "disklessFixtureStopped": true,
+    "stderr": "",
+    "passed": true
+  },
+  {
+    "runtime": "qemu-secure",
+    "requested": {
+      "luid": "7fffffff:ffffffff",
+      "name": "intentionally missing GPU"
+    },
+    "actual": {
+      "ok": false,
+      "error": "Graphics opened a different GPU; the requested selection was refused",
+      "luid": "00000000:000132b0",
+      "vendorId": 32902,
+      "deviceId": 32103,
+      "subSysId": 2148538282,
+      "revision": 6,
+      "memoryBytes": 134217728,
+      "name": "Intel(R) Graphics"
+    },
+    "naturalExitCode": 1,
+    "disklessFixtureStopped": false,
+    "stderr": "C:\\Users\\Argon\\Desktop\\yougori\\build\\angle-smoke-r4gpnfnu\\qemu-secure\\qemu-system-x86_64.exe: egl: eglInitialize failed: EGL_SUCCESS\r\nC:\\Users\\Argon\\Desktop\\yougori\\build\\angle-smoke-r4gpnfnu\\qemu-secure\\qemu-system-x86_64.exe: egl: init failed\r\n",
+    "passed": true
+  }
+]

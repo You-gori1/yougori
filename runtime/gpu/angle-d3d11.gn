@@ -1,0 +1,34 @@
+# Yougori's Windows QEMU renderer uses ANGLE's D3D11 backend.
+# Keep optional implementations out of the DLL, not merely unselected at runtime.
+target_cpu = "x64"
+is_debug = false
+is_clang = false
+is_component_build = true
+angle_build_all = false
+angle_build_tests = false
+build_angle_deqp_tests = false
+angle_enable_abseil = false
+angle_enable_cl = false
+angle_enable_d3d9 = false
+angle_enable_d3d11 = true
+angle_enable_gl = false
+angle_enable_metal = false
+angle_enable_null = false
+angle_enable_vulkan = false
+angle_enable_wgpu = false
+angle_enable_swiftshader = false
+angle_build_vulkan_system_info = false
+angle_enable_overlay = false
+angle_has_astc_encoder = false
+angle_has_frame_capture = false
+angle_has_rapidjson = false
+angle_has_histograms = false
+angle_shared_libvulkan = false
+chrome_pgo_phase = 0
+use_custom_libcxx = false
+use_libcxx_modules = false
+use_lld = false
+use_siso = false
+use_sysroot = false
+win_enable_cfg_guards = true
+treat_warnings_as_errors = false

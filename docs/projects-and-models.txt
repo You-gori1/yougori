@@ -1,0 +1,401 @@
+YOUGORI PROJECTS, CHANGES AND MODELS
+
+Public CLI
+  yougori                         Open the main menu; quietly add this project's shortcut
+  yougori cli                     Guided menus; arrow keys and Enter to choose
+  yougori help                    Show the command reference
+  yougori run nginx
+  yougori run -d --name website -p 8080:80 nginx:alpine
+  yougori run -it ubuntu
+  yougori run --gpu nvidia ubuntu sleep 2147483647
+  yougori run --isolation microvm ubuntu sleep 2147483647
+  yougori machine run C:\Images\ubuntu.iso
+
+Run `yougori` to open the main menu. In a supported project folder, it quietly adds
+a shortcut: npm/pnpm/yarn/bun run yougori for Node.js, or python yougori for Python.
+Existing shortcuts and files are preserved. This registration does not start the engine,
+create containers, install dependencies or run the project. Unsupported, invalid or
+unwritable projects do not prevent the menu from opening. Piped commands do not edit files.
+Run the shortcut or `yougori launch` when ready to configure and start the project.
+The Python shortcut needs Python on the PC; `yougori launch` only needs the installed CLI.
+Use lowercase `yougori` on Linux and macOS, where command names are case-sensitive.
+In a new project, or when files differ from the last container sync, `yougori`
+and `yougori cli` first offer to run the detected or saved command, or continue
+to the main menu. Unchanged projects go directly to the menu. The check uses
+existing sync metadata, respects the project's ignore rules, and does not start
+the engine. Continuing to the menu leaves the changes pending for a later run.
+From the home menu, choose a project folder, create
+or manage environments, run/chat with models, copy files, share a PC folder,
+manage snapshots/backups, set up RunPod, open MCP Vault and its approval/setup
+flows, or change startup/storage settings.
+The path browser lists folders and files and also accepts pasted paths to other
+drives. Stop, deletion, restore and shutdown actions explain their effects and
+ask for confirmation. Escape cancels the current flow; Exit leaves workloads
+running. Errors return to the menu. An interactive terminal is required.
+`yougori help`, `yougori --help` and `yougori -h` print the command reference.
+`npm run yougori` keeps its existing project launcher behavior.
+`npm run yougori-cloud` runs the same project on a connected Linux cloud server.
+Run `yougori` once in an existing Node.js project to add the new shortcut; custom
+scripts are preserved. You can also run `yougori launch --cloud` directly, or
+`python yougori --cloud` in a Python project.
+Each cloud launch asks which connected server to use. Its SSH account needs
+access to Docker Engine. Yougori creates a dedicated project container, copies
+the filtered project over SSH, installs dependencies, streams dev logs, and
+syncs saved edits. First setup asks for resources, access, the run command and
+permission to copy .env files. Settings are separate per project and server,
+and separate from local launch. Use `npm run yougori-cloud -- --change` to edit them.
+Local and public links are forwarded through this PC over pinned SSH; keep
+Yougori running while using them. The container's port binds only to the cloud
+server's loopback address. Ctrl+C or q removes this session's publications and
+stops only its project container, preserving dependencies for the next run.
+The cloud server remains connected; other workloads keep running. The live
+resource footer reports the selected cloud environment's usage.
+During first setup or --change, both Recommended and Customize ask who can open
+the app: this computer, local network, quick public link, or your own domain.
+Saved domain choices show the current service's domain as "Connected to this
+node" and keep it selectable. Unassigned domains are available; domains and
+tunnel ports reserved by other nodes/services remain visible but greyed out,
+with the owning node named. Live and saved stopped/reconnecting routes count.
+This applies to local/cloud project setup, model setup and CLI public-access
+menus. Switching public domains replaces only that service's old Cloudflare
+publication before publishing the new route; an unchanged route is reused.
+Recommended applies the default CPU, memory and ports. For local project
+containers, storage is twice the current project folder's file size, rounded
+up to whole GiB with a 1 GiB minimum. Measurement includes ignored files,
+dependencies and .env files; launcher-internal temporary files and links are
+omitted as in the project copy. The measured size and recommendation are shown
+before selecting resources. New custom setups start at this storage value too.
+Existing storage is kept when it is larger, since disks can only grow.
+Cloud project containers use the connected server's existing disk instead of
+allocating a separate local disk.
+On first launch and --change, "How do you want to run it?" offers the detected
+command (normally npm run dev), other project run scripts such as dev:full,
+and Linux alternatives to Windows launch scripts, including build-and-start
+when the project's scripts provide it. The menu follows script aliases, removes
+duplicate commands and ranks commands by the services and build steps it can
+recognize. It favors coverage of the app's services over a frontend-only or
+backend-only command, then a prepared application server over a development
+server or static preview. When a production start needs generated output, it
+can pair it with the project's existing build script. The strongest supported
+choice appears first, in blue, with (Recommended) on the right and a short reason.
+This is a static recommendation, not a runtime check. Unknown script runners,
+incomplete service combinations and sequential foreground servers do not receive
+a recommendation. Existing explicit command selections remain selected.
+Custom command remains available for entering another command. This menu is
+shared by local and cloud launches. Commands run inside the container in the project folder.
+The choice is saved in ~/.yougori/launch (Windows: %USERPROFILE%\.yougori\launch).
+Bulk project copies show measured progress below the copying step: an archive
+preparation bar, a transfer bar, bytes completed and bytes left in each phase.
+Counting files and finishing the copy stay indeterminate until measurements are
+available; transferring the last byte does not mark the project ready. Both the
+CLI and the running Yougori engine need the progress update. Older engines still
+copy normally, showing a waiting status rather than an estimated percentage.
+Sync helper setup and changed files also show measured progress. Database sync
+shows the current database and its position in the list, record counts while
+reading/indexing, staging changes, validating and committing, and byte counts
+for large records and files. Time remaining is estimated from measured advances
+in the current step; it appears after progress is observed and resets between
+steps. It is not an estimate for the entire launch, which also includes builds
+and dependency installation. No files or backup databases are omitted for speed.
+Small SQLite records travel in batches of up to 64, limited by encoded byte size;
+inventory pages hold up to 512 entries. SQL statements are reused. Large records
+keep their bounded transfer, and all expected destination rows are checked in
+the same transaction before any write is committed.
+Unchanged databases skip record inventories during a live session using SQLite
+change versions, including both app writes and the helper's own commits. Helper
+restarts, database replacements, mode changes and priority changes invalidate
+that shortcut. Unchanged record baselines do not rewrite the sync checkpoint.
+
+Project setup also asks "How should project files sync?" One-way (this computer
+to the environment) is the default. Two-way is optional and saves terminal edits,
+new files and deletions from /workspace back into the laptop project folder.
+The choice is saved per local project or project/cloud server. Existing projects
+are asked once after updating; later runs reuse the choice. Use npm run
+yougori-change (cloud: npm run yougori-cloud -- --change) to change it again.
+Two-way setup also asks which copy takes priority if both changed: This computer
+wins, Container wins, or Keep both versions. This includes code, other files,
+folder deletion/edit conflicts and SQLite records. Changes made on just one side
+still travel both ways. One-way always sends computer changes to the container;
+it never pulls container records or files back. Existing two-way projects are
+asked for priority once; selecting a winner can overwrite conflicting changes
+or apply conflicting deletions on the other side.
+Setup asks when changes should sync: On demand, or Continuously. It measures the
+whole project folder and recommends Continuously below 2.5 GB, or On demand at
+2.5 GB and above. The recommended option is selected on first review; an existing
+reviewed choice remains selected when editing settings.
+Both sync once at launch. Press y in the running launcher to open the Sync menu:
+Sync to container sends computer changes; Sync to this computer receives
+container changes and is disabled in one-way mode. Two-way also offers Sync both
+ways. A directional handoff keeps opposite-direction changes pending, including
+across restarts. Conflict priority is respected; if it selects the opposite
+direction, that conflict waits for a handoff in that direction or Sync both ways.
+On-demand sessions have no filesystem watcher, no periodic database comparison,
+and no final sync on quit. Sync home before quitting when switching to localhost.
+Continuous sync checks about every five seconds, watches local
+edits, and flushes the configured direction(s) before a normal quit.
+The first launch copies the project; subsequent launches send changed files and
+deletions. Interrupted checkpoints are recovered by comparing checksums against
+the existing workspace, preserving guest-only runtime files. They do not trigger
+another full project copy. Temporary transfer errors keep both copies intact;
+retry from the Sync menu, or let continuous mode retry while the app keeps running.
+Both modes include ordinary project files regardless of
+.gitignore or .yougoriignore: databases, uploads, dependencies, builds and .git.
+The chosen .env preference still applies; transient sync files are omitted.
+Files larger than 256 MiB are supported with bounded transfers.
+Edits outside /workspace are not synced.
+If both copies changed since their last shared version, including edit/delete
+conflicts, the selected priority decides the winner. Keep both versions leaves
+the conflicting file or record untouched until resolved. Initial differences
+when enabling two-way follow the same preference. Empty directories are tracked
+as well as files. Symlinks and special files are
+not followed or transferred; their paths are protected from deletion and do not
+block other files. Incompatible filenames pause sync with an explanation.
+SQLite databases are detected by their file header. Their committed records are
+read through SQLite (including WAL writes while the app stays open), compared
+against persisted row checksums and transferred in the selected direction.
+For an empty workspace, SQLite's page backup creates consistent snapshots,
+including committed WAL data, implicit rowids and database metadata. The source
+is opened read-only with a pinned read view. These snapshots travel with the
+first bulk project copy; their row checksums become the persisted baseline, so
+existing records are not sent again in small sync messages. Snapshot and record
+checkpoint preparation show progress. Existing workspaces are never replaced
+with snapshots. Later DB/WAL/SHM/journal files bypass raw file copying.
+Each destination record batch validates expected records and commits
+in a transaction with foreign-key checks. Concurrent writes cause a retry, without
+acknowledging an unapplied batch. Normal, composite and rowid keys, blobs, 64-bit
+integers and logical FTS rows are supported; SQLite shadow tables are not copied.
+The helper needs Node.js 22.16+ on both sides and matching database schemas.
+Windows canonical project paths use the native filesystem resolver. Directory
+detection reuses open database connections and leaves their DB/WAL/SHM descriptors
+alone, preserving SQLite's file locks. If the local helper exits, the current
+batch stops once, reports its startup/process error and
+restarts the helper on the next sync attempt instead of reusing a closed pipe.
+Schema mismatches, constraint failures, unsupported keys or a whole previously
+synced database disappearing pause that database with an explanation; other files
+continue. Whole-database deletion and schema migration are not automated. Other
+database engines do not receive record replication from this SQLite helper.
+SQLite helper API: https://nodejs.org/docs/latest-v24.x/api/sqlite.html
+Interrupted transfers leave original
+files intact; checksums and the saved baseline allow reconciliation next launch.
+Later launches reuse it automatically while the project's node still exists.
+Deleting the node removes its launcher settings and sync metadata; stopping it keeps them.
+The launcher also discards stale settings for nodes deleted by older versions, then asks
+the first-run questions again. It keeps project source files and package shortcuts.
+`npm run yougori-change` opens the settings questions directly, then runs the project.
+Run `yougori` once in an existing project to add this shortcut. Existing custom
+scripts are preserved. The longer `npm run yougori -- --change` also still works.
+Custom commands run as entered, including shell operators such as &&. Set the
+application's listening port when prompted. File-sync restarts reuse the choice.
+While dependencies install and the dev server starts, the CLI shows an animated
+status and the current attempt. Failed installs or nonzero app exits retry up to
+two attempts total per launch/restart, with a short delay between attempts.
+After the second failure it keeps the error visible and waits for a saved edit
+or an explicit restart (r). A normal exit does not trigger an automatic retry.
+Failure details identify the failed step and exit code, show available CPU/RAM
+limits, and check for new container OOM kills. Exit 137 alone is reported as an
+unconfirmed forced kill. To change RAM, quit with q and use `yougori launch --change`.
+Long footer links move to their own rows. Narrow terminals show "Open link" with
+the full URL as the hyperlink target; u prints full URLs and p opens the public link.
+The highlighted "t Open terminal" opens a separate interactive shell while project
+logs and file sync continue. Local projects open in /workspace; cloud projects open
+inside their project container, not the cloud host. In model chat (including RunPod),
+send /terminal; while the model is loading, press t. Model shells open in the active
+model environment. Type exit or press Ctrl+] to close the shell without stopping
+the workload. Ctrl+C inside that shell interrupts its foreground command only.
+You can also use `yougori terminal ENV` from another terminal. A desktop terminal
+application is required for opening a new window on Linux.
+
+Python projects are detected by pyproject.toml, requirements.txt, setup.py, manage.py,
+main.py or app.py. When package.json is also present, Node.js takes precedence;
+launch from the Python subfolder for a separate backend. Python defaults to 3.12;
+.python-version can choose the 3.10–3.14 minor series (patch versions follow the image).
+The version appears during setup. Dependency metadata still enforces its own Python
+requirements; choose a compatible .python-version if installation rejects the default.
+Dependencies install with pip from requirements.txt, or an installable pyproject.toml/
+setup.py, inside a container virtual environment. uv, Poetry and Pipenv projects currently
+need a manually configured container; their lockfiles are never silently ignored.
+Django manage.py, main.py and app.py provide suggested commands; otherwise enter a
+custom command, such as python -m uvicorn myapp:app --host 0.0.0.0 --port 8000.
+Python changes restart the app. Local virtual environments and __pycache__ stay on the PC.
+Python uses the official Debian-based Python image and installs Node.js inside it for
+Yougori's sync/proxy helpers. Source: https://github.com/docker-library/official-images/blob/master/library/python
+Other project types can use containers or yougori.yaml via `yougori cli`/`yougori up`;
+automatic shortcuts currently cover Node.js and pip-based Python projects.
+
+The CLI starts or locates the same-user Yougori engine. Standard OCI images are
+pulled through Yougori's containerd runtime; Docker Desktop/Engine is not required.
+Without -d, run follows logs; Ctrl+C detaches. With -it it opens an interactive
+shell; Ctrl+] detaches. For -it without a command, a small keepalive process lets
+the shell stay available. Images without a long-running process otherwise exit
+normally. Explicit argv after IMAGE is passed literally, without host shell eval.
+Ports supplied with -p bind only to 127.0.0.1. LAN and public exposure are explicit
+through the existing ports commands and Desktop publishing controls.
+
+Manage every environment using ps, inspect, start, stop, restart, rm, exec, logs.
+Use pull, images, image rm, ports, share, gpu, vm and microvm for other operations.
+Run yougori help for syntax; the advanced schema-driven API remains available.
+Engine/provider limitations still apply: full VMs use a desktop/guest agent rather
+than pretending that every OS supports a Linux shell; remote sharing obeys the
+owner's invitation permissions. Cloud SSH nodes use saved/pinned SSH identities.
+
+Windows NSIS/MSI installers add the bundled cli directory to PATH; reopen your
+terminal after installation. In a source checkout: npm run cli -- run nginx.
+The integrated Desktop CLI already includes the public command on PATH. Linux
+Debian packages install /usr/bin/yougori and /usr/bin/yougori-desktop separately.
+On macOS, add /Applications/Yougori.app/Contents/Resources/cli to your shell PATH
+(adjust for the bundle location). Legacy yougori-cli and opendock-cli still work.
+
+Declarative projects
+  yougori up [-f path/to/yougori.yaml]
+  yougori apply [-f path/to/yougori.yaml]
+  yougori down [-f path/to/yougori.yaml]
+  yougori up --dry-run
+
+Without -f, search the current directory and its parents for yougori.yaml/yml.
+See examples/yougori.yaml for a working web/cache project. Desktop's Projects
+button discovers registered projects, the Desktop working directory, and the
+default CLI workspace (including its immediate subfolders). Open YAML selects
+projects elsewhere. Discovery does not execute a project without Apply & start.
+
+Top-level fields: project, environments, connections, publish.
+Each environment supports:
+  type: container (default), gpu, microvm, vm, cloud, shared
+  image: OCI image; source: local VM disk/ISO or builtin:alpine for a microVM
+  cpu: fixed cores; memory: fixed GiB number or e.g. 512MB/4GB; gpu: true/false
+  storage: whole GiB (minimum 6); storage_drive: optional drive/folder selection
+  command, entrypoint: argument list or guest shell string
+  environment: map of names to quoted string values
+  working_dir, user, restart: no/always/unless-stopped/on-failure
+  ports: guest port, "HOST:GUEST", or {target: 80, published: 8080}
+  internet: boolean (default false for YAML)
+  volumes: [{source: data, target: /data, read_only: false}]
+  permissions: {pc: true, edit: true}
+  pc_access: [{path: ./project, read_only: false, target: /workspace}]
+  depends_on: [other-service]
+
+Named volumes are project-prefixed. For a PC bind folder use bind: true on a
+volume, or pc_access with target. Relative folders resolve against the YAML file,
+not the engine's working directory. PC access requires permissions.pc; writable
+access also requires permissions.edit. Without target, pc_access uses the existing
+My PC folder sharing UI. OS roots and runtime storage cannot be mounted.
+OCI startup/volume/variable options apply to containers and OCI microVM workloads.
+microVM PC mounts use the existing My PC sharing controls instead of OCI binds.
+
+Connections accept "frontend -> database" or {from: frontend, to: database,
+ports: [5432], permissions: [ports]}. They grant explicit private access; internet
+is independent. Container service names resolve over this private network.
+publish maps services to a hostname or {port: 80, hostname: app.example.com,
+token_env: CLOUDFLARE_API_TOKEN}. Save the account in Desktop, or set the token in
+the engine's environment before starting it. A port without hostname creates an
+explicit public Quick Tunnel. Publishing never invents DNS/account credentials.
+
+For cloud, use type: cloud and cloud: {vendor: ..., host: ..., port: 22,
+username: ..., identityFile: ..., hostKey: ...}; this connects an existing server.
+For shared, use type: shared and shared: '<copied JSON invitation>'. Cloud VM
+provisioning remains available through Desktop deployments and the cloud CLI API.
+
+up/apply reconcile owned nodes and access rules; repeated identical apply reuses
+nodes and connections. Image/type/drive changes preserve the old stopped node and
+create a replacement. Changing an OCI microVM workload also creates a replacement.
+Removed services/data are preserved for explicit review/removal. down stops owned
+nodes and removes project-owned publications/My PC shares without deleting data.
+Failures identify the affected operation; successfully created nodes remain in
+Desktop. Fix the input or inspect the node and retry; no destructive rollback is
+performed. A failed node is not silently duplicated. This is not a transactional
+orchestration system and changing an application while it runs can need downtime.
+
+Docker Compose import
+  yougori import compose.yaml --dry-run
+  yougori import compose.yaml
+  yougori up
+Desktop: Projects > Import Docker Project > review > Create yougori.yaml > Apply.
+Import never overwrites an existing yougori.yaml. Supported image-based services
+translate commands, entrypoints, environment/env_file/.env interpolation,
+dependencies (service_started), CPU/RAM/NVIDIA requests, TCP ports, named volumes,
+folder binds, restart behavior and compatible network relationships.
+Shell environment interpolation is resolved by the CLI performing import.
+Unsupported options fail with an explicit error before any YAML is written.
+Build-only services, health-gated dependencies, privileged features, external
+networks/volumes and complex Docker-specific networking need adaptation. Use long
+volume syntax for Windows drive-letter paths. No unsafe setting is silently lost.
+
+Changes
+Open environment settings or its workspace > Changes, or:
+  yougori changes ENV
+  yougori changes ENV --offset 200
+  yougori changes ENV --baseline
+Baselines are captured when PC folders are shared. The view reports modified,
+created, deleted and uniquely identifiable renamed files; text diffs, hashes,
+sizes, package changes, redacted process-variable changes and configuration.
+Changes can come from the environment, the user or another application. The view
+does not claim which process caused them. A new baseline clears the comparison
+without changing source files. Guest inventories begin when a running guest is
+first inspected; earlier package/variable changes cannot be reconstructed.
+Scans stay inside explicitly shared folders, skip symlinks/special files and are
+bounded at 100,000 entries, 2 GiB hashed contents and 45 seconds per folder. Larger
+folders produce an explicit incomplete-scan error. Text contents are cached up to
+256 KiB per file / 32 MiB per folder; binary/large files still show hashes/sizes.
+Pages show 200 file changes with a 2 MiB diff display budget. Package comparison
+supports dpkg, apk and rpm; dependency manifests are also visible as file diffs.
+Baselines contain shared file text on this PC; environment variable values are
+hashed for comparison and never displayed. Disconnecting a share stops scanning it.
+
+Hugging Face models
+  yougori model run hf.co/HuggingFaceTB/SmolLM2-135M --neocloud
+  yougori model run hf.co/HuggingFaceTB/SmolLM2-135M --neocloud --environment MY_POD --api
+  yougori model stop ENV
+  yougori model run hf.co/TinyLlama/TinyLlama-1.1B-Chat-v1.0
+  yougori model run hf.co/TinyLlama/TinyLlama-1.1B-Chat-v1.0 --api --port 8000
+  yougori model chat ENV
+  yougori model status ENV
+  yougori model api ENV --port 8000
+Desktop: Models > choose a model > Run model; chat in the model panel. API access
+can also be enabled later and reveals the existing private key. Model environments
+appear in Nodes/List and use ordinary lifecycle, resource, terminal and log controls.
+
+With --neocloud in a terminal, choose an existing RunPod GPU pod or create one.
+When none exists, setup opens automatically: connect RunPod, choose an available
+NVIDIA GPU and disk size, then review the hourly compute price plus storage charges.
+In-stock GPUs appear first; out-of-stock GPUs are grey and cannot be selected.
+Refresh availability checks stock again. If stock changes before creation, the
+CLI returns to the GPU list so another GPU can be chosen.
+Create and run provisions the pod, configures SSH and waits before starting the model.
+Model nodes are named RunPod/MODEL_NAME, for example RunPod/TinyLlama-1.1B-Chat-v1.0.
+Reusing a pod for another model updates its node name; duplicates get a number suffix.
+Ctrl+C during that wait opens Stop / Stop and delete for the newly created pod.
+The wait distinguishes provider preparation from SSH connection failures. On Windows,
+host-key discovery falls back to an isolated, unauthenticated SSH probe if ssh-keyscan
+cannot negotiate; model connections still require the pinned server key.
+Existing pods must be powered on, with NVIDIA CUDA support and Python 3 with venv.
+Scripts select an existing pod with --environment POD_NAME_OR_ID; they never create
+one automatically. --cpu, --memory, --storage and --change are local options.
+The model runs in a private Python environment in ~/.local/share/yougori-model
+inside the pod, reusing installed PyTorch or installing it when absent. One model
+runs per pod. Model weights and usage remain in that folder; retention depends on
+the pod's storage. Switching models after stopping keeps separate chat histories.
+Chat, streaming, /api, API keys, usage, localhost access and optional Cloudflare
+access work through pinned SSH. Keep Yougori and SSH connected for API access.
+The server binds only to the pod's loopback interface. Ctrl+C opens Stop / Stop and
+delete. On Neocloud these stop or permanently delete the RunPod pod; locally they
+stop or delete the model environment. Stop is selected by default. Repeated Ctrl+C
+presses keep this menu open until Enter selects an action, including during a reply.
+Shutdown also ignores further Ctrl+C presses until the chosen action finishes.
+A stopped pod may still incur storage charges. The explicit model stop command
+only stops the model process and leaves the pod billable. Detach leaves the model
+running; after stopping a pod, start it in Neocloud before model chat POD resumes.
+
+For local runs, the first launch downloads a PyTorch CUDA OCI image, pinned Transformers/Accelerate
+dependencies and model weights. The optional GPU backend requires supported Windows
+x64, WSL2 and NVIDIA hardware/drivers. The application checks support and provisions
+that backend when needed; it does not silently fall back to CPU. Sufficient storage,
+RAM and VRAM are required. Public causal language models supported by Transformers
+with safetensors are supported; arbitrary repository Python and pickle weights are
+not executed. Gated/private, vision, audio and custom-code model architectures need
+additional support. Model weights persist in the environment's named cache volume.
+
+The optional API is http://127.0.0.1:PORT/v1, with /models and /chat/completions.
+Use Authorization: Bearer API_KEY. Unauthenticated requests are rejected. Requests
+are bounded; one generation uses the GPU at a time. Both streaming and ordinary
+JSON responses are supported.
+The CLI prints the local API key only when explicitly enabling its API. Store it
+privately. /exit leaves the model running; model stop ENV releases its active GPU memory.

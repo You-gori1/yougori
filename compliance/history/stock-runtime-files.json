@@ -1,0 +1,1372 @@
+[
+  {
+    "path": "src-tauri/resources/runtime/appliance/appliance-base.qcow2",
+    "sha256": "eadda7e148ee87b20ce871fde17e3b43a7a89596c10d5199410bbb8238bf7978",
+    "bytes": 103006208
+  },
+  {
+    "path": "src-tauri/resources/runtime/appliance/initramfs-virt",
+    "sha256": "b8a0fc6358b4ab04d839fc60a681775b874206d67c961d2534fcfdd51c34be53",
+    "bytes": 16940628
+  },
+  {
+    "path": "src-tauri/resources/runtime/appliance/SHA256SUMS",
+    "sha256": "f2639053a766ea53e2481ce736964dfba061cc674322014a5d81b67483d44843",
+    "bytes": 247
+  },
+  {
+    "path": "src-tauri/resources/runtime/appliance/storage-notices/BUILD-PACKAGES.txt",
+    "sha256": "276f93c7d25c3e38d12f4631fbf66f4228b96dac6ce22454841510905249b50e",
+    "bytes": 488
+  },
+  {
+    "path": "src-tauri/resources/runtime/appliance/storage-notices/e2fsprogs-NOTICE.txt",
+    "sha256": "5da5ef153e559c1d990d4c3eedbedd4442db892d37eae1f35fff069de8ec9020",
+    "bytes": 44585
+  },
+  {
+    "path": "src-tauri/resources/runtime/appliance/storage-notices/musl-COPYRIGHT.txt",
+    "sha256": "b870108ec5e7790e9f9919064f1b9421d62d5f9b0e6c230c6adf7ea2da62e97b",
+    "bytes": 6196
+  },
+  {
+    "path": "src-tauri/resources/runtime/appliance/storage-notices/SOURCES.md",
+    "sha256": "8df7a9e1b5bc4f1275ee4cb7cd8d3dad186f717aab1adb6b42cf8a0bfef5f53d",
+    "bytes": 1314
+  },
+  {
+    "path": "src-tauri/resources/runtime/appliance/vmlinuz-virt",
+    "sha256": "9ac237d278de012108ff314800df4883d8bdf3e5e1f2abb26751763478915cf8",
+    "bytes": 12596224
+  },
+  {
+    "path": "src-tauri/resources/runtime/cuda/opendock-agent",
+    "sha256": "92fc5e8b8002f21b6cf3380dae81c41fd1610dfcea10c84471e7ace842ef06b9",
+    "bytes": 14925948
+  },
+  {
+    "path": "src-tauri/resources/runtime/cuda/opendock-cuda-probe",
+    "sha256": "35ab669ca6bb226d88180334cac07c4bf59910bef7dd02ae11b16ca220741bd4",
+    "bytes": 14472
+  },
+  {
+    "path": "src-tauri/resources/runtime/cuda/opendock-mount-helper",
+    "sha256": "f663e53d110abce0db8f26a6d8b04deec6c85b53b6576b9f7a847008eeb3424f",
+    "bytes": 38328
+  },
+  {
+    "path": "src-tauri/resources/runtime/cuda/SHA256SUMS",
+    "sha256": "846ae7e6377184a62a9c812e18c607e4a590e11d3bf01fca5b00c3f2ef9d4e0a",
+    "bytes": 255
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/brlapi-0.8.dll",
+    "sha256": "de4dcc2ed566e5f900eac322007a55a39cc51a5e157211df5e4f366e095b965a",
+    "bytes": 115200
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/COPYING",
+    "sha256": "dd3ce02338c3a48abb6ba59b48809f7108a8bd242cb0cc8be90daafa30707c28",
+    "bytes": 17880
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/COPYING.LIB",
+    "sha256": "31c90ce76b6f5aab90a205851e71d5c27e31c0aa3d7017a4383b98a6fe3f1faa",
+    "bytes": 26415
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libaom.dll",
+    "sha256": "bc6feb90adf4a423f89b34ae975642024461c2f624019443ca3886309a69f3c3",
+    "bytes": 9424346
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libatk-1.0-0.dll",
+    "sha256": "e705edd64fc3ba7da51b942e0331d55ebaeebad467d782be6b218be349384ee2",
+    "bytes": 159478
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libavif-16.dll",
+    "sha256": "47afa7f14e332e220325c8d6fc837064fbc0fdcbfc3901dfc340fbb93102300e",
+    "bytes": 335578
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libbrotlicommon.dll",
+    "sha256": "ca7bc06ead80259971badf2cd0bfc688db9154dad65f139f49a38b4be9976f97",
+    "bytes": 143429
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libbrotlidec.dll",
+    "sha256": "a142dc6cfa77cb907028aa9426f486f3d8de37855e8db2ae2894147908121881",
+    "bytes": 62461
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libbrotlienc.dll",
+    "sha256": "50c3aca8abcf0d5576f0b62dbd608be285246f8fd1b48ef87d58fa6b8b744e5f",
+    "bytes": 788364
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libbz2-1.dll",
+    "sha256": "b79cd3a7102e359ef6324e98966a67939e58ec2b651ae2847cae84a4dfa453f7",
+    "bytes": 100964
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libcacard-0.dll",
+    "sha256": "16aadf1283fdcb0c74abb84faaec11dcfdb315e5e073d047273414b11b3d94d6",
+    "bytes": 109915
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libcairo-2.dll",
+    "sha256": "c474166543aed18b389b20122ca2741189504994dafd86cd5ed121e95bd82ce4",
+    "bytes": 1247164
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libcairo-gobject-2.dll",
+    "sha256": "faf68e5929b89461ad58c5d26c549cde07bc06b368fb89ace82923df645c9bd5",
+    "bytes": 35639
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libcapstone.dll",
+    "sha256": "191098a054c186ecc8e1063f109bef0b07450b48c0ca9bce5d89f23cf2df2f71",
+    "bytes": 8022840
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libcrypto-3-x64.dll",
+    "sha256": "4d2e724eb852f78ec0adbd1b7265325f79f503c9572658a26434f27f0cedb051",
+    "bytes": 5495118
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libcurl-4.dll",
+    "sha256": "3d302f9690e810fdfd950254e2f0663d0ff768737f350c602a4ed3a06e9b6b2b",
+    "bytes": 1226963
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libdatrie-1.dll",
+    "sha256": "2f784872e6404e57847201fe1e7e591bd5b5be4a319ef38ebcb36014ac7f385d",
+    "bytes": 35033
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libdav1d-7.dll",
+    "sha256": "29385f5f9b9f8c945eac3366403f529b3bd4bd59aa6eb492e043ffd2d82268c0",
+    "bytes": 1931258
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libdb-6.2.dll",
+    "sha256": "4035b713d0b127c87a6f369950fe9fde052f042438e5a7cf53df0959a8349c90",
+    "bytes": 1534932
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libdeflate.dll",
+    "sha256": "3f3fc3a73bc3623dc93b37bb321c484d3731d93006fd01c0495d15711826eb44",
+    "bytes": 99228
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libEGL.dll",
+    "sha256": "4c69645c67399a2ad822763bab5f630e54f1781faecf1735df807cb8ae8d3363",
+    "bytes": 179200
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libEGL_angle.dll",
+    "sha256": "da93c851b7e2e1614787dcd59bcebb61126e3905fa8e196ba57de44811ce251b",
+    "bytes": 261632
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libepoxy-0.dll",
+    "sha256": "8e7d48294d79eb5b1f44cd7c2a637239d8ddcdabaedea12bf9fb7ca919d1a37a",
+    "bytes": 1771389
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libexpat-1.dll",
+    "sha256": "1ace13a4460a04cccb4b1e532af98a8e4610581f7ed55413a5ccb615e7d1e1ca",
+    "bytes": 237567
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libfdt-1.dll",
+    "sha256": "bc6e57d01be355f7ede6576a86cddefab8e61160e4c123bbc1b2802df4a453ef",
+    "bytes": 42010
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libffi-8.dll",
+    "sha256": "390e4bf8abd037abd0e1dd1f311606715e43f8efe812e5c5b8775acf2cb2f21e",
+    "bytes": 40945
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libfontconfig-1.dll",
+    "sha256": "bed1827dbb226483026b2b33127866ce173aa2423d89ae7da6f88d6328792ec9",
+    "bytes": 508462
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libfreetype-6.dll",
+    "sha256": "bbb3e6390ee229c867ef31f10e42a49a61a92e434a11d40c6139a2608ebc6194",
+    "bytes": 790651
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libfribidi-0.dll",
+    "sha256": "84930fd86a3b46b62794a3bbaff21fbbaeaade5ff7cdc70be7f717ad29af87ed",
+    "bytes": 156403
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libgcc_s_seh-1.dll",
+    "sha256": "b37c1770c8ca092700875845b34918803ee6311573eba1c32ff4b1166e4a0e1e",
+    "bytes": 150998
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libgdk-3-0.dll",
+    "sha256": "2deedc5411a5b452f1aa35347984fef6293ac87a17c54a7676a81547b19362fd",
+    "bytes": 1384574
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libgdk_pixbuf-2.0-0.dll",
+    "sha256": "de8c9155341167121f1890224a152da4d283753bac74a0325dee770d76ce30ab",
+    "bytes": 362253
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libgio-2.0-0.dll",
+    "sha256": "50a134823cd2f5849f3d43889077164a16f5fc79ec8a9f26e8af77ef3e9906ca",
+    "bytes": 1913623
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libGLESv2.dll",
+    "sha256": "50ec0a8e4b060fa3a965bf922dd244752122c794bff2b0a851a5f4780e254add",
+    "bytes": 11627008
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libglib-2.0-0.dll",
+    "sha256": "7b5c19f5540857ec2288323f3b1654cbe5655fc3ea21417a25da69bece489eec",
+    "bytes": 1566649
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libgmodule-2.0-0.dll",
+    "sha256": "8dbef9e9647d773433cddfdfba84fd34dd699955c78cceea6ff7d7fc45efc495",
+    "bytes": 26748
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libgmp-10.dll",
+    "sha256": "37248cda33845e7c5c35a574e57da762dd0a8268f0270d179f30a33746809681",
+    "bytes": 679747
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libgnutls-30.dll",
+    "sha256": "aca67ef2c8429557e9ac3a02ad313e9fdad35a1416972a248f0a205f83d39fbd",
+    "bytes": 2316158
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libgobject-2.0-0.dll",
+    "sha256": "912936c8782605f29db0abfd528aeecbc550c45782ae14d7e2f0aa0c4809136f",
+    "bytes": 359475
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libgraphite2.dll",
+    "sha256": "063a9ad34a5ec87d038b4646660957395224ecf2cf707917256b7d251a7c5f57",
+    "bytes": 167155
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libgstapp-1.0-0.dll",
+    "sha256": "0ac57076a157071327736d483a97a8d7e81a0b2ccd0b187525787c8643f48b1d",
+    "bytes": 100140
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libgstbase-1.0-0.dll",
+    "sha256": "000711b65a0c39c879f3d73be442754b9297a8092894a309b19eea04e78b8722",
+    "bytes": 546663
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libgstreamer-1.0-0.dll",
+    "sha256": "e20ce49a194f891022503b7bbcb0608ca0526ab6c909452b70ec50b11b61dfcd",
+    "bytes": 1481894
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libgtk-3-0.dll",
+    "sha256": "e2cc2698e2e04214e04b18d685550b76558423ebdb2b0a0782171876fe13eb9c",
+    "bytes": 7165030
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libharfbuzz-0.dll",
+    "sha256": "cbc66233d9291f499aa38f6991f6e74570950502d8913df852d35a90f6da861b",
+    "bytes": 1530181
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libhogweed-7.dll",
+    "sha256": "8a4785b98e5418c32035f570904f65360c89825358702954b53c77ee2df8c97d",
+    "bytes": 275389
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libhwy.dll",
+    "sha256": "4cd65f4bb3c123471a23f3eed734adbb31522b012c2c1776640d9634fbeb623c",
+    "bytes": 88615
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libiconv-2.dll",
+    "sha256": "7a282a854e01be726c6cccfe46f548c716aa45b3014818468253aaa4efbcd067",
+    "bytes": 1143148
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libidn2-0.dll",
+    "sha256": "9880b52651a0247640a2531d777380f7c35fac7efa7e3979b265ddcb78db8642",
+    "bytes": 247081
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libintl-8.dll",
+    "sha256": "0537c3dd2378218508ebe3cc416d72a99ee2d24ae1c5525e23458f32544ef861",
+    "bytes": 298731
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libjack64.dll",
+    "sha256": "34065f120befc2ebf913754a0d8fdd54c4bb3fa09bea4a79ffa369fe5cf1cd28",
+    "bytes": 312511
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libjbig-0.dll",
+    "sha256": "275a827ba6839d47cfdbe059db1b1b403a92ff26e2b76a29362915487868bef2",
+    "bytes": 62083
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libjpeg-8.dll",
+    "sha256": "b564d34adaca83e73af0e2231719dd0198ea6cd074c64b2ba85bfd7182f27db7",
+    "bytes": 967968
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libjxl.dll",
+    "sha256": "d8d1ba0ba4c12ae74a15d44e06a798eafe18842dde71130653dd982dab5fe2a1",
+    "bytes": 6218625
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libjxl_cms.dll",
+    "sha256": "6d822a9ac8288fda334b460cbe008716c7b6e9b20e160b9b6ca23871506f0a00",
+    "bytes": 147921
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/liblcms2-2.dll",
+    "sha256": "dc241cbdf2d295846ec564c1eb3c01639d43c0d72415a8758e65d71df31cc0ba",
+    "bytes": 456345
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libLerc.dll",
+    "sha256": "6887fb5aeabf382a835a4cb693025e8d48d9c90e82ca4eae5d2d8ffb70c6ca9a",
+    "bytes": 804265
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/liblz4.dll",
+    "sha256": "35f917274bca8f19677ba66f1b3cc3c83568c3249fc43215fc16e76439c8e856",
+    "bytes": 158649
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/liblzma-5.dll",
+    "sha256": "dc9edb9bd83b0371fe68d96cb3e70cd17b7a5aba958326a18f8210cb812432e9",
+    "bytes": 191836
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/liblzo2-2.dll",
+    "sha256": "7c34ad01e75c97c6636a2f609089a85abdb50b75e13c5fda731352ec8aa053e9",
+    "bytes": 155548
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libncursesw6.dll",
+    "sha256": "946a84047652d337349d4880fdfe88e81d64dcd36d5b042b0a28d0b185be45c8",
+    "bytes": 548227
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libnettle-9.dll",
+    "sha256": "208002d990684946c7923a87022bedea588fef8e31286598c08805e37be2a95a",
+    "bytes": 360977
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libnfs-16.dll",
+    "sha256": "d6210876b2ecf7b6016c360bee32f4e16af3e808046e2e7a99c58a02a6984eed",
+    "bytes": 361411
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libnspr4.dll",
+    "sha256": "bbdb3f57a653a6614e9fe6e9510179e478f66649c6526f76bb0cb6b43d49fba0",
+    "bytes": 335552
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libopus-0.dll",
+    "sha256": "90aa25a0a6525d7da48a7ae8dd3306e45b0c28ce09a73d2a02b56cd95418d5be",
+    "bytes": 500112
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/liborc-0.4-0.dll",
+    "sha256": "6386359f54e38acc3517774d3f74b72f06f51ad4eb946b6085a7295820456992",
+    "bytes": 479279
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libp11-kit-0.dll",
+    "sha256": "ada3949f3763db47a754eec56388f3305c41c259eb3bbae188a820fd01c5445b",
+    "bytes": 1594910
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libpango-1.0-0.dll",
+    "sha256": "078881c139e7dd422c4cb5f9c43b939712eb7ad4f3d7d25c41639873e8aec6d6",
+    "bytes": 434535
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libpangocairo-1.0-0.dll",
+    "sha256": "b9f800abeafd27c07dc9f9fa4a41bb614564038ce7ac5753ca6c60c1d7d555cc",
+    "bytes": 83118
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libpangoft2-1.0-0.dll",
+    "sha256": "38602e75c85e149bf7294bccb8792f54299daed45509a8ac4b3a18e3921ec56e",
+    "bytes": 111841
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libpangowin32-1.0-0.dll",
+    "sha256": "2fb6d21cce830182c9d4bf22015dec9abbb0846ebce828ca0a5d4cefc74e46c6",
+    "bytes": 111376
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libpcre2-8-0.dll",
+    "sha256": "a499fb8a7eff453d6e4f0842576bc5171d40a1505d8f7f13fff6cee51b738a62",
+    "bytes": 717955
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libpixman-1-0.dll",
+    "sha256": "55ce45825eb8e825c635416171be4736147a6b0b690469f545d8c4ae8e85b4a3",
+    "bytes": 740378
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libplc4.dll",
+    "sha256": "014449ff3f1ba191f9879b2db9ec93915d198a65e159cfffdaa9d78d8c5560e9",
+    "bytes": 22514
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libplds4.dll",
+    "sha256": "8ee6e210d94e9bfc95a30fb8bafa15be6b6b16c5b220db8816b7b5e056e97cdb",
+    "bytes": 19281
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libpng16-16.dll",
+    "sha256": "3737838ee8d6b893df7bdabf7439775371a57dce7e17ee6b35586023c64bd9ab",
+    "bytes": 264269
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libpsl-5.dll",
+    "sha256": "b31fc70eda598a39b65fe2736d815518db0652d641346f75eac40c2a0499b058",
+    "bytes": 105304
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/librav1e.dll",
+    "sha256": "6fe18e4a040c471dc13bcea44ecd2c6a3c040971542c6b798627e4c787056acb",
+    "bytes": 3527680
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libsasl2-3.dll",
+    "sha256": "ea10d3aa40ccb6a385af666173b3364fc41f39dfbdc90aa8f2f1d8071cb63537",
+    "bytes": 167600
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libsharpyuv-0.dll",
+    "sha256": "ab0c9f61dc69b6bcdff1011e215f8d5fd6e5096aba9be3386ab87f217fbbeffe",
+    "bytes": 53757
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libslirp-0.dll",
+    "sha256": "098093db72095516c877c371942444a508aaa3c546de563bd2ea36ba2e88a646",
+    "bytes": 217294
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libsnappy.dll",
+    "sha256": "a0692c93212898f29d072d611184828ccaf7add78137fbe977a8504fcc278c21",
+    "bytes": 55237
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libspice-server-1.dll",
+    "sha256": "23bc03b20fefe99123759c79c59a83b4402a55529c99f3d5dcd1fe1445cb2b33",
+    "bytes": 1198840
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libssh.dll",
+    "sha256": "4e872f2b9329edfb3112c433a2c4c98efc915d0bca2b1b935a58e45e37ce0a3b",
+    "bytes": 626451
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libssh2-1.dll",
+    "sha256": "ee7fe3e749859334c99e9261689481dd879811122598d22585421f95d29fc7ae",
+    "bytes": 271318
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libssl-3-x64.dll",
+    "sha256": "b0aaaab67558716ea8cb03516d0e83ab92d1c0e3ddfc774c466032053f8b2331",
+    "bytes": 994446
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libssp-0.dll",
+    "sha256": "cf6037efa19fd9cbd59402741e201e325bb10f44aca16c56aeff8a7c188178d1",
+    "bytes": 43432
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libstdc++-6.dll",
+    "sha256": "887c21dbe2a211ac4d1a790e4f608b7dee27fae12352856963004e7a715d2e6c",
+    "bytes": 2661299
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libSvtAv1Enc-4.dll",
+    "sha256": "c4d9e2ae03f80d43c0a16d1461503e1768b160cdba9f3fe9e95e339f69fc2b24",
+    "bytes": 7573028
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libsystre-0.dll",
+    "sha256": "2aa59d15365f676356a25c941744d1b75406b426b1fde24ad609b7002a3d85e1",
+    "bytes": 14593
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libtasn1-6.dll",
+    "sha256": "95821132a7d4ea90f7c37540118ad1459809ff23162d6dc3d5600b15755a644b",
+    "bytes": 113467
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libthai-0.dll",
+    "sha256": "5d741974fdec19e0f6cddbcdb539428af0c7392740a056634714c2884157fdb9",
+    "bytes": 72294
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libtiff-6.dll",
+    "sha256": "47fe69165bf8e211aaa84224f51f145dc894e330fe7ca167f7c99419e0c8c894",
+    "bytes": 625178
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libtre-5.dll",
+    "sha256": "5833b2b1f62b67d8b4b3881f1bc05f42b0dee1a9f10cef897cdf44d74d094fdf",
+    "bytes": 100574
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libu2f-emu-0.dll",
+    "sha256": "09cec929ca4f74fb06250b80367a374c7c1b8000aeb8e71e00e7323ba053a759",
+    "bytes": 103045
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libunistring-5.dll",
+    "sha256": "b91e2850d3668d4931056a8f4d35783b8ec3eea3735485108a936a072cd16071",
+    "bytes": 2251328
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libusb-1.0.dll",
+    "sha256": "9858e2381221619e26a78a2824e5970c2a7ec48cdb75071c19eb7b61baa268e2",
+    "bytes": 246863
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libusbredirparser-1.dll",
+    "sha256": "085806c137047cc195608509b1fa935dfcfa633877b4780e6e23fb5e3e0a86cf",
+    "bytes": 66480
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libvirglrenderer-1.dll",
+    "sha256": "df0d6a26ca2328ac54ebc3efb5d03f3315c5bf39a999505d08bc76890e07be6c",
+    "bytes": 881380
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libwebp-7.dll",
+    "sha256": "c6c21a10f8cfe13270832e64640b82709e1d87b956b5f15af435a6c25acd6bbf",
+    "bytes": 749724
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libwebpdemux-2.dll",
+    "sha256": "10fd43e1820a03dea175e3c4a7c96ba0463d41971f4ec75dbd375d10b585446a",
+    "bytes": 25726
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libwinpthread-1.dll",
+    "sha256": "d54ed5baa6d339e28fe18c0106caffd110ac42612908593e07211d7bb48f5e79",
+    "bytes": 64419
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libyuv.dll",
+    "sha256": "13ce09a22df9396cae847cb474614a5337c7b2e1a3c5c2d949c771c7297ccad0",
+    "bytes": 1009713
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/libzstd.dll",
+    "sha256": "b95c223a9548a9ecf51377c962e0bc8f0c51eb0c6f67a296dbc885996f0dd40d",
+    "bytes": 1218273
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/nss3.dll",
+    "sha256": "fff93a74e524ee09376f007373d16d2705fb21a0b3886404c9a7c27865cace73",
+    "bytes": 1408181
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/nssutil3.dll",
+    "sha256": "31adbd22bb5df93334c8d013cc8814192e21f64500b4113f682fbe8ddfb2c79f",
+    "bytes": 172668
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/opendock-gpu-probe.exe",
+    "sha256": "bee0c2a2aa53d07112f4770edad54c22e56e467ed4b21c7f60bc913dbfdf6c23",
+    "bytes": 139776
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/qemu-img.exe",
+    "sha256": "9d930582d0d574bb106d89982c547688e10b8f356192d302cc3d0ae4e8674534",
+    "bytes": 1934744
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/qemu-system-x86_64.exe",
+    "sha256": "47d57a6072e0bb3bd98f87926eb129eb1736dfe818c67b3b81ef7ce4edd0b3cd",
+    "bytes": 25457048
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/README.rst",
+    "sha256": "d9e0384f45d047137f74f38b32dec1f31488fdbe2557820c8934e1fbc8fc2efd",
+    "bytes": 5579
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/SDL2.dll",
+    "sha256": "47a3b27654832d9f7e5719c88078210a3dbfd6407b559c5a3c4eb8ab7d0ebdb6",
+    "bytes": 2412441
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/SDL2_image.dll",
+    "sha256": "af7bdfa2a2333291776297e85acdecf7801bde20b4025229de304a3d1555a2ef",
+    "bytes": 136769
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/SHA256SUMS",
+    "sha256": "984e94e2ef957f1b0545236036616f489c31975d810f148aab52b612d3560df6",
+    "bytes": 11142
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/share/bios-256k.bin",
+    "sha256": "ae6f6aa973aaccc143f57aa960fb035fd9de4daee4ad0cd713322f8c259e7650",
+    "bytes": 262144
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/share/bios-microvm.bin",
+    "sha256": "d226177d125aaf1b91e507738f4e9a0ade9474169b211751f78be08008cb394c",
+    "bytes": 131072
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/share/bios.bin",
+    "sha256": "3dfd946d0c03ab0e022f84f10c3eb5f1dd507761f73e7d8067511ba35a10f776",
+    "bytes": 131072
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/share/edk2-i386-vars.fd",
+    "sha256": "5d2ac383371b408398accee7ec27c8c09ea5b74a0de0ceea6513388b15be5d1e",
+    "bytes": 540672
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/share/edk2-licenses.txt",
+    "sha256": "1ddeaed2e7d2e9ecb960bdfc1b8ee45387aff70d056d985d145949af3951657c",
+    "bytes": 42903
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/share/edk2-x86_64-code.fd",
+    "sha256": "33090cc07675baa5190d9f1e84bf5176b33bcbfa9bacac522961150cdb6dbb2a",
+    "bytes": 3653632
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/share/efi-e1000e.rom",
+    "sha256": "102c20348be2d0ebe45a77b076b31848182c2f7b4364775b6bc2ece6e97b4024",
+    "bytes": 159232
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/share/efi-virtio.rom",
+    "sha256": "26be36901db7f8181c306cc62bd74891d8646528965a78e40cceadba5dd7c8e7",
+    "bytes": 160768
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/share/keymaps/en-us",
+    "sha256": "52cf4c523e686078699ed58761c7e1443080305237a5f67a3716832570c5c8e5",
+    "bytes": 27086
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/share/kvmvapic.bin",
+    "sha256": "cdf057a71b07e3b52b19cbe210bdefa59250d01a9810b960f7fe1f98eed95a27",
+    "bytes": 9216
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/share/linuxboot_dma.bin",
+    "sha256": "9c49e255340c78fc12e54ed043462bca02fb7fca29b7cfab62ff88a5344b6950",
+    "bytes": 1536
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/share/pvh.bin",
+    "sha256": "918ff03a118615c2f4611a5df2d9496aabe099b5cfaaf69e544ebf973305d59d",
+    "bytes": 1536
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/share/qboot.rom",
+    "sha256": "9b9dfc6c25740d6225625570d71cab6805cc9216e68c8932e343266daaeb8c4b",
+    "bytes": 65536
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/share/vgabios-bochs-display.bin",
+    "sha256": "da07e26661279edb7935284a99f8ddfa77dbf04ddb939e4a8c7bc7e36e40cdc7",
+    "bytes": 28672
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/share/vgabios-ramfb.bin",
+    "sha256": "24f6b98b2c263f3f562b1180df23e949f7dd27f194fa26aeba27f36bbf6265c6",
+    "bytes": 28672
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/share/vgabios-stdvga.bin",
+    "sha256": "e8fc9e55790dbe3cb31f019a3deb57206ba6c54f5e581adb2ab2677a9d391472",
+    "bytes": 39424
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/share/vgabios-virtio.bin",
+    "sha256": "02853140c262001ecb7245b151ffe47a0f0c79767a6fb2a9eb60f5f1938c5cee",
+    "bytes": 39424
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/share/vgabios.bin",
+    "sha256": "a7ea86bb06a58ff969fd0942e73b8eae00cb58e4c90bccbd900f6a3a01f54fbb",
+    "bytes": 38912
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/VERSION",
+    "sha256": "cd1c6f8954599978e16a05c72be16dc4c2056e5f2bce9ecda206ab66f3d1e0eb",
+    "bytes": 7
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu/zlib1.dll",
+    "sha256": "93e9243a44c29200eeacaf9658efe2558581770e4b11ca4b500e18e424a6e3b5",
+    "bytes": 128488
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/EDK2-LICENSE.txt",
+    "sha256": "50ce20c9cfdb0e19ee34fe0a51fc0afe961f743697b068359ab2f862b494df80",
+    "bytes": 2732
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/firmware/0560499828d771c02ecf2bcf112e42deee9de504c763833a3b00c4854202b406.fd",
+    "sha256": "0560499828d771c02ecf2bcf112e42deee9de504c763833a3b00c4854202b406",
+    "bytes": 4194304
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/firmware/3caea0b4e7931508549330cc67f6b3c636b2d17d85625a5049129b9029a1e78a.fd",
+    "sha256": "3caea0b4e7931508549330cc67f6b3c636b2d17d85625a5049129b9029a1e78a",
+    "bytes": 4194304
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/libbrotlicommon.dll",
+    "sha256": "c62c08223e450dfc2fff33c752cc228505ffd9d755201958ba800d5d30481a2c",
+    "bytes": 144565
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/libbrotlidec.dll",
+    "sha256": "e270b6e576594ee8ee6e33ccc54e34a54304616dd6225652e11e49d6f17ef896",
+    "bytes": 62619
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/libbrotlienc.dll",
+    "sha256": "82573820fe9cc3f57004b6603428e2fa1bfc9d2048707bfcead3cfc5ef3ab284",
+    "bytes": 789189
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/libbz2-1.dll",
+    "sha256": "1790bf6473c9d48db14c1f0ee8124142327556d281299ea2a72ee361118ee01a",
+    "bytes": 107741
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/libcrypto-3-x64.dll",
+    "sha256": "7d25614b72d98b1a280d50de253f395f4062058af8e22d2dc1ec44fb648f0028",
+    "bytes": 5495100
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/libEGL.dll",
+    "sha256": "1d12b7fed29f25e840c0bbde5bbe8a9a709fe605901698cfd10093e9f85da929",
+    "bytes": 179200
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/libEGL_angle.dll",
+    "sha256": "625af4e343a115422c906ecee1cc1c7cb9d9f1a5b3827620f80f30e6577f8a4a",
+    "bytes": 252928
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/libepoxy-0.dll",
+    "sha256": "dc4055b53d0d6507740e9f3be18c9f2b1318faa531b9b2913eef3c5332fffedc",
+    "bytes": 1770497
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/libffi-8.dll",
+    "sha256": "f96cf79b75f33a10023d001673b564538023395c94b3c58e1db53114976a7c25",
+    "bytes": 39826
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/libgcc_s_seh-1.dll",
+    "sha256": "80940372431cc76224dfda06e2d33f01e49af3b4e7c499c535be856ebcadd273",
+    "bytes": 151654
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/libgio-2.0-0.dll",
+    "sha256": "da8abbcbe4ea8ce650c6cb5953f775699a6cd2126d3291faa35b83cc0659cc12",
+    "bytes": 1913315
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/libGLESv2.dll",
+    "sha256": "710e246f405a6f63005c0d91f385a1b7e62fb1cfc566fd0fbde01b7319a0d6a4",
+    "bytes": 11592704
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/libglib-2.0-0.dll",
+    "sha256": "052e1d5e9cb072c7d2fb9db3ea6c29c1889b05110b1228e4fb846884eed387dd",
+    "bytes": 1564508
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/libgmodule-2.0-0.dll",
+    "sha256": "702e4c3a331d116cf96ac4fb4f04dec64aea7f8236220a639e123ec033b7d4b7",
+    "bytes": 27494
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/libgmp-10.dll",
+    "sha256": "c2567ccf3f410c3411ba7cd4b7ba14f393a0e70a1d0c0593297df6706b5fba96",
+    "bytes": 681231
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/libgnutls-30.dll",
+    "sha256": "f7f05c96572506c81f2ffa89b518234afa4af2603aad8903db257a4f1e97e9e6",
+    "bytes": 2315149
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/libgobject-2.0-0.dll",
+    "sha256": "469d2e3b60f5307d00809f1efc0ab494f7c230e58a93cd2cbf75fb64aa2aa786",
+    "bytes": 360145
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/libhogweed-7.dll",
+    "sha256": "b48e33181b78d715ba310581f4c72376c959854638bf635e1703e5fc1b783498",
+    "bytes": 276571
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/libiconv-2.dll",
+    "sha256": "94ec68fb8d342b6c91b6b48a8d95092819cdcd006a7166e0b68062f946afd08a",
+    "bytes": 1141951
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/libidn2-0.dll",
+    "sha256": "a054a6bb69aaf4666157f968740412e9697085cbc1e48a78f8dd9622169c5aaf",
+    "bytes": 246525
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/libintl-8.dll",
+    "sha256": "0e5a178731e6be6d115442a6ade3df7f03265cd1fc4338f8b6f86a8001cbf582",
+    "bytes": 298164
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/libjpeg-8.dll",
+    "sha256": "c63acd5a3231725aa96aa35444b74cd8d607a6fbdab1dd18b0e0ada7e39476d4",
+    "bytes": 967184
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/libnettle-9.dll",
+    "sha256": "9b9f8bffca94d3cca7d1afb77d9deb0fa34427eaa05f1832037f46bc9e3dc134",
+    "bytes": 359138
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/libp11-kit-0.dll",
+    "sha256": "c24fcbd4d67f6f837a1cc29bd37a2980670febfa64b1a424720e5768ff91cfa8",
+    "bytes": 1590616
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/libpcre2-8-0.dll",
+    "sha256": "752f04bb7a60d2a049788ffaec14b45602c4dec4c29534001dfcf434d26da19c",
+    "bytes": 706534
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/libpixman-1-0.dll",
+    "sha256": "12e693d94829f013e0bd7c042b30998b20e91ece7b6f4d5f075ddbb58b373c92",
+    "bytes": 737775
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/libpng16-16.dll",
+    "sha256": "5c1dd5410af563f4a3c4aee10d1f749aa71e0d7fb3b4fac240eb9e96cadebd26",
+    "bytes": 258972
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/libslirp-0.dll",
+    "sha256": "4b547f2324ddba5bf5222ea31530b621e8ca7baf4884c5c52059aa88b64af782",
+    "bytes": 214158
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/libstdc++-6.dll",
+    "sha256": "69200d6d96b903dac4c873031813485a0455828be8101479efc56008862420cc",
+    "bytes": 2661272
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/libtasn1-6.dll",
+    "sha256": "9793128fa5028fe8d8b49407a6ed900a2315444f9f7444a146f0b62f08c1c5bb",
+    "bytes": 111487
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/libunistring-5.dll",
+    "sha256": "ee39258fa1086269674a8179d3cfaf7c4e380ada14441b5dd9ed53d82d15c4e3",
+    "bytes": 2256134
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/libvirglrenderer-1.dll",
+    "sha256": "92d4266b479b4eaf91b518d01533d49efe1bee8c00bc515d16b7e34e406c7322",
+    "bytes": 877220
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/libwinpthread-1.dll",
+    "sha256": "cd5fc7573f1ecf9a157bb62fbc35f8b97862dde6057ffabd6cebb3fc9fe6ff1d",
+    "bytes": 63105
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/libzstd.dll",
+    "sha256": "48368ab0ca622d0ec12f41ce85d91f22866bf5da92c77a69a06483564c93816c",
+    "bytes": 1217412
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/angleproject/LICENSE",
+    "sha256": "bf4da21bd20bcfb5b60b7ecc67fa864a79be049e21d6178076887f178dd6c71a",
+    "bytes": 1643
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/binutils/COPYING",
+    "sha256": "231f7edcc7352d7734a96eef0b8030f77982678c516876fcb81e25b32d68564c",
+    "bytes": 18002
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/binutils/COPYING.LIB",
+    "sha256": "56bdea73b6145ef6ac5259b3da390b981d840c24cb03b8e1cbc678de7ecfa18d",
+    "bytes": 25291
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/binutils/COPYING3",
+    "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903",
+    "bytes": 35147
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/binutils/COPYING3.LIB",
+    "sha256": "a853c2ffec17057872340eee242ae4d96cbf2b520ae27d903e1b2fef1a5f9d1c",
+    "bytes": 7639
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/brotli/LICENSE",
+    "sha256": "3d180008e36922a4e8daec11c34c7af264fed5962d07924aea928c38e8663c94",
+    "bytes": 1084
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/bzip2/LICENSE",
+    "sha256": "c6dbbf828498be844a89eaa3b84adbab3199e342eb5cb2ed2f0d4ba7ec0f38a3",
+    "bytes": 1896
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/crt/COPYING",
+    "sha256": "99a69660981156c21336fdb5661f89341b013c94e4bf9e1c7467b4745718397f",
+    "bytes": 2326
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/crt/COPYING.MinGW-w64-runtime.txt",
+    "sha256": "1db8da07b436c68833c0673ffee3d9fcb2526047f3820b81661865dfedc79a1f",
+    "bytes": 12155
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/crt/COPYING.MinGW-w64.txt",
+    "sha256": "f38e6194bd3bfa1b654f118e5acefe0aead437bbe669eee43957ccc65a7127f1",
+    "bytes": 5905
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/expat/COPYING",
+    "sha256": "31b15de82aa19a845156169a17a5488bf597e561b2c318d159ed583139b25e87",
+    "bytes": 1144
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/extra/LGPL-3.0.txt",
+    "sha256": "e3a994d82e644b03a792a930f574002658412f62407f5fee083f2555c5f23118",
+    "bytes": 7652
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/extra/p11-kit-AUTHORS",
+    "sha256": "cde5ccbf5083e28d1b38333b5817be06c158fb3218f21ee5594b6125a9372591",
+    "bytes": 36
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/extra/p11-kit-COPYING",
+    "sha256": "2e1ba993904df807a10c3eda1e5c272338edc35674b679773a8b3ad460731054",
+    "bytes": 1447
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/firmware-brotli.txt",
+    "sha256": "3d180008e36922a4e8daec11c34c7af264fed5962d07924aea928c38e8663c94",
+    "bytes": 1084
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/firmware-openssl.txt",
+    "sha256": "7d5450cb2d142651b8afa315b5f238efc805dad827d91ba367d8516bc9d49e7a",
+    "bytes": 10175
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/gcc-libs/COPYING.LIB",
+    "sha256": "a9bdde5616ecdd1e980b44f360600ee8783b1f99b8cc83a2beb163a0a390e861",
+    "bytes": 26527
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/gcc-libs/COPYING.RUNTIME",
+    "sha256": "9d6b43ce4d8de0c878bf16b54d8e7a10d9bd42b75178153e3af6a815bdc90f74",
+    "bytes": 3324
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/gcc-libs/COPYING3",
+    "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903",
+    "bytes": 35147
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/gcc-libs/README",
+    "sha256": "33400d067fa3e2bd670a0868dcdb60c9486e8f559b675cf9ff1ff55d4e0d06ab",
+    "bytes": 236
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/gettext-runtime/COPYING",
+    "sha256": "7ef2cdfe58e0c0460657b6598b49af29d4e03c1e41cbaf0e1da1eb8ad74b95d0",
+    "bytes": 495
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/gettext-runtime/intl/COPYING.LIB",
+    "sha256": "20e50fe7aae3e56378ebf0417d9de904f55a0e61e4df315333e632a4d3555d95",
+    "bytes": 26419
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/gettext-runtime/libasprintf/COPYING",
+    "sha256": "03133addae5b99a6148c538300e6d97074453089be1423b741bd081f18e2b298",
+    "bytes": 65
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/gettext-runtime/libasprintf/COPYING.LIB",
+    "sha256": "20e50fe7aae3e56378ebf0417d9de904f55a0e61e4df315333e632a4d3555d95",
+    "bytes": 26419
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/glib2/COPYING",
+    "sha256": "fa6f36630bb1e0c571d34b2bbdf188d08495c9dbf58f28cac112f303fc1f58fb",
+    "bytes": 25967
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/headers/COPYING",
+    "sha256": "99a69660981156c21336fdb5661f89341b013c94e4bf9e1c7467b4745718397f",
+    "bytes": 2326
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/headers/COPYING.MinGW-w64-runtime.txt",
+    "sha256": "1db8da07b436c68833c0673ffee3d9fcb2526047f3820b81661865dfedc79a1f",
+    "bytes": 12155
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/headers/COPYING.MinGW-w64.txt",
+    "sha256": "f38e6194bd3bfa1b654f118e5acefe0aead437bbe669eee43957ccc65a7127f1",
+    "bytes": 5905
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/headers/ddk-readme.txt",
+    "sha256": "8d8f9924e4ea5466932000bdb9a4104da1d8ca3e4c979bb8207225522ba63826",
+    "bytes": 650
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/jsoncpp/LICENSE",
+    "sha256": "cec0db5f6d7ed6b3a72647bd50aed02e13c3377fd44382b96dc2915534c042ad",
+    "bytes": 2714
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/LGPL-2.1.txt",
+    "sha256": "31c90ce76b6f5aab90a205851e71d5c27e31c0aa3d7017a4383b98a6fe3f1faa",
+    "bytes": 26415
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/libb2/LICENSE",
+    "sha256": "6a1ee543e5282cd9061881edf462e6fdab181f328da71fc2c9a6950a80e94d01",
+    "bytes": 6556
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/libepoxy/COPYING",
+    "sha256": "8d5144666f9c4df9bbd69b8900086d5979259152a1060421cdcc0fb9061a1c12",
+    "bytes": 2465
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/libffi/LICENSE",
+    "sha256": "17b64dc60f3b6897a60f971e288b973f655c2edcdf08b25f3c3dd5549857881c",
+    "bytes": 1132
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/libiconv/COPYING",
+    "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903",
+    "bytes": 35147
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/libiconv/COPYING.LIB",
+    "sha256": "20e50fe7aae3e56378ebf0417d9de904f55a0e61e4df315333e632a4d3555d95",
+    "bytes": 26419
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/libiconv/libcharset/COPYING.LIB",
+    "sha256": "20e50fe7aae3e56378ebf0417d9de904f55a0e61e4df315333e632a4d3555d95",
+    "bytes": 26419
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/libiconv/README",
+    "sha256": "4ae66e61d1c6593c84c47105b368d579bcee1af566dbb959ec63a0c48425dcf4",
+    "bytes": 5741
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/libjpeg-turbo/LICENSE.md",
+    "sha256": "ba6bceebcba0fdd35488477c2cca8c4632ce82c74dbfbc87d886ce6fc4433579",
+    "bytes": 6077
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/libjpeg-turbo/README.ijg",
+    "sha256": "75815e3bf6484201a3c3d17a1bbf10f2e8e3237f84df10a2357ea896db2a81d6",
+    "bytes": 12799
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/libjpeg-turbo/README.md",
+    "sha256": "a44ba17ac66c57edaf0ea7c6e4b31358f08322c780e4e6af092082abb3e20793",
+    "bytes": 17722
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/libjpeg-turbo/simd/jsimdext.inc",
+    "sha256": "68c5d236785edf75344cebe8b9bec36568bd35c96eb72cc67ffecd66c17dbd74",
+    "bytes": 15563
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/libpng/LICENSE",
+    "sha256": "bdb0a645ea18c60507d0368379b1ac5474b92255fcc2d115e07486a7672ba526",
+    "bytes": 5345
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/libslirp/COPYRIGHT",
+    "sha256": "5e81ad3841c9073bee91f65c8c74fdc4b67d1f6742cd35fbd22039bb1e920818",
+    "bytes": 1469
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/libsystre/LICENSE",
+    "sha256": "3200024286eb0a33c22da3a31c470df07c7b8cfbead2b9528195d67d107264ec",
+    "bytes": 1445
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/libtasn1/COPYING",
+    "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+    "bytes": 35149
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/libtasn1/COPYING.LESSERv2",
+    "sha256": "20e50fe7aae3e56378ebf0417d9de904f55a0e61e4df315333e632a4d3555d95",
+    "bytes": 26419
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/libtre/LICENSE",
+    "sha256": "6a50ab50d856b30c965cf2dd899e577ec108c938242fd3a2e7a7a25eed996200",
+    "bytes": 1479
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/libunistring/LICENSE",
+    "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+    "bytes": 35149
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/libunistring/LICENSE.LIB",
+    "sha256": "a853c2ffec17057872340eee242ae4d96cbf2b520ae27d903e1b2fef1a5f9d1c",
+    "bytes": 7639
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/libwinpthread/COPYING",
+    "sha256": "63263614cdd29f2f93cba85e992f041b31f9fc7b4033692f31269489a8a1b177",
+    "bytes": 2883
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/meson/COPYING",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "bytes": 11358
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/mpdecimal/LICENSE",
+    "sha256": "dba079e24a0286052f9f36a5e0b4f6cc95bc83ada657eb26bef8c0b6473f6512",
+    "bytes": 1285
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/ncurses/LICENSE",
+    "sha256": "708999f95527e1ffa670c6fce288c6c600cb477dd04afcc1171422b3dd4ee226",
+    "bytes": 1447
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/ninja/COPYING",
+    "sha256": "eb7e9ab9690124c5c9f42bdc81383d886a3dede26345b6ed15bbad7caf81f7ea",
+    "bytes": 11358
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/openssl/LICENSE",
+    "sha256": "7d5450cb2d142651b8afa315b5f238efc805dad827d91ba367d8516bc9d49e7a",
+    "bytes": 10175
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/pcre2/COPYING",
+    "sha256": "99272c55f3dcfa07a8a7e15a5c1a33096e4727de74241d65fa049fccfdd59507",
+    "bytes": 97
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/pcre2/LICENCE.md",
+    "sha256": "197d8a73ffee0d6b09adba2f9c677b5f5aede24edf89258a68e48248d010d811",
+    "bytes": 4011
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/pixman/COPYING",
+    "sha256": "fac9270f0987b96ff4533fca3548c633e02083cbba4a0172a3b149b2e4019793",
+    "bytes": 2087
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/python-packaging/LICENSE",
+    "sha256": "cad1ef5bd340d73e074ba614d26f7deaca5c7940c3d8c34852e65c4909686c48",
+    "bytes": 197
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/python-packaging/LICENSE.APACHE",
+    "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594",
+    "bytes": 10174
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/python-packaging/LICENSE.BSD",
+    "sha256": "b70e7e9b742f1cc6f948b34c16aa39ffece94196364bc88ff0d2180f0028fac5",
+    "bytes": 1344
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/python3.14/LICENSE",
+    "sha256": "b0e25a78cffb43f4d92de8b61ccfa1f1f98ecbc22330b54b5251e7b6ba010231",
+    "bytes": 13804
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/rapidjson/license.txt",
+    "sha256": "a140e5d46fe734a1c78f1a3c3ef207871dd75648be71fdda8e309b23ab8b1f32",
+    "bytes": 5152
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/sqlite3/LICENSE",
+    "sha256": "0b76663a90e034f3d7f2af5bfada4cedec5ebc275361899eccc5c18e6f01ff1f",
+    "bytes": 1528
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/tzdata/LICENSE",
+    "sha256": "0613408568889f5739e5ae252b722a2659c02002839ad970a63dc5e9174b27cf",
+    "bytes": 252
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/virglrenderer/COPYING",
+    "sha256": "3b32caf16e2402c2aff2b716858713f3e1feded85c25e71bf829816ee5009402",
+    "bytes": 1098
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/wineditline/LICENSE",
+    "sha256": "e1a9520a9b3143ad64adb356c5d2fca6bb09a3ad3950cf1f7213946543582440",
+    "bytes": 1588
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/winpthreads/COPYING",
+    "sha256": "63263614cdd29f2f93cba85e992f041b31f9fc7b4033692f31269489a8a1b177",
+    "bytes": 2883
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/xz/COPYING",
+    "sha256": "616a3ad264ce29b8f1cb97e53037b139d406899ca8d1f799651e17bfa09830b8",
+    "bytes": 3119
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/xz/COPYING.0BSD",
+    "sha256": "0b01625d853911cd0e2e088dcfb743261034a091bb379246cb25a14cc4c74bf1",
+    "bytes": 607
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/xz/COPYING.GPLv2",
+    "sha256": "edaef632cbb643e4e7a221717a6c441a4c1a7c918e6e4d56debc3d8739b233f6",
+    "bytes": 17984
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/xz/COPYING.GPLv3",
+    "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+    "bytes": 35149
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/xz/COPYING.LGPLv2.1",
+    "sha256": "20e50fe7aae3e56378ebf0417d9de904f55a0e61e4df315333e632a4d3555d95",
+    "bytes": 26419
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/zlib/LICENSE",
+    "sha256": "e32ff4e00d9d94930537635291da39e7e612703334bf6fde8c7f1686fe8a45a2",
+    "bytes": 1002
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/licenses/zstd/LICENSE",
+    "sha256": "7055266497633c9025b777c78eb7235af13922117480ed5c674677adc381c9d8",
+    "bytes": 1549
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/opendock-gpu-probe.exe",
+    "sha256": "7137fa31b1d65b491d41340520aa92623b930f53a1fb0d201abd6897be108a26",
+    "bytes": 139776
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/opendock-tpm-init.exe",
+    "sha256": "ebee62274b6394d69895d146b64f47ff31c3bdc67a4c00b233dc2cef6fa1ca90",
+    "bytes": 14848
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/OPENDOCK-TPM-LICENSE.txt",
+    "sha256": "0be24bd5994c74a0e8862f6c24fcf8ddbbe5412f9f06cf6eb26e92609f87c8e0",
+    "bytes": 1552
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/opendock-tpm.dll",
+    "sha256": "2dc77f3d9207cac3398d8bde8b6c2bafc6253fa0d658e632d5f8af1c946db121",
+    "bytes": 347648
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/OVMF.qemuvars.fd",
+    "sha256": "0560499828d771c02ecf2bcf112e42deee9de504c763833a3b00c4854202b406",
+    "bytes": 4194304
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/PACKAGES.txt",
+    "sha256": "8d4230fb56fa266126b043e8c9860eb4a3247d9bbb6e9ee83dd9c343ef956e0f",
+    "bytes": 25062
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/QEMU-LICENSE.txt",
+    "sha256": "dd3ce02338c3a48abb6ba59b48809f7108a8bd242cb0cc8be90daafa30707c28",
+    "bytes": 17880
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/qemu-system-x86_64.exe",
+    "sha256": "0205c96d12300e5baa54704b8cfe0e6f67a43b3d8f84412e23971d72c8b5f03f",
+    "bytes": 25096704
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/secure-vars.json",
+    "sha256": "c0025f01ff9bc53aab2297a0b7821f665120e529e14b15348b98aaa73252d747",
+    "bytes": 50901
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/SECUREBOOT-OBJECTS-LICENSE.txt",
+    "sha256": "840a8918b28ff140fa720bd3d1b4845a74047914d16883ea74df6977234845fb",
+    "bytes": 2716
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/SHA256SUMS",
+    "sha256": "413723a63703e938c3f46775925d167fe7d946539dc59d4b4195cfe729d43b80",
+    "bytes": 11649
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/SOURCES.md",
+    "sha256": "879490cfbeaaaa0f9576fd7d68146ac8b86eb0c8b25795084ff84a35c0a2ce4e",
+    "bytes": 4404
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/TPM-LICENSE.txt",
+    "sha256": "a8557055f0a650bceb11d088f40e041d8c5614cff5a45b016d7bf534d9467858",
+    "bytes": 1705
+  },
+  {
+    "path": "src-tauri/resources/runtime/qemu-secure/zlib1.dll",
+    "sha256": "11cd91171765cd65f1c3362e3df67e5f5a618a6b88c8cdec899b802eaf1c7b0d",
+    "bytes": 127291
+  },
+  {
+    "path": "src-tauri/resources/runtime/SHA256SUMS",
+    "sha256": "710e68415c4b3ff329ec35449f07b13e21f29f45b6eb8301ee58c3954a8f6b89",
+    "bytes": 26307
+  }
+]

@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "source": "https://github.com/qemu/qemu",
+  "revision": "84f07211cc5b4fc6a371559bf8a5de4fb068e648",
+  "buildScript": "scripts/build-secure-qemu.sh",
+  "buildScriptSha256": "20addca4d409832d8e976b57156f6796e7d09f52dd4267aaba607804a5952231",
+  "tpmTransport": "Private process with anonymous pipes; OpenSSL is loaded only inside the BSD TPM worker",
+  "patches": [
+    {
+      "path": "runtime/security/qemu-windows-tpm.patch",
+      "sha256": "66436c9beca2589e092ee7316245f04d26ee3b10849854584533680ca3959657"
+    },
+    {
+      "path": "runtime/security/qemu-whpx-tpm-ppi.patch",
+      "sha256": "f9d3e01f43ccc395806f208d427f5c1b34caecc1ae511344e8867761b69a60f0"
+    },
+    {
+      "path": "runtime/security/qemu-whpx-reboot.patch",
+      "sha256": "5a4bf0fb3b721755e42801d633100c41745fb0d85ba426eee15e088b37b058cc"
+    },
+    {
+      "path": "runtime/security/tpm-qemu.c",
+      "sha256": "8d6d0a3b80cc9c49a54bb00d66f850f50208f34bd7a452a1fec78a52ffa54e92"
+    },
+    {
+      "path": "runtime/security/tpm-api.h",
+      "sha256": "80a356ef7460c2da481ade73530ea3e3e1ea0e4b288f43456b82169ce31be2ca"
+    },
+    {
+      "path": "runtime/security/tpm-worker.c",
+      "sha256": "7a71abceba25069550a11bc59a083c5e955c8ebdf7e7a0ec33f87564522569e2"
+    }
+  ],
+  "dependencyProvenance": "PACKAGES.txt for package DLLs; ANGLE_BUILD.json and ANGLE-NOTICES.txt for source-built D3D11 ANGLE",
+  "firmware": "SOURCES.md and retained content-addressed firmware; existing VM identities are preserved"
+}

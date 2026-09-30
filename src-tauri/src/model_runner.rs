@@ -1,0 +1,752 @@
+use crate::{models::*, runtime::RuntimeManager, store::PlatformStore};
+use base64::{engine::general_purpose::STANDARD, Engine};
+use serde_json::{json, Value};
+use tauri::Manager;
+use crate::AppHandle;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+mod neocloud;
+pub(crate) use neocloud::{run_neocloud_model, start_model, stop_model};
+pub fn normalize_model(model: &str) -> Result<String, String> {
+    let model = model
+        .trim()
+        .strip_prefix("https://huggingface.co/")
+        .or_else(|| model.trim().strip_prefix("hf.co/"))
+        .unwrap_or(model.trim());
+    let parts = model.split('/').collect::<Vec<_>>();
+    if parts.len() != 2
+        || parts.iter().any(|s| {
+            s.is_empty()
+                || s.len() > 96
+                || s.starts_with(['.', '-'])
+                || s.ends_with(['.', '-'])
+                || s.contains("..")
+                || !s
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b"_.-".contains(&b))
+        })
+    {
+        return Err(
+            "Use a Hugging Face model ID such as hf.co/TinyLlama/TinyLlama-1.1B-Chat-v1.0".into(),
+        );
+    }
+    Ok(model.into())
+}
+#[tauri::command]
+pub async fn run_model(model: String, port: Option<u16>, app: AppHandle) -> Result<Value, String> {
+    run_model_with_resources(model, port, None, app).await
+}
+
+#[derive(Default, serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ModelResources {
+    pub cpu: Option<f64>,
+    pub memory_gb: Option<f64>,
+    pub storage_gb: Option<f64>,
+}
+
+impl ModelResources {
+    fn allocation(&self, total_cpu: usize, total_memory: f64, available_storage: f64) -> Result<(f64, f64, f64), String> {
+        // The GPU does the work, so a model needs little CPU or memory of its own.
+        let cpu = self.cpu.unwrap_or((total_cpu as f64).min(2.0));
+        let memory = self.memory_gb.unwrap_or(4.0_f64.min((total_memory - 2.0).max(2.0)));
+        let storage = self.storage_gb.unwrap_or(available_storage.min(20.0));
+        if !cpu.is_finite() || cpu < 1.0 || cpu > total_cpu as f64 || !memory.is_finite() || memory < 2.0 || memory > total_memory {
+            return Err("Model CPU and memory must fit this computer (at least 1 CPU and 2 GB RAM)".into());
+        }
+        if !storage.is_finite() || storage > available_storage {
+            return Err("Model storage exceeds available capacity".into());
+        }
+        if storage < 12.0 {
+            return Err("Model workloads need at least 12 GB of available storage for the CUDA image and model weights".into());
+        }
+        Ok((cpu, memory, storage))
+    }
+}
+
+pub async fn run_model_with_resources(model: String, port: Option<u16>, resources: Option<ModelResources>, app: AppHandle) -> Result<Value, String> {
+    let model = normalize_model(&model)?;
+    if port == Some(0) {
+        return Err("Invalid API port".into());
+    }
+    let available = app
+        .state::<RuntimeManager>()
+        .new_storage_on_drive(None)?
+        .maximum_gb;
+    let state = app.state::<PlatformStore>().snapshot()?;
+    let host = state.host;
+    let (cpu, memory, storage) = resources.unwrap_or_default().allocation(host.total_cpu, host.total_memory_gb, available)?;
+    let token = format!(
+        "{}{}",
+        uuid::Uuid::new_v4().simple(),
+        uuid::Uuid::new_v4().simple()
+    );
+    let name = yougori_cli::public::model_environment_name(&model, state.environments.iter().map(|e| e.name.as_str()));
+    let volume = format!("model-{}-models", &uuid::Uuid::new_v4().simple().to_string()[..8]);
+    let range = |n: f64| json!({"min":n,"preferred":n,"max":n});
+    let command = server_command();
+    let request = json!({"name":name,"kind":"container","provider":"yougoriCuda","autoSetupCuda":true,"runtime":"docker.io/pytorch/pytorch:2.8.0-cuda12.8-cudnn9-runtime","containerCommand":command,"gpuAccess":true,"networkAccess":true,"storageGb":storage,"description":format!("Hugging Face · {model}"),"resourcePolicy":{"cpu":range(cpu),"memoryGb":range(memory),"priority":"normal","dynamic":false},"workload":{"environment":{"YOUGORI_MODEL":model,"YOUGORI_MODEL_TOKEN":token,"HF_HOME":"/root/.cache/huggingface","HF_HUB_DISABLE_TELEMETRY":"1"},"volumes":[{"source":volume,"target":"/root/.cache/huggingface","readOnly":false}]},"ports":port.map(|p|vec![format!("{p}:8000")]).unwrap_or_default()});
+    let mut result = crate::projects::run_workload(request, true, app).await?;
+    result["model"] = model.into();
+    result["status"] = json!("loading");
+    if let Some(port) = port {
+        result["apiUrl"] = json!(format!("http://127.0.0.1:{port}/v1"));
+        result["apiKey"] = token.into();
+    }
+    Ok(result)
+}
+/// The container command that runs this version's model server.
+fn server_command() -> String {
+    let script = STANDARD.encode(include_bytes!("model_server.py"));
+    format!(
+        "exec python -u -c {}",
+        shell_quote(&format!(
+            "import base64;exec(compile(base64.b64decode('{script}'),'yougori-model','exec'))"
+        ))
+    )
+}
+/// Brings a stopped model environment's server up to this version before it starts, so reused
+/// environments get the same fixes as new ones. Only commands this runner wrote are replaced.
+pub(crate) async fn refresh_server(
+    environment_id: &str,
+    store: &PlatformStore,
+    runtime: &RuntimeManager,
+) -> Result<(), String> {
+    let state = store.snapshot()?;
+    let Some(env) = state.environments.iter().find(|e| e.id == environment_id) else {
+        return Ok(());
+    };
+    // Environments from before models were named after themselves take the model's name.
+    if let Some(model) = env.description.strip_prefix("Hugging Face · ") {
+        if yougori_cli::public::generated_model_name(&env.name) {
+            let others = state.environments.iter().filter(|e| e.id != env.id);
+            let name = yougori_cli::public::model_environment_name(model, others.map(|e| e.name.as_str()));
+            store.mutate(|state| {
+                if let Some(env) = state.environments.iter_mut().find(|e| e.id == environment_id) {
+                    env.name = name;
+                }
+                Ok(())
+            })?;
+        }
+    }
+    let current = env.container_command.as_deref().unwrap_or_default();
+    let command = server_command();
+    if env.status != EnvironmentStatus::Stopped
+        || !is_server_command(current)
+        || current == command
+    {
+        return Ok(());
+    }
+    crate::commands::startup::update(environment_id, &command, store, runtime)
+        .await
+        .map(|_| ())
+}
+fn is_server_command(command: &str) -> bool {
+    command.starts_with("exec python -u -c ") && command.contains(",'\"'\"'yougori-model'\"'\"',")
+}
+fn shell_quote(v: &str) -> String {
+    format!("'{}'", v.replace('\'', "'\"'\"'"))
+}
+async fn model_connection(
+    app: &AppHandle,
+    id: &str,
+    path: &str,
+    body: Option<&Value>,
+) -> Result<crate::workspace::BoxStream, String> {
+    let runtime = app.state::<RuntimeManager>();
+    let env = app
+        .state::<PlatformStore>()
+        .snapshot()?
+        .environments
+        .into_iter()
+        .find(|e| e.id == id)
+        .ok_or("Model environment not found")?;
+    if env.status != EnvironmentStatus::Running {
+        return Err("Start the model environment first".into());
+    }
+    let options = runtime.workload_options(env.runtime_id.as_deref().unwrap_or(id))?;
+    let token = options
+        .environment
+        .get("YOUGORI_MODEL_TOKEN")
+        .filter(|s| s.len() == 64 && s.bytes().all(|c| c.is_ascii_hexdigit()))
+        .ok_or("This environment is not a Yougori model workload")?;
+    let encoded = body.map(Value::to_string).unwrap_or_default();
+    if encoded.len() > 65536 {
+        return Err("Conversation exceeds 64 KiB; start a new chat".into());
+    }
+    let mut stream: crate::workspace::BoxStream = if env.kind == EnvironmentKind::Cloud {
+        Box::new(runtime.cloud.service_stream(&env.id, 8000).await?)
+    } else {
+        let (endpoint, credential) = runtime.workspace_endpoint(&env).await?;
+        Box::new(crate::workspace::agent_stream(
+        &endpoint,
+        &credential,
+        env.runtime_id.as_deref().unwrap_or(id),
+        8000,
+    )
+    .await
+    .map_err(|_| {
+        "Model server is starting. Check Logs for installation/download progress and try again."
+    })?)
+    };
+    let request=format!("{} {path} HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer {token}\r\nX-Yougori-Client: yougori\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{encoded}",if body.is_some(){"POST"}else{"GET"},encoded.len());
+    stream
+        .write_all(request.as_bytes())
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(stream)
+}
+fn model_error(status_line: &str, body: &[u8]) -> Option<String> {
+    if status_line.split_whitespace().nth(1) == Some("200") {
+        return None;
+    }
+    Some(
+        serde_json::from_slice::<Value>(body)
+            .ok()
+            .and_then(|v| v["error"]["message"].as_str().map(str::to_owned))
+            .unwrap_or_else(|| "Model request failed".into()),
+    )
+}
+async fn model_request(
+    app: &AppHandle,
+    id: &str,
+    path: &str,
+    body: Option<Value>,
+) -> Result<Value, String> {
+    let stream = model_connection(app, id, path, body.as_ref()).await?;
+    tokio::time::timeout(std::time::Duration::from_secs(120), async {
+        let mut bytes = Vec::new();
+        stream
+            .take(2 * 1024 * 1024 + 1)
+            .read_to_end(&mut bytes)
+            .await
+            .map_err(|e| e.to_string())?;
+        if bytes.len() > 2 * 1024 * 1024 {
+            return Err("Model response exceeded 2 MiB".into());
+        }
+        let split = bytes
+            .windows(4)
+            .position(|w| w == b"\r\n\r\n")
+            .ok_or("Invalid model HTTP response")?;
+        let header = std::str::from_utf8(&bytes[..split]).map_err(|e| e.to_string())?;
+        if let Some(error) = model_error(header.lines().next().unwrap_or(""), &bytes[split + 4..]) {
+            return Err(error);
+        }
+        serde_json::from_slice(&bytes[split + 4..]).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|_| "Model response timed out; try a shorter conversation")?
+}
+#[tauri::command]
+pub async fn model_status(environment_id: String, app: AppHandle) -> Result<Value, String> {
+    let state = app.state::<PlatformStore>().snapshot()?;
+    if state.environments.iter().any(|e| e.id == environment_id && e.kind == EnvironmentKind::Cloud) {
+        let runtime = app.state::<RuntimeManager>();
+        let session = runtime.cloud.session(&environment_id).await?;
+        let options = runtime.workload_options(&environment_id)?;
+        let token = options.environment.get("YOUGORI_MODEL_TOKEN").ok_or("This is not a model environment")?;
+        return session.request("model/status", json!({"token":token})).await;
+    }
+    model_request(&app, &environment_id, "/health", None).await
+}
+#[tauri::command]
+pub async fn model_api(environment_id: String, port: u16, app: AppHandle) -> Result<Value, String> {
+    if port == 0 {
+        return Err("Choose a port between 1 and 65535".into());
+    }
+    let runtime = app.state::<RuntimeManager>();
+    let env = app
+        .state::<PlatformStore>()
+        .snapshot()?
+        .environments
+        .into_iter()
+        .find(|e| e.id == environment_id)
+        .ok_or("Model environment not found")?;
+    let options = runtime.workload_options(env.runtime_id.as_deref().unwrap_or(&env.id))?;
+    let model = options
+        .environment
+        .get("YOUGORI_MODEL")
+        .ok_or("This is not a model environment")?;
+    let token = options
+        .environment
+        .get("YOUGORI_MODEL_TOKEN")
+        .ok_or("Model API credentials unavailable")?;
+    let current = crate::automation::dispatch::dispatch(
+        &app,
+        "list_environment_services",
+        &json!({"environmentId":environment_id}),
+    )
+    .await?;
+    if let Some(existing) = current["publications"].as_array().into_iter().flatten()
+        .find(|p| p["kind"] == "loopback" && p["port"] == 8000 && p["hostPort"] != port) {
+        return Err(format!("This model already has local API access on port {}. Turn it off in /api before choosing another port.", existing["hostPort"]));
+    }
+    if !current["publications"].as_array().is_some_and(|items| {
+        items
+            .iter()
+            .any(|p| p["kind"] == "loopback" && p["port"] == 8000 && p["hostPort"] == port)
+    }) {
+        crate::automation::dispatch::dispatch(
+            &app,
+            "publish_environment_service",
+            &json!({"environmentId":environment_id,"port":8000,"hostPort":port,"kind":"loopback"}),
+        )
+        .await?;
+    }
+    Ok(
+        json!({"id":environment_id,"model":model,"apiUrl":format!("http://127.0.0.1:{port}/v1"),"apiKey":token}),
+    )
+}
+/// Current API access for a model: its key plus any localhost and public (Cloudflare) addresses.
+async fn api_status(app: &AppHandle, environment_id: &str) -> Result<Value, String> {
+    let runtime = app.state::<RuntimeManager>();
+    let env = app
+        .state::<PlatformStore>()
+        .snapshot()?
+        .environments
+        .into_iter()
+        .find(|e| e.id == environment_id)
+        .ok_or("Model environment not found")?;
+    let options = runtime.workload_options(env.runtime_id.as_deref().unwrap_or(&env.id))?;
+    let model = options
+        .environment
+        .get("YOUGORI_MODEL")
+        .ok_or("This is not a model environment")?;
+    let token = options
+        .environment
+        .get("YOUGORI_MODEL_TOKEN")
+        .ok_or("Model API credentials unavailable")?;
+    let services = crate::automation::dispatch::dispatch(
+        app,
+        "list_environment_services",
+        &json!({"environmentId":environment_id}),
+    )
+    .await?;
+    let publications = services["publications"].as_array().cloned().unwrap_or_default();
+    let local = publications
+        .iter()
+        .find(|p| p["kind"] == "loopback" && p["port"] == 8000);
+    let public = publications
+        .iter()
+        .find(|p| p["kind"] == "cloudflare" && p["port"] == 8000);
+    Ok(json!({
+        "id": environment_id,
+        "model": model,
+        "apiKey": token,
+        "apiUrl": local.map(|p| format!("http://127.0.0.1:{}/v1", p["hostPort"])),
+        "publicUrl": public.and_then(|p| p["urls"][0].as_str()).map(|url| format!("{}/v1", url.trim_end_matches('/'))),
+        "publicId": public.map(|p| p["id"].clone()),
+        "publicAccount": public.is_some_and(|p| p["cloudflareAccount"] == true),
+    }))
+}
+/// Where a model environment's chat history lives; shared by the app and the CLI.
+pub(crate) fn chat_history_file(store: &PlatformStore, environment_id: &str) -> std::path::PathBuf {
+    let safe = environment_id
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
+        .collect::<String>();
+    // Different models on one cloud pod keep separate conversations.
+    let model = store.snapshot().ok().and_then(|s| s.neocloud_deployments.get(environment_id)
+        .and_then(|d| d.extra["yougoriModel"].as_str()).map(str::to_owned));
+    let suffix = model.map(|model| {
+        use sha2::{Digest, Sha256};
+        format!("-{}", hex::encode(Sha256::digest(model.as_bytes())))
+    }).unwrap_or_default();
+    store.data_folder("model-chats").join(format!("{safe}{suffix}.json"))
+}
+const CHAT_HISTORY_LIMIT: usize = 16 * 1024 * 1024;
+fn model_environment_exists(store: &PlatformStore, environment_id: &str) -> Result<(), String> {
+    store
+        .snapshot()?
+        .environments
+        .iter()
+        .any(|e| e.id == environment_id)
+        .then_some(())
+        .ok_or_else(|| "Model environment not found".into())
+}
+/// Conversations and chat settings for a model, or null when none are saved yet.
+#[tauri::command]
+pub fn model_chat_history(
+    environment_id: String,
+    store: tauri::State<'_, PlatformStore>,
+) -> Result<Value, String> {
+    model_environment_exists(&store, &environment_id)?;
+    match std::fs::read(chat_history_file(&store, &environment_id)) {
+        Ok(bytes) if bytes.len() <= CHAT_HISTORY_LIMIT => {
+            serde_json::from_slice(&bytes).map_err(|_| "Saved chat history is unreadable".into())
+        }
+        Ok(_) => Err("Saved chat history is too large".into()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Value::Null),
+        Err(error) => Err(error.to_string()),
+    }
+}
+/// Replaces a model's chat history and tells open windows, so the app and the CLI continue the same conversations.
+#[tauri::command]
+pub fn save_model_chat_history(
+    environment_id: String,
+    history: Value,
+    app: AppHandle,
+    store: tauri::State<'_, PlatformStore>,
+) -> Result<(), String> {
+    model_environment_exists(&store, &environment_id)?;
+    if !history["conversations"].is_array() || !history["settings"].is_object() {
+        return Err("Chat history needs conversations and settings".into());
+    }
+    let bytes = serde_json::to_vec(&history).map_err(|e| e.to_string())?;
+    if bytes.len() > CHAT_HISTORY_LIMIT {
+        return Err("Chat history exceeds 16 MB; delete old conversations".into());
+    }
+    let path = chat_history_file(&store, &environment_id);
+    let folder = path.parent().ok_or("Invalid chat history folder")?;
+    std::fs::create_dir_all(folder).map_err(|e| e.to_string())?;
+    let mut file = tempfile::NamedTempFile::new_in(folder).map_err(|e| e.to_string())?;
+    std::io::Write::write_all(&mut file, &bytes).map_err(|e| e.to_string())?;
+    file.persist(&path).map_err(|e| e.to_string())?;
+    let _ = tauri::Emitter::emit(&app, "yougori-model-chat-history", &environment_id);
+    Ok(())
+}
+/// Usage recorded by the model server (counts and token totals only, never prompts). `reset` clears it first.
+#[tauri::command]
+pub async fn model_usage(environment_id: String, reset: bool, app: AppHandle) -> Result<Value, String> {
+    if reset {
+        model_request(&app, &environment_id, "/v1/usage/reset", Some(json!({}))).await?;
+    }
+    model_request(&app, &environment_id, "/v1/usage", None)
+        .await
+        .map_err(|e| {
+            if e == "Endpoint not found" {
+                "Run this model again from Hugging Face to track usage".into()
+            } else {
+                e
+            }
+        })
+}
+#[tauri::command]
+pub async fn model_api_status(environment_id: String, app: AppHandle) -> Result<Value, String> {
+    api_status(&app, &environment_id).await
+}
+fn chat_body(
+    messages: Value,
+    max_tokens: Option<u32>,
+    temperature: Option<f64>,
+    stream: bool,
+) -> Result<Value, String> {
+    if !messages.is_array() {
+        return Err("Messages must be an array".into());
+    }
+    let mut body = json!({"messages":messages,"max_tokens":max_tokens.unwrap_or(256),"stream":stream});
+    if let Some(temperature) = temperature {
+        body["temperature"] = json!(temperature);
+    }
+    if stream {
+        // Yougori extension: the server drops the oldest turns instead of failing when the context is full.
+        body["truncate"] = json!(true);
+    }
+    Ok(body)
+}
+#[tauri::command]
+pub async fn model_chat(
+    environment_id: String,
+    messages: Value,
+    max_tokens: Option<u32>,
+    temperature: Option<f64>,
+    app: AppHandle,
+) -> Result<Value, String> {
+    let body = chat_body(messages, max_tokens, temperature, false)?;
+    model_request(&app, &environment_id, "/v1/chat/completions", Some(body)).await
+}
+type CancelMap = std::collections::HashMap<String, std::sync::Arc<tokio::sync::Notify>>;
+static CHAT_CANCELS: std::sync::LazyLock<std::sync::Mutex<CancelMap>> =
+    std::sync::LazyLock::new(Default::default);
+struct CancelGuard(String);
+impl Drop for CancelGuard {
+    fn drop(&mut self) {
+        if let Ok(mut cancels) = CHAT_CANCELS.lock() {
+            cancels.remove(&self.0);
+        }
+    }
+}
+/// Takes complete server-sent events from `buffer`, leaving a partial event in place.
+fn take_events(buffer: &mut Vec<u8>) -> Vec<String> {
+    let mut events = Vec::new();
+    while let Some(end) = buffer.windows(2).position(|w| w == b"\n\n") {
+        let event = buffer.drain(..end + 2).collect::<Vec<_>>();
+        let data = String::from_utf8_lossy(&event)
+            .lines()
+            .filter_map(|line| line.strip_prefix("data:").map(str::trim_start))
+            .collect::<Vec<_>>()
+            .join("\n");
+        if !data.is_empty() {
+            events.push(data);
+        }
+    }
+    events
+}
+/// Streams a reply as `{"delta": text}` messages on `on_event` and resolves with the finish reason and usage.
+#[tauri::command]
+pub async fn model_chat_stream(
+    environment_id: String,
+    request_id: String,
+    messages: Value,
+    max_tokens: Option<u32>,
+    temperature: Option<f64>,
+    on_event: tauri::ipc::Channel<Value>,
+    app: AppHandle,
+) -> Result<Value, String> {
+    // A cancel that arrives first leaves a stored permit, so this request stops immediately.
+    let cancel = CHAT_CANCELS
+        .lock()
+        .map_err(|e| e.to_string())?
+        .entry(request_id.clone())
+        .or_default()
+        .clone();
+    let _guard = CancelGuard(request_id);
+    let body = chat_body(messages, max_tokens, temperature, true)?;
+    stream_reply(&app, &environment_id, &cancel, &body, |text| {
+        on_event
+            .send(json!({"delta":text}))
+            .map_err(|e| e.to_string())
+    })
+    .await
+}
+/// Streams a reply, handing each piece of text to `delta`; resolves with the finish reason and usage.
+async fn stream_reply(
+    app: &AppHandle,
+    environment_id: &str,
+    cancel: &tokio::sync::Notify,
+    body: &Value,
+    mut delta: impl FnMut(&str) -> Result<(), String>,
+) -> Result<Value, String> {
+    let mut result = json!({"finishReason":"stop"});
+    let mut stream = tokio::select! {
+        stream = model_connection(app, environment_id, "/v1/chat/completions", Some(body)) => stream?,
+        _ = cancel.notified() => {
+            result["finishReason"] = json!("cancelled");
+            return Ok(result);
+        }
+    };
+    let idle = std::time::Duration::from_secs(120);
+    let mut buffer = Vec::new();
+    let mut chunk = vec![0u8; 16 * 1024];
+    let mut streaming = false;
+    let mut total = 0usize;
+    loop {
+        let read = tokio::select! {
+            read = tokio::time::timeout(idle, stream.read(&mut chunk)) => read
+                .map_err(|_| "The model stopped responding; try again or shorten the conversation")?
+                .map_err(|e| e.to_string())?,
+            _ = cancel.notified() => {
+                // Dropping the connection makes the server stop generating at the next token.
+                result["finishReason"] = json!("cancelled");
+                return Ok(result);
+            }
+        };
+        total += read;
+        if total > 8 * 1024 * 1024 {
+            return Err("Model response exceeded 8 MiB".into());
+        }
+        buffer.extend_from_slice(&chunk[..read]);
+        if !streaming {
+            let Some(split) = buffer.windows(4).position(|w| w == b"\r\n\r\n") else {
+                if buffer.len() > 16 * 1024 || read == 0 {
+                    return Err("Invalid model HTTP response".into());
+                }
+                continue;
+            };
+            let header = String::from_utf8_lossy(&buffer[..split]).to_ascii_lowercase();
+            buffer.drain(..split + 4);
+            let status = header.lines().next().unwrap_or("").to_owned();
+            if status.split_whitespace().nth(1) != Some("200") {
+                // Error replies are small JSON documents followed by the server closing the connection.
+                if read > 0 {
+                    tokio::time::timeout(idle, (&mut stream).take(64 * 1024).read_to_end(&mut buffer))
+                        .await
+                        .map_err(|_| "Model request failed")?
+                        .map_err(|e| e.to_string())?;
+                }
+                return Err(model_error(&status, &buffer).unwrap_or_default());
+            }
+            if !header.contains("content-type: text/event-stream") {
+                return Err("Run this model again to enable streaming replies".into());
+            }
+            streaming = true;
+        }
+        for data in take_events(&mut buffer) {
+            if data == "[DONE]" {
+                return Ok(result);
+            }
+            let event: Value = serde_json::from_str(&data).map_err(|e| e.to_string())?;
+            if let Some(message) = event["error"]["message"].as_str() {
+                return Err(message.to_owned());
+            }
+            if let Some(text) = event["choices"][0]["delta"]["content"].as_str() {
+                if !text.is_empty() {
+                    delta(text)?;
+                }
+            }
+            if let Some(reason) = event["choices"][0]["finish_reason"].as_str() {
+                result["finishReason"] = json!(reason);
+            }
+            if event["usage"].is_object() {
+                result["usage"] = event["usage"].clone();
+            }
+        }
+        if read == 0 {
+            return Err("The model closed the connection before finishing".into());
+        }
+    }
+}
+/// A reply streamed for clients that poll for it, such as the CLI.
+struct PolledReply {
+    text: String,
+    outcome: Option<Result<Value, String>>,
+    started: std::time::Instant,
+}
+static POLLED_REPLIES: std::sync::LazyLock<std::sync::Mutex<std::collections::HashMap<String, PolledReply>>> =
+    std::sync::LazyLock::new(Default::default);
+/// Starts a streamed reply that `model_chat_read` returns piece by piece.
+pub async fn model_chat_begin(
+    environment_id: String,
+    messages: Value,
+    max_tokens: Option<u32>,
+    temperature: Option<f64>,
+    app: AppHandle,
+) -> Result<Value, String> {
+    let body = chat_body(messages, max_tokens, temperature, true)?;
+    let request_id = format!("poll-{}", uuid::Uuid::new_v4().simple());
+    {
+        let mut replies = POLLED_REPLIES.lock().map_err(|e| e.to_string())?;
+        // Readers that went away leave replies behind; keep only recent ones.
+        replies.retain(|_, reply| reply.started.elapsed() < std::time::Duration::from_secs(900));
+        if replies.len() >= 16 {
+            return Err("Too many replies are streaming; wait for one to finish".into());
+        }
+        replies.insert(
+            request_id.clone(),
+            PolledReply {
+                text: String::new(),
+                outcome: None,
+                started: std::time::Instant::now(),
+            },
+        );
+    }
+    let cancel = CHAT_CANCELS
+        .lock()
+        .map_err(|e| e.to_string())?
+        .entry(request_id.clone())
+        .or_default()
+        .clone();
+    let id = request_id.clone();
+    tauri::async_runtime::spawn(async move {
+        let _guard = CancelGuard(id.clone());
+        let outcome = stream_reply(&app, &environment_id, &cancel, &body, |text| {
+            if let Some(reply) = POLLED_REPLIES.lock().map_err(|e| e.to_string())?.get_mut(&id) {
+                reply.text.push_str(text);
+            }
+            Ok(())
+        })
+        .await;
+        if let Ok(mut replies) = POLLED_REPLIES.lock() {
+            if let Some(reply) = replies.get_mut(&id) {
+                reply.outcome = Some(outcome);
+            }
+        }
+    });
+    Ok(json!({"requestId":request_id}))
+}
+/// Text streamed since `offset`, and once the reply ends `done` with its result or error.
+/// `stop` asks the model to stop generating; the text so far is kept.
+pub fn model_chat_read(request_id: String, offset: Option<usize>, stop: Option<bool>) -> Result<Value, String> {
+    if stop == Some(true) {
+        model_chat_cancel(request_id.clone())?;
+    }
+    let mut replies = POLLED_REPLIES.lock().map_err(|e| e.to_string())?;
+    let reply = replies
+        .get(&request_id)
+        .ok_or("This reply is no longer available")?;
+    let offset = offset.unwrap_or(0).min(reply.text.len());
+    if !reply.text.is_char_boundary(offset) {
+        return Err("Invalid reply offset".into());
+    }
+    let mut value = json!({"text":&reply.text[offset..],"offset":reply.text.len(),"done":reply.outcome.is_some()});
+    match &reply.outcome {
+        Some(Ok(result)) => value["result"] = result.clone(),
+        Some(Err(error)) => value["error"] = json!(error),
+        None => return Ok(value),
+    }
+    replies.remove(&request_id);
+    Ok(value)
+}
+#[tauri::command]
+pub fn model_chat_cancel(request_id: String) -> Result<(), String> {
+    if request_id.len() > 64 {
+        return Err("Invalid request ID".into());
+    }
+    CHAT_CANCELS
+        .lock()
+        .map_err(|e| e.to_string())?
+        .entry(request_id)
+        .or_default()
+        .notify_one();
+    Ok(())
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn only_model_server_commands_are_refreshed() {
+        let command = server_command();
+        assert!(is_server_command(&command));
+        assert!(command.len() < 32 * 1024, "startup commands are limited to 32 KB");
+        assert!(!is_server_command("exec python -u -c 'print(1)'"));
+        assert!(!is_server_command("sleep infinity"));
+    }
+    #[test]
+    fn model_resource_allocation_preserves_fixed_values_and_rejects_impossible_limits() {
+        let custom = ModelResources { cpu:Some(3.0), memory_gb:Some(6.0), storage_gb:Some(25.0) };
+        assert_eq!(custom.allocation(8,16.0,100.0).unwrap(),(3.0,6.0,25.0));
+        assert_eq!(ModelResources::default().allocation(8,16.0,100.0).unwrap(),(2.0,4.0,20.0));
+        assert!(custom.allocation(2,16.0,100.0).is_err());
+        assert!(custom.allocation(8,4.0,100.0).is_err());
+        assert!(custom.allocation(8,16.0,20.0).is_err());
+        for value in [f64::NAN, f64::INFINITY, -1.0, 0.0, 11.0] {
+            assert!(ModelResources { storage_gb:Some(value), ..Default::default() }.allocation(8,16.0,100.0).is_err());
+        }
+    }
+    #[test]
+    fn model_ids_are_not_commands_urls_or_local_paths() {
+        assert_eq!(
+            normalize_model("hf.co/TinyLlama/TinyLlama-1.1B-Chat-v1.0").unwrap(),
+            "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+        );
+        for bad in [
+            "/etc/passwd",
+            "https://evil.test/a/b",
+            "org/model;rm",
+            "org/../model",
+            "org/model?token=x",
+        ] {
+            assert!(normalize_model(bad).is_err())
+        }
+    }
+    #[test]
+    fn server_sent_events_are_taken_only_when_complete() {
+        let mut buffer = b"data: {\"a\":1}\n\ndata: [DO".to_vec();
+        assert_eq!(take_events(&mut buffer), vec![r#"{"a":1}"#]);
+        buffer.extend_from_slice(b"NE]\n\n");
+        assert_eq!(take_events(&mut buffer), vec!["[DONE]"]);
+        assert!(buffer.is_empty());
+    }
+    #[test]
+    fn only_streaming_requests_ask_the_server_to_trim_context() {
+        let messages = json!([{"role":"user","content":"hi"}]);
+        assert_eq!(
+            chat_body(messages.clone(), None, None, false).unwrap(),
+            json!({"messages":messages,"max_tokens":256,"stream":false})
+        );
+        assert_eq!(
+            chat_body(messages.clone(), Some(1024), Some(0.2), true).unwrap(),
+            json!({"messages":messages,"max_tokens":1024,"temperature":0.2,"stream":true,"truncate":true})
+        );
+        assert!(chat_body(json!({}), None, None, true).is_err());
+    }
+}

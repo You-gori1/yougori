@@ -1,0 +1,161 @@
+Coss UI upstream licensing declarations
+Reviewed 2026-09-13 at commit e937becd2d5ffb5c621eed6f8b1f223cbb6051e7
+
+
+Source: https://github.com/cosscom/coss/blob/e937becd2d5ffb5c621eed6f8b1f223cbb6051e7/LICENSING.md
+
+# Licensing
+
+This repository uses a mixed licensing approach. The default license for this project is [AGPLv3.0](LICENSE).
+
+## MIT
+
+The following directory and their subdirectories are licensed under their original
+
+```
+apps/origin/
+apps/ui/
+```
+
+
+
+Source: https://github.com/cosscom/coss/blob/e937becd2d5ffb5c621eed6f8b1f223cbb6051e7/apps/ui/README.md
+
+# coss ui
+
+**coss ui** is a collection of beautifully designed, accessible, and composable components for your React apps. Built on top of [Base UI](https://base-ui.com/) and styled with [Tailwind CSS](https://tailwindcss.com/), it's designed for you to copy, paste, and own.
+
+We think Base UI is the best foundation for modern web applications. We've taken its powerful, unstyled primitives and given them a design system that's ready to go, right out of the box.
+
+This is the component library we'll be progressively adopting for [cal.com](https://cal.com). We're building it in the open for anyone who wants to create beautiful, reliable user interfaces.
+
+## Contributing
+
+We're always looking for contributors to help improve our UI components. Whether it's a bug report, a new feature, or a documentation update, we appreciate your help.
+
+Please see our [Contributing Guidelines](CONTRIBUTING.md) for more information on how to get involved.
+
+## Getting Started
+
+Run development server:
+
+```sh
+bun run dev
+```
+
+Open http://localhost:4000 with your browser to see the result.
+
+## Development
+
+### Linting
+
+Check for linting errors:
+
+```sh
+bun run lint
+```
+
+### Formatting
+
+Format code automatically:
+
+```sh
+bun run format
+```
+
+Format code and fix linting errors:
+
+```sh
+bun run format:all
+```
+
+### Type Checking
+
+Run TypeScript type checking:
+
+```sh
+bun run typecheck
+```
+
+## Resources
+
+- [Next.js](https://nextjs.org/)
+- [shadcn/ui](https://ui.shadcn.com/docs/registry)
+- [Fumadocs](https://fumadocs.dev/)
+
+### shadcn/ui Registry
+
+Build shadcn/ui registry:
+
+```sh
+bun run registry:build
+```
+
+This build script compiles all the registry items into a json file that is compatible with both v0 and the shadcn/ui cli. Read the [documentation](https://ui.shadcn.com/docs/registry) for further details.
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](../../LICENSING.md) file for details.
+
+
+Source: https://github.com/cosscom/coss/blob/e937becd2d5ffb5c621eed6f8b1f223cbb6051e7/apps/ui/package.json
+
+{
+  "dependencies": {
+    "@base-ui/react": "1.8.0",
+    "@coss/ui": "workspace:*",
+    "@daypicker/react": "10.0.1",
+    "@hugeicons/core-free-icons": "^2.0.0",
+    "@hugeicons/react": "^1.1.1",
+    "@remixicon/react": "^4.7.0",
+    "@tanstack/react-table": "^9.2.4",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "fumadocs-core": "^16.0.14",
+    "fumadocs-mdx": "^14.0.3",
+    "jotai": "^2.15.1",
+    "lucide-react": "^0.555.0",
+    "next": "16.2.5",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "shadcn": "^4.1.0",
+    "tailwind-merge": "^3.4.0",
+    "ts-morph": "^27.0.2",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@coss/typescript-config": "workspace:*",
+    "@shikijs/transformers": "^3.15.0",
+    "@tailwindcss/postcss": "^4.1.17",
+    "@types/mdx": "^2.0.13",
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.6",
+    "@types/react-dom": "^19.2.3",
+    "rehype-pretty-code": "^0.14.1",
+    "rimraf": "^6.1.0",
+    "shiki": "^3.15.0",
+    "tailwindcss": "^4.1.17",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  },
+  "license": "MIT",
+  "name": "ui",
+  "private": true,
+  "scripts": {
+    "build": "next build",
+    "clean": "rm -rf node_modules && rm -rf .turbo && rm -rf .next && rm -rf .source",
+    "dev": "next dev --port 4000",
+    "format": "biome format --write .",
+    "format:all": "biome check --write --unsafe --no-errors-on-unmatched",
+    "lint": "biome lint .",
+    "postinstall": "fumadocs-mdx",
+    "registry:build": "tsx --tsconfig ./tsconfig.scripts.json ./scripts/build-registry.mts",
+    "registry:validate-deps": "tsx --tsconfig ./tsconfig.scripts.json ./scripts/validate-registry-deps.mts",
+    "start": "next start --port 4000",
+    "typecheck": "tsc --noEmit",
+    "ui:sync": "tsx --tsconfig ./tsconfig.scripts.json ./scripts/sync-ui.mts && bun run ui:sync:imports",
+    "ui:sync:imports": "cd ../.. && bunx biome check --write --assist-enabled=true --linter-enabled=false --formatter-enabled=false --indent-style=space --indent-width=2 --config-path .biome-packages-sync/packages-sync.json packages/ui/src/hooks packages/ui/src/lib packages/ui/src/components > /dev/null 2>&1 || true"
+  },
+  "version": "0.1.0"
+}

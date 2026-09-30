@@ -1,0 +1,43 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "targets": [
+      "app",
+      "dmg"
+    ],
+    "resources": {
+      "../LICENSE": "LICENSE",
+      "../COPYING": "COPYING",
+      "../COMMERCIAL_LICENSE.txt": "COMMERCIAL_LICENSE.txt",
+      "../NOTICE": "NOTICE",
+      "../node_modules/@novnc/novnc/": "third-party-sources/novnc/",
+      "resources/runtime/appliance/": "runtime/appliance/",
+      "resources/cli/yougori-cli": "cli/yougori-cli",
+      "resources/cli/opendock-cli": "cli/opendock-cli",
+      "resources/THIRD_PARTY_NOTICES.txt": "THIRD_PARTY_NOTICES.txt",
+      "resources/APPLICATION_LICENSES.txt": "APPLICATION_LICENSES.txt",
+      "resources/RUNTIME_LICENSES.txt": "RUNTIME_LICENSES.txt",
+      "resources/WORKSPACE_LICENSES.txt": "WORKSPACE_LICENSES.txt",
+      "resources/cli/yougori": "cli/yougori"
+    },
+    "macOS": {
+      "minimumSystemVersion": "14.0",
+      "hardenedRuntime": true,
+      "dmg": {
+        "background": "installer/dmg-background.png",
+        "windowSize": {
+          "width": 720,
+          "height": 460
+        },
+        "appPosition": {
+          "x": 200,
+          "y": 267
+        },
+        "applicationFolderPosition": {
+          "x": 520,
+          "y": 267
+        }
+      }
+    }
+  }
+}

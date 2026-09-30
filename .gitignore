@@ -1,0 +1,88 @@
+node_modules
+dist
+.DS_Store
+*.local
+*.log
+src-tauri/target
+src-tauri/gen
+coverage
+.vite
+*.tsbuildinfo
+artifacts
+test-results
+test-results-*
+playwright-report
+build/gpu-bridge/
+build/angle-runtime/
+build/secure-runtime/
+build/runtime-cache/
+build/cuda/
+build/linux/
+runtime/cuda/host/target/
+cli/target/
+vault/target/
+vendor/glib/target/
+src-tauri/resources/vault/
+src-tauri/resources/cli/
+
+# Verified runtime payloads and EFI helpers are versioned for fresh checkouts.
+# Rebuild and privacy-check them before replacing the bundled copies.
+
+# Development-agent configuration is local, not part of the product source.
+/.agents/
+# Ship the app-editing skill used by Edit the App; keep other local agent files private.
+!/.agents/
+/.agents/*
+!/.agents/skills/
+/.agents/skills/*
+!/.agents/skills/edit-yougori/
+!/.agents/skills/edit-yougori/SKILL.md
+/.codex/
+/.claude/
+/.cursor/
+/.gemini/
+/.windsurf/
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+.cursorrules
+.windsurfrules
+/.github/copilot-instructions.md
+/.github/instructions/
+/skills-lock.json
+
+# Downloaded appliance build dependencies
+build/appliance-cache/
+build/toolchains/
+
+# Release-specific third-party source archives and inspection scratch files.
+build/compliance/
+build/source-review/
+build/source-review-2/
+__pycache__/
+*.pyc
+
+# Local documents and generated PDF previews
+*.[pP][dD][fF]
+/output/pdf/
+/tmp/
+
+# Local credentials (keep safe templates versioned)
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+
+# Editor and operating-system temporary files
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+engine/target/
+crates/*/target/
+
+# Local release-check copies of bundled runtimes.
+/build/release-audit-2026-09-22/runtime/
+/build/staged-appliance/

@@ -1,0 +1,158 @@
+# Yougori third-party notices
+
+Yougori distributes third-party runtime components, including a locally modified
+secure QEMU runtime. Copyright remains with each component's authors. The
+AGPL-3.0-only license applies to original Yougori code except where a
+separate license notice applies. Yougori LLC separately offers paid commercial
+licenses for rights it can grant. Neither route relicenses third-party code or
+overrides any component's own license. Existing OpenDock names in upstream or project notices
+are retained as historical attribution.
+
+The links below identify upstream projects and source locations. They are not,
+by themselves, a complete corresponding-source distribution or a written source
+offer. They must not be represented as proof of GPL/LGPL release compliance.
+The repository's `compliance/release.json` and `compliance/evidence/` record
+collected sources, exact runtime identities and unresolved distribution work.
+Application dependency license texts are supplied in `APPLICATION_LICENSES.txt`.
+Additional guest and Windows library texts are supplied in `RUNTIME_LICENSES.txt`.
+The component list below is an overview. Exact package versions, license
+expressions and coverage findings are in `compliance/evidence/`; a package
+license expression may cover files with different terms.
+
+## Copied UI components and generated CSS
+
+- The 26 components under `src/components/ui/` and `src/lib/utils.ts` derive
+  from Coss UI. Its `apps/ui/` subtree explicitly uses MIT. The upstream project
+  attribution, full MIT terms and pinned licensing declarations are retained in
+  `src/components/ui/LICENSE.txt`, `compliance/notices/coss-ui-declaration.txt`
+  and `APPLICATION_LICENSES.txt`. `compliance/frontend.json` identifies the files.
+- Tailwind CSS 4.3.3 contributes Preflight and generated utility styles to the
+  application. Its full MIT notice, including Copyright (c) Tailwind Labs, Inc.,
+  is included in `APPLICATION_LICENSES.txt`, even though npm classifies the
+  package as a development dependency.
+- Original Yougori modifications in this version are offered under AGPL-3.0-only;
+  upstream portions keep their own terms. Package imports, copied-source notices and source/assets are
+  covered by the frontend compliance inventory.
+
+## FAT filesystem support
+
+The desktop uses fatfs 0.3.6 to create independent imported-files drives for VMs.
+Upstream: https://github.com/rafalh/rust-fatfs
+
+Copyright 2017 Rafał Harabień
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Software, and to permit persons to whom the Software is furnished to do
+so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+## QEMU and firmware
+
+- QEMU Windows distribution: GPL version 2 at the project level; individual files and libraries carry their own GPL, LGPL, or other compatible licenses. The bundled distribution includes `runtime/qemu/COPYING`, `runtime/qemu/COPYING.LIB`, and its upstream `README.rst`. Use the bundled manifests and source records to identify the exact shipped build.
+- EDK II UEFI firmware shipped by the QEMU distribution: BSD-2-Clause-Patent and component-specific compatible licenses.
+- Both Windows QEMU directories are now built from revision `84f07211cc5b4fc6a371559bf8a5de4fb068e648`, with the supplied local patches. `SOURCE_BUILD.json` and `SHA256SUMS` identify the build and payload.
+- The exact TPM backend source for these binaries is retained in `runtime/security/shipped/tpm-qemu.c` in the source bundle. The adjacent development source has newer display strings; the retained copy is checked against the original build hashes.
+- QEMU upstream source: https://github.com/qemu/qemu
+- EDK II source: https://github.com/tianocore/edk2
+
+The previous stock runtime's JACK and Berkeley DB libraries are absent from
+this source-built runtime. Older installers require their own source records.
+QEMU and the EGL bridge use GPL-compatible component terms. GMP, Nettle and
+libunistring are supplied using their GPL-2.0-or-later library option; their
+original declarations and GPLv2 text appear in `RUNTIME_LICENSES.txt`.
+
+The Windows ANGLE graphics libraries are rebuilt from revision
+`890b5d8fa2988e3719e0d80421bf3e927db9cd5c` with D3D11 only. Their
+`ANGLE_BUILD.json` files identify source inputs and the actual build; their
+`ANGLE-NOTICES.txt` files retain ANGLE, Chromium, xxHash, Khronos interface,
+generated-parser and compiler-support terms. These notices are also included
+in `RUNTIME_LICENSES.txt`. Optional Vulkan/SPIRV implementations, SwiftShader,
+Vulkan Memory Allocator and overlay font data are excluded from this build.
+The VMA notice is retained separately for the replaced package version.
+
+### Modified Windows secure runtime
+
+- Exact source revisions, package inventory, and component licenses are recorded
+  in `runtime/qemu-secure/SOURCES.md`, `runtime/qemu-secure/PACKAGES.txt`, and
+  the license files beside them.
+- Local source, patches, and build information are packaged under
+  `third-party-sources/runtime/security/`, `third-party-sources/runtime/gpu/`,
+  and `third-party-sources/scripts/`. The security directory's own `LICENSE`
+  identifies BSD-licensed TPM glue and the GPL-2.0-or-later QEMU backend.
+- The EDK2 build also applies `edk2-svsm-probe.patch`; the older bundled source
+  record's statement that EDK2 has no source patch is superseded by this notice
+  and `third-party-sources/runtime/security/SOURCES.txt`.
+- These local patches and scripts are supplemental source material, not the
+  complete upstream QEMU, firmware, library, or appliance source distributions.
+  Their respective component-license rights remain intact.
+- `qemu-license-notices.patch` adds dated modification notices to all ten changed
+  upstream files. It is applied after the functional patches and changes comments
+  only. The original binary build records are retained; supplementary source
+  equivalence is recorded in `compliance/evidence/qemu-modification-notices.json`.
+- The BSD TPM worker loads the reference TPM core and OpenSSL in a separate
+  process. QEMU exchanges TPM bytes and lifecycle requests over anonymous
+  pipes. The existing TPM NV format and guest identities are preserved.
+
+## noVNC desktop client
+
+- noVNC 1.7.0: MPL-2.0, with vendor files under their individual licenses.
+  Upstream: https://github.com/novnc/noVNC/tree/v1.7.0
+- The installed package's source, including the exact `core/` and `vendor/`
+  files used by the build, is included in `third-party-sources/novnc/`.
+  That directory also includes `AUTHORS`, package metadata, and the license
+  texts in `docs/LICENSE*`. These sources may be used, modified, and
+  redistributed under their own licenses, independently of Yougori's license.
+- `scripts/patch-novnc.mjs` removes a historical viewport extension when present;
+  fresh installations use upstream noVNC. The packaged sources reflect the
+  package after this build preparation step.
+
+## Embedded Linux appliance
+
+- Alpine Linux 3.24: packages retain their individual licenses. Package identity, version, origin, and license metadata are preserved in the appliance package database at `/lib/apk/db/installed`.
+- Linux kernel: GPL-2.0-only. Source: https://gitlab.alpinelinux.org/alpine/aports/-/tree/3.24-stable/main/linux-lts
+- BusyBox: GPL-2.0-only. Source: https://git.busybox.net/busybox/
+- OpenRC: BSD-2-Clause. Source: https://github.com/OpenRC/openrc
+- musl libc: MIT. Source: https://musl.libc.org/
+- iproute2: GPL-2.0-only. Source: https://git.kernel.org/pub/scm/network/iproute2/iproute2.git/
+- iptables: GPL-2.0-only. Source: https://git.netfilter.org/iptables/
+- util-linux: GPL-2.0-or-later, LGPL-2.1-or-later, BSD, and component-specific compatible licenses. Source: https://github.com/util-linux/util-linux
+- e2fsprogs: GPL-2.0-or-later, LGPL-2.0-or-later, and component-specific compatible licenses. Source: https://git.kernel.org/pub/scm/fs/ext2/e2fsprogs.git/
+- Alpine package sources and exact package build recipes: https://gitlab.alpinelinux.org/alpine/aports
+
+## OCI runtime
+
+- nerdctl 2.3.5: Apache-2.0. Source: https://github.com/containerd/nerdctl/tree/v2.3.5
+- containerd 2.3.3: Apache-2.0. Source: https://github.com/containerd/containerd/tree/v2.3.3
+- runc 1.5.1: Apache-2.0. Source: https://github.com/opencontainers/runc/tree/v1.5.1
+- CNI plugins 1.9.1: Apache-2.0. A license copy is included at `/usr/local/libexec/cni/LICENSE` inside the appliance. Source: https://github.com/containernetworking/plugins/tree/v1.9.1
+- The static OCI build also uses Debian glibc 2.41-12+deb13u3, libseccomp
+  2.6.0-2 and libbtrfs from btrfs-progs 6.14-1. Their source packages, Debian
+  patches and build rules are included in the matching source bundle. Full
+  copyright notices are retained in `RUNTIME_LICENSES.txt`. The source bundle
+  supplies the application sources and build instructions needed to relink
+  modified libraries. libpathrs is disabled in this nerdctl build.
+
+## Workspace terminals and folder sharing
+
+- xterm.js 5.5.0 and addon-fit 0.10.0: MIT. Source: https://github.com/xtermjs/xterm.js/tree/5.5.0
+- Go-FUSE 2.5.1: BSD-3-Clause. Source: https://github.com/hanwen/go-fuse/tree/v2.5.1
+- Go `golang.org/x/sys`: BSD-3-Clause. Source: https://go.googlesource.com/sys/
+- Container startup configuration uses the containerd Go API, containerd/log, containerd/ttrpc, gRPC-Go, and Google RPC generated types (Apache-2.0), Go protobuf and `golang.org/x/net` / `golang.org/x/text` (BSD-3-Clause), and Logrus (MIT). Exact versions and upstream license texts are included in `WORKSPACE_LICENSES.txt`; the agent's `go.mod` and `go.sum` pin the source dependencies.
+- Container storage inspection also uses opencontainers/image-spec 1.1.1 and opencontainers/go-digest 1.0.0 (Apache-2.0). Their upstream license texts are included in `WORKSPACE_LICENSES.txt`. Sources: https://github.com/opencontainers/image-spec/tree/v1.1.1 and https://github.com/opencontainers/go-digest/tree/v1.0.0.
+- License texts for these additions are included in `WORKSPACE_LICENSES.txt` beside this notice.
+- Optional cloudflared 2026.8.3 is downloaded directly from Cloudflare's release when the user enables a tunnel. It is not bundled in Yougori. Source and Apache-2.0 license: https://github.com/cloudflare/cloudflared/tree/2026.8.3
+
+The appliance is assembled by `scripts/build-appliance.sh`; the Windows runtime is assembled by `scripts/build-bundled-runtime.ps1`. Those scripts identify the downloaded versions and verify upstream or pinned cryptographic checksums. This notice is informational and does not replace any license text distributed with a component.

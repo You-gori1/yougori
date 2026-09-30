@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 1,
+  "angle": {
+    "evidence": "compliance/evidence/angle-build.json",
+    "reviewedBuildSha256": "12a40705a3bc5528daeb07868d64a3096458110113cc742263feef3eaf1abf9e",
+    "revision": "890b5d8fa2988e3719e0d80421bf3e927db9cd5c",
+    "components": [
+      {
+        "id": "angle",
+        "license": "BSD-3-Clause",
+        "review": "approved",
+        "basis": "ANGLE source and shader implementations retain the root ANGLE BSD license. The Chromium logging adaptations in src/common/debug.h and log_utils.h are also covered by the retained Chromium BSD notice.",
+        "notice": "ANGLE \u2014 BSD-3-Clause"
+      },
+      {
+        "id": "angle-generated",
+        "license": "BSD-3-Clause",
+        "review": "approved",
+        "basis": "Build-generated version headers describe ANGLE and introduce no separately licensed implementation.",
+        "notice": "ANGLE \u2014 BSD-3-Clause"
+      },
+      {
+        "id": "angle-font-disabled-wrapper",
+        "license": "BSD-3-Clause",
+        "review": "approved",
+        "basis": "Preprocessing proves only the ANGLE-authored null-return wrapper remains; Apache Roboto glyph data is excluded.",
+        "notice": "ANGLE \u2014 BSD-3-Clause"
+      },
+      {
+        "id": "xxhash",
+        "license": "BSD-2-Clause",
+        "review": "approved",
+        "basis": "The two xxHash source files retain their own BSD license and Yann Collet attribution.",
+        "notice": "xxHash \u2014 BSD-2-Clause"
+      },
+      {
+        "id": "chromium-base",
+        "license": "BSD-3-Clause",
+        "review": "approved",
+        "basis": "License selected from Chromium revision identified by ANGLE src/common/base/README.chromium; individual source copyright years retained.",
+        "notice": "Chromium base helpers and compression_utils_portable \u2014 BSD-3-Clause"
+      },
+      {
+        "id": "chromium-compression",
+        "license": "BSD-3-Clause",
+        "review": "approved",
+        "basis": "The Chromium compression helpers explicitly refer to Chromium's BSD license. The zlib library is linked separately.",
+        "notice": "Chromium base helpers and compression_utils_portable \u2014 BSD-3-Clause"
+      },
+      {
+        "id": "khronos-mit-interfaces",
+        "license": "MIT",
+        "review": "approved",
+        "basis": "Khronos OpenGL ES declarations and KHR platform types retain their permissive interface-header terms.",
+        "notice": "Khronos OpenGL ES and KHR interface headers \u2014 MIT"
+      },
+      {
+        "id": "khronos-apache-interfaces",
+        "license": "Apache-2.0",
+        "review": "approved",
+        "basis": "Reviewed API declarations/constants/platform types only, without executable implementation. Apache section 1 excludes works merely binding to interfaces from its derivative-work definition; source headers and Apache text remain supplied. This exception does not cover SPIRV/Vulkan implementation code.",
+        "notice": "Khronos EGL and platform interface headers \u2014 Apache-2.0"
+      },
+      {
+        "id": "bison-output",
+        "license": "GPL-3.0-or-later WITH Bison-exception-2.2",
+        "review": "approved",
+        "basis": "The intact skeleton exception permits the larger non-parser-generator ANGLE work under its own terms. The generated source notices and GPLv3 text are retained.",
+        "notice": "Bison-generated parser skeletons \u2014 GPL-3.0-or-later WITH Bison-exception-2.2"
+      },
+      {
+        "id": "flex-output",
+        "license": "LicenseRef-Flex-output-permission",
+        "review": "approved",
+        "basis": "Flex 2.6.4 COPYING expressly removes its copyright restrictions from generated scanners; original ANGLE-generated source headers remain.",
+        "notice": "Flex-generated scanners \u2014 upstream output permission"
+      },
+      {
+        "id": "toolchain-headers",
+        "license": "GPL-3.0-or-later WITH GCC-exception-3.1 AND Apache-2.0 WITH LLVM-exception AND BSL-1.0 AND Zlib AND LicenseRef-MinGW-w64",
+        "review": "approved",
+        "basis": "Compiler/header inputs are hashed. The standard unmodified GCC compilation qualifies for its runtime exception; LLVM's additional exception handles GPLv2 object redistribution. MinGW-w64, Boost and zlib terms are retained in the same notice collection.",
+        "notice": "Compiler headers and runtime support"
+      }
+    ],
+    "forbiddenSourcePrefixes": [
+      "third_party/spirv-",
+      "third_party/vulkan",
+      "third_party/SwiftShader/",
+      "third_party/astc",
+      "third_party/dawn/",
+      "src/third_party/volk/",
+      "src/libANGLE/renderer/vulkan/",
+      "src/libANGLE/renderer/wgpu/",
+      "src/compiler/translator/spirv/TranslatorSPIRV.cpp"
+    ],
+    "interfaceHeaders": [
+      "include/EGL/egl.h",
+      "include/EGL/eglext.h",
+      "include/EGL/eglplatform.h",
+      "include/GLES/glplatform.h",
+      "include/GLES2/gl2platform.h",
+      "include/GLES3/gl3platform.h"
+    ]
+  },
+  "dynamicLoads": [
+    {
+      "from": "libepoxy-0.dll",
+      "to": "libegl.dll",
+      "basis": "libepoxy EGL entry-point dispatch uses LoadLibrary for libEGL.dll; QEMU imports libepoxy for egl-headless."
+    },
+    {
+      "from": "libegl.dll",
+      "to": "libegl_angle.dll",
+      "basis": "runtime/gpu/egl-bridge.c real_proc uses LoadLibraryExW and the proxy forwards exports to libEGL_angle."
+    },
+    {
+      "from": "libegl_angle.dll",
+      "to": "libglesv2.dll",
+      "basis": "Pinned ANGLE src/libEGL/libEGL.cpp and generated EGL loader call OpenSharedLibrary/GetProcAddress on libGLESv2."
+    }
+  ],
+  "forbiddenQemuDependencies": [
+    "libdb-6.2.dll",
+    "libjack64.dll",
+    "libcrypto-3-x64.dll",
+    "opendock-tpm.dll"
+  ],
+  "reviewedPeInventorySha256": "67554323700f4423cc9ea27e7f363d92fe481eb4a3fede12a99495000ed63478"
+}

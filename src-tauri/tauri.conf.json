@@ -1,0 +1,53 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Yougori",
+  "version": "1.0.0",
+  "identifier": "com.yougori.desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run cli:bundle && npm run vault:bundle && npm run release:package && npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Yougori",
+        "width": 1440,
+        "height": 920,
+        "minWidth": 980,
+        "minHeight": 680,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": false,
+        "visible": false,
+        "backgroundColor": "#ece8e0"
+      }
+    ],
+    "security": {
+      "dangerousDisableAssetCspModification": ["style-src"],
+      "csp": "default-src 'self' ipc: http://ipc.localhost; connect-src 'self' ipc: http://ipc.localhost ws://127.0.0.1:*; img-src 'self' asset: http://asset.localhost data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; worker-src 'self' blob:"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "publisher": "Yougori LLC",
+    "copyright": "Copyright (c) 2026 Yougori LLC",
+    "category": "DeveloperTool",
+    "shortDescription": "Your local environment workspace",
+    "longDescription": "Create and manage containers, microVMs and virtual machines from one desktop workspace.",
+    "license": "AGPL-3.0-only",
+    "licenseFile": "../COPYING",
+    "targets": "all",
+    "windows": {
+      "allowDowngrades": false
+    },
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

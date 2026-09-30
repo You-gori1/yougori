@@ -1,0 +1,95 @@
+{
+  "sourceRevision": "84f07211cc5b4fc6a371559bf8a5de4fb068e648",
+  "files": [
+    {
+      "file": "bios-256k.bin",
+      "matchPinnedQemuSource": true,
+      "sha256": "ae6f6aa973aaccc143f57aa960fb035fd9de4daee4ad0cd713322f8c259e7650"
+    },
+    {
+      "file": "bios-microvm.bin",
+      "matchPinnedQemuSource": true,
+      "sha256": "d226177d125aaf1b91e507738f4e9a0ade9474169b211751f78be08008cb394c"
+    },
+    {
+      "file": "bios.bin",
+      "matchPinnedQemuSource": true,
+      "sha256": "3dfd946d0c03ab0e022f84f10c3eb5f1dd507761f73e7d8067511ba35a10f776"
+    },
+    {
+      "file": "edk2-i386-vars.fd",
+      "matchPinnedQemuSource": true,
+      "sha256": "5d2ac383371b408398accee7ec27c8c09ea5b74a0de0ceea6513388b15be5d1e"
+    },
+    {
+      "file": "edk2-licenses.txt",
+      "matchPinnedQemuSource": true,
+      "sha256": "1ddeaed2e7d2e9ecb960bdfc1b8ee45387aff70d056d985d145949af3951657c"
+    },
+    {
+      "file": "edk2-x86_64-code.fd",
+      "matchPinnedQemuSource": true,
+      "sha256": "33090cc07675baa5190d9f1e84bf5176b33bcbfa9bacac522961150cdb6dbb2a"
+    },
+    {
+      "file": "efi-e1000e.rom",
+      "matchPinnedQemuSource": true,
+      "sha256": "102c20348be2d0ebe45a77b076b31848182c2f7b4364775b6bc2ece6e97b4024"
+    },
+    {
+      "file": "efi-virtio.rom",
+      "matchPinnedQemuSource": true,
+      "sha256": "26be36901db7f8181c306cc62bd74891d8646528965a78e40cceadba5dd7c8e7"
+    },
+    {
+      "file": "keymaps/en-us",
+      "matchPinnedQemuSource": true,
+      "sha256": "52cf4c523e686078699ed58761c7e1443080305237a5f67a3716832570c5c8e5"
+    },
+    {
+      "file": "kvmvapic.bin",
+      "matchPinnedQemuSource": true,
+      "sha256": "cdf057a71b07e3b52b19cbe210bdefa59250d01a9810b960f7fe1f98eed95a27"
+    },
+    {
+      "file": "linuxboot_dma.bin",
+      "matchPinnedQemuSource": true,
+      "sha256": "9c49e255340c78fc12e54ed043462bca02fb7fca29b7cfab62ff88a5344b6950"
+    },
+    {
+      "file": "pvh.bin",
+      "matchPinnedQemuSource": true,
+      "sha256": "918ff03a118615c2f4611a5df2d9496aabe099b5cfaaf69e544ebf973305d59d"
+    },
+    {
+      "file": "qboot.rom",
+      "matchPinnedQemuSource": true,
+      "sha256": "9b9dfc6c25740d6225625570d71cab6805cc9216e68c8932e343266daaeb8c4b"
+    },
+    {
+      "file": "vgabios-bochs-display.bin",
+      "matchPinnedQemuSource": true,
+      "sha256": "da07e26661279edb7935284a99f8ddfa77dbf04ddb939e4a8c7bc7e36e40cdc7"
+    },
+    {
+      "file": "vgabios-ramfb.bin",
+      "matchPinnedQemuSource": true,
+      "sha256": "24f6b98b2c263f3f562b1180df23e949f7dd27f194fa26aeba27f36bbf6265c6"
+    },
+    {
+      "file": "vgabios-stdvga.bin",
+      "matchPinnedQemuSource": true,
+      "sha256": "e8fc9e55790dbe3cb31f019a3deb57206ba6c54f5e581adb2ab2677a9d391472"
+    },
+    {
+      "file": "vgabios-virtio.bin",
+      "matchPinnedQemuSource": true,
+      "sha256": "02853140c262001ecb7245b151ffe47a0f0c79767a6fb2a9eb60f5f1938c5cee"
+    },
+    {
+      "file": "vgabios.bin",
+      "matchPinnedQemuSource": true,
+      "sha256": "a7ea86bb06a58ff969fd0942e73b8eae00cb58e4c90bccbd900f6a3a01f54fbb"
+    }
+  ]
+}

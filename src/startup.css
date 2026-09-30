@@ -1,0 +1,34 @@
+/* Available before React loads; shared with the native app's React fallback. */
+body { margin: 0; }
+.startup-screen {
+  --startup-bg: #ece8e0;
+  --startup-fg: #292723;
+  --startup-muted: #68635b;
+  --startup-track: #d2ccc2;
+  --startup-accent: #365e85;
+  display: grid;
+  min-height: 100vh;
+  min-height: 100dvh;
+  place-items: center;
+  box-sizing: border-box;
+  padding: 28px;
+  background: var(--startup-bg);
+  color: var(--startup-fg);
+  font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+}
+.dark .startup-screen { --startup-bg: #0e0f10; --startup-fg: #e7e8eb; --startup-muted: #969aa3; --startup-track: #292d33; --startup-accent: #6e90b4; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-yougori-theme]) .startup-screen { --startup-bg: #0e0f10; --startup-fg: #e7e8eb; --startup-muted: #969aa3; --startup-track: #292d33; --startup-accent: #6e90b4; }
+}
+:root[data-yougori-palette] .startup-screen { --startup-bg: var(--background); --startup-fg: var(--foreground); --startup-muted: var(--muted-foreground); --startup-track: var(--border); --startup-accent: var(--primary); }
+.startup-content { width: min(100%, 340px); text-align: center; }
+.startup-brand { margin: 0 0 24px; font-size: 26px; font-weight: 600; letter-spacing: -0.8px; }
+.startup-track { width: 152px; height: 3px; margin: 0 auto 20px; overflow: hidden; border-radius: 4px; background: var(--startup-track); }
+.startup-track span { display: block; width: 45%; height: 100%; border-radius: inherit; background: var(--startup-accent); animation: startup-slide 1.5s ease-in-out infinite alternate; }
+.startup-message { margin: 0; color: var(--startup-muted); font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }
+.startup-title { margin: 0 0 10px; font-size: 16px; font-weight: 600; }
+.startup-retry { margin-top: 20px; padding: 9px 18px; border: 1px solid var(--startup-track); border-radius: 7px; background: var(--startup-track); color: var(--startup-fg); font: inherit; font-size: 13px; cursor: pointer; }
+.startup-retry:hover { border-color: var(--startup-accent); }
+.startup-retry:focus-visible { outline: 2px solid var(--startup-accent); outline-offset: 3px; }
+@keyframes startup-slide { from { transform: translateX(-100%); } to { transform: translateX(225%); } }
+@media (prefers-reduced-motion: reduce) { .startup-track span { animation: none; width: 100%; opacity: 0.6; } }

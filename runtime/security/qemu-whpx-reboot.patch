@@ -1,0 +1,61 @@
+WHPX reboot reset, adapted from Mohamed Mediouni's QEMU patch v2:
+https://patchew.org/QEMU/20260421205749.55060-1-mohamed@unpredictable.fr/
+Reset the hypervisor partition after devices reset and before vCPU registers
+are restored. Check failure instead of silently leaving stale interrupt state.
+Licensed under QEMU's GPL-2.0-or-later license.
+
+diff --git a/include/accel/accel-ops.h b/include/accel/accel-ops.h
+--- a/include/accel/accel-ops.h
++++ b/include/accel/accel-ops.h
+@@ -35,2 +35,3 @@
+     void (*pre_resume_vm)(AccelState *as, bool step_pending);
++    void (*reset_vm)(AccelState *as);
+     bool (*has_memory)(AccelState *accel, AddressSpace *as,
+diff --git a/include/qemu/accel.h b/include/qemu/accel.h
+--- a/include/qemu/accel.h
++++ b/include/qemu/accel.h
+@@ -54,2 +54,3 @@
+ void accel_pre_resume(MachineState *ms, bool step_pending);
++void accel_reset(MachineState *ms);
+ 
+diff --git a/accel/accel-system.c b/accel/accel-system.c
+--- a/accel/accel-system.c
++++ b/accel/accel-system.c
+@@ -79,1 +79,9 @@
++void accel_reset(MachineState *ms)
++{
++    AccelClass *ac = ACCEL_GET_CLASS(ms->accelerator);
++    if (ac->reset_vm) {
++        ac->reset_vm(ms->accelerator);
++    }
++}
++
+ /* initialize the arch-independent accel operation interfaces */
+diff --git a/accel/whpx/whpx-common.c b/accel/whpx/whpx-common.c
+--- a/accel/whpx/whpx-common.c
++++ b/accel/whpx/whpx-common.c
+@@ -246,1 +246,12 @@
++static void whpx_partition_reset(AccelState *as)
++{
++    if (whp_dispatch.WHvResetPartition) {
++        HRESULT hr = whp_dispatch.WHvResetPartition(whpx_global.partition);
++        if (FAILED(hr)) {
++            error_report("WHPX: partition reset failed: %08lx", hr);
++            exit(EXIT_FAILURE);
++        }
++    }
++}
++
+ static void whpx_pre_resume_vm(AccelState *as, bool step_pending)
+@@ -640,2 +652,3 @@
+     ac->pre_resume_vm = whpx_pre_resume_vm;
++    ac->reset_vm = whpx_partition_reset;
+     ac->allowed = &whpx_allowed;
+diff --git a/system/runstate.c b/system/runstate.c
+--- a/system/runstate.c
++++ b/system/runstate.c
+@@ -580,1 +580,4 @@
++    if (current_machine) {
++        accel_reset(current_machine);
++    }
+     if (cpus_are_resettable()) {

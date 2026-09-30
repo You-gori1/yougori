@@ -1,0 +1,12 @@
+# Keep repeated local builds from retaining hundreds of GB of compiler state.
+# Applies to Cargo commands launched here and in this checkout's subdirectories.
+[build]
+incremental = false
+
+[profile.dev]
+debug = "line-tables-only"
+incremental = false
+
+[profile.test]
+debug = "line-tables-only"
+incremental = false

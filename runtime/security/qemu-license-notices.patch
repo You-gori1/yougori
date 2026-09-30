@@ -1,0 +1,120 @@
+Yougori QEMU source modification notices
+
+Apply after the three functional QEMU patches. Adds comments only.
+Functional changes first recorded in repository commit fca00d1 on 2026-09-09.
+Notice date: 2026-09-13. Existing upstream licenses and attribution are retained.
+
+diff --git a/accel/accel-system.c b/accel/accel-system.c
+--- a/accel/accel-system.c
++++ b/accel/accel-system.c
+@@ -1,3 +1,8 @@
++/*
++ * Yougori modifications first recorded 2026-09-09:
++ * Dispatch accelerator reset hooks during system reset.
++ * This dated notice was added 2026-09-13.
++ */
+ /*
+  * QEMU accel class, system emulation components
+  *
+diff --git a/accel/whpx/whpx-common.c b/accel/whpx/whpx-common.c
+--- a/accel/whpx/whpx-common.c
++++ b/accel/whpx/whpx-common.c
+@@ -1,3 +1,8 @@
++/*
++ * Yougori modifications first recorded 2026-09-09:
++ * Reset WHPX partition state before restoring virtual CPUs.
++ * This dated notice was added 2026-09-13.
++ */
+ /* SPDX-License-Identifier: GPL-2.0-or-later */
+ /*
+  * QEMU Windows Hypervisor Platform accelerator (WHPX)
+diff --git a/backends/tpm/meson.build b/backends/tpm/meson.build
+--- a/backends/tpm/meson.build
++++ b/backends/tpm/meson.build
+@@ -1,3 +1,6 @@
++# Yougori modifications first recorded 2026-09-09:
++# Build the Windows software TPM backend.
++# This dated notice was added 2026-09-13.
+ if have_tpm
+   system_ss.add(files('tpm_backend.c'))
+   system_ss.add(files('tpm_util.c'))
+diff --git a/hw/tpm/tpm_ppi.c b/hw/tpm/tpm_ppi.c
+--- a/hw/tpm/tpm_ppi.c
++++ b/hw/tpm/tpm_ppi.c
+@@ -1,3 +1,8 @@
++/*
++ * Yougori modifications first recorded 2026-09-09:
++ * Page-align and clear TPM PPI memory for WHPX.
++ * This dated notice was added 2026-09-13.
++ */
+ /*
+  * tpm_ppi.c - TPM Physical Presence Interface
+  *
+diff --git a/include/accel/accel-ops.h b/include/accel/accel-ops.h
+--- a/include/accel/accel-ops.h
++++ b/include/accel/accel-ops.h
+@@ -1,3 +1,8 @@
++/*
++ * Yougori modifications first recorded 2026-09-09:
++ * Declare the accelerator reset callback.
++ * This dated notice was added 2026-09-13.
++ */
+ /*
+  * Accelerator handlers
+  *
+diff --git a/include/qemu/accel.h b/include/qemu/accel.h
+--- a/include/qemu/accel.h
++++ b/include/qemu/accel.h
+@@ -1,3 +1,8 @@
++/*
++ * Yougori modifications first recorded 2026-09-09:
++ * Expose the accelerator reset hook.
++ * This dated notice was added 2026-09-13.
++ */
+ /* QEMU accelerator interfaces
+  *
+  * Copyright (c) 2014 Red Hat Inc
+diff --git a/meson.build b/meson.build
+--- a/meson.build
++++ b/meson.build
+@@ -1,3 +1,6 @@
++# Yougori modifications first recorded 2026-09-09:
++# Enable Windows TPM backend configuration.
++# This dated notice was added 2026-09-13.
+ project('qemu', ['c'], meson_version: '>=1.5.0',
+         default_options: ['warning_level=1', 'c_std=gnu11', 'cpp_std=gnu++23', 'b_colorout=auto',
+                           'b_staticpic=false', 'stdsplit=false', 'optimization=2', 'b_pie=true'] +
+diff --git a/qapi/tpm.json b/qapi/tpm.json
+--- a/qapi/tpm.json
++++ b/qapi/tpm.json
+@@ -1,3 +1,6 @@
++# Yougori modifications first recorded 2026-09-09:
++# Describe the Windows software TPM backend options.
++# This dated notice was added 2026-09-13.
+ # -*- Mode: Python -*-
+ # vim: filetype=python
+ #
+diff --git a/system/runstate.c b/system/runstate.c
+--- a/system/runstate.c
++++ b/system/runstate.c
+@@ -1,3 +1,8 @@
++/*
++ * Yougori modifications first recorded 2026-09-09:
++ * Run the accelerator reset hook during machine reset.
++ * This dated notice was added 2026-09-13.
++ */
+ /*
+  * QEMU main system emulation loop
+  *
+diff --git a/system/tpm-hmp-cmds.c b/system/tpm-hmp-cmds.c
+--- a/system/tpm-hmp-cmds.c
++++ b/system/tpm-hmp-cmds.c
+@@ -1,3 +1,8 @@
++/*
++ * Yougori modifications first recorded 2026-09-09:
++ * Display Windows software TPM backend details.
++ * This dated notice was added 2026-09-13.
++ */
+ /*
+  * HMP commands related to TPM
+  *

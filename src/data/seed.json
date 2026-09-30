@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 6,
+  "environments": [],
+  "connections": [],
+  "snapshots": [],
+  "destinations": [],
+  "backupRuns": [],
+  "pendingVmRestores": [],
+  "host": {
+    "hostname": "Local computer",
+    "os": "",
+    "cpuModel": "",
+    "totalCpu": 1,
+    "usedCpuPercent": 0,
+    "gpuUsagePercent": null,
+    "totalMemoryGb": 1,
+    "usedMemoryGb": 0,
+    "totalStorageGb": 1,
+    "usedStorageGb": 0,
+    "storageSavedGb": 0,
+    "pressure": "low",
+    "cpuHistory": [],
+    "gpuHistory": [],
+    "memoryHistory": [],
+    "updatedAt": "1970-01-01T00:00:00Z"
+  },
+  "providers": [],
+  "settings": {
+    "theme": "system",
+    "launchAtStartup": false,
+    "minimizeToTray": false,
+    "pauseOnBattery": false,
+    "telemetryEnabled": false,
+    "dataDirectory": "",
+    "snapshotRetention": 30,
+    "bandwidthLimitMbps": 0
+  }
+}

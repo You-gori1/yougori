@@ -1,0 +1,48 @@
+Personal Vault MCP
+
+Personal Vault runs a local encrypted broker and a dedicated gateway container. Use
+Personal Vault MCP inside Yougori to create it, add items, manage connections,
+and review requests. No Windows Hello or separate native vault approval window
+is used. A one-time Windows administrator prompt may be required when the vault
+broker is first installed or updated; Windows controls that system prompt.
+Ordinary starts use a protected Windows Scheduled Task and should not prompt
+again. If that task is missing or changed, Yougori reports the failure and
+offers an explicit Repair startup action instead of elevating automatically.
+
+Add items in Yougori
+Open Personal Vault MCP, select Add items, enter a name and type, and enter the
+value. Add another queues several items; Save stores them together. Personal
+information uses named fields. Passwords, keys, and tokens must be saved as
+credential types. Values are sent through the main app to the local broker for
+encryption, so use Yougori only on a computer you trust. The form does not save
+values in browser storage or show them in the item list. Closing the form clears
+its current entries.
+
+Connect an agent
+For ChatGPT or Claude, use the Server URL shown under ChatGPT, Claude & online
+agents. Connect using OAuth where supported. For local agents, use the local
+Streamable HTTP URL or `yougori vault mcp` as a stdio command. Show connection
+key is for clients using Bearer authentication; never paste it into chat.
+
+Download plugin ZIP in Personal Vault MCP saves one plugin folder containing
+Agent Plugins and compatibility manifests plus the current HTTPS /mcp address.
+Connect a public tunnel first. You can upload the ZIP or select the extracted
+plugin folder where MCP plugin imports are supported. For an importer offering
+only skills-only uploads, use its With MCP or server URL route instead. Quick
+links change when the tunnel restarts, so download a new ZIP afterward. The
+archive contains no vault secrets. Yougori and the tunnel must remain running.
+
+When an agent asks to connect or use a vault tool, open Personal Vault MCP in
+Yougori. Review the client, requested item, destination, and operation before
+selecting Approve once or Deny. Every protected tool request gets its own
+approval. An agent can request an item-name inventory without values, then
+request a particular item by its ID. If you explicitly ask for every credential,
+read_all_credentials presents the full item list and count for one bulk approval.
+That approval shares every listed credential value with the agent and its
+provider. A credential disclosure cannot be recalled afterward. The broker
+rejects approval commands from remote MCP
+connections and requires the focused local Yougori window for approval.
+
+If a request expires or is denied, the agent receives an error. Do not
+repeatedly retry denied requests. Yougori and this PC must remain running for
+online agents to connect through the tunnel.

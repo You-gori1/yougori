@@ -1,0 +1,79 @@
+.share-popup { width: min(1180px, calc(100vw - 32px)); max-width: none; }
+/* People and the link sit side by side; the people column gets the extra width. */
+.share-columns { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.share-panel { display: grid; gap: 16px; }
+.share-hint { color: var(--muted-foreground); font-size: 12px; line-height: 1.5; }
+.share-error { padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--destructive) 9%, transparent); color: var(--destructive-foreground); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.share-notice { color: var(--muted-foreground); font-size: 12px; }
+
+.share-status { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--border) 80%, transparent); border-radius: 14px; background: color-mix(in srgb, var(--foreground) 3%, transparent); }
+.share-status[data-online] { border-color: color-mix(in srgb, var(--success) 35%, transparent); background: color-mix(in srgb, var(--success) 7%, transparent); }
+.share-dot { flex: none; width: 8px; height: 8px; border-radius: 99px; background: color-mix(in srgb, var(--foreground) 30%, transparent); }
+.share-status[data-online] .share-dot { background: var(--success); box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 22%, transparent); }
+.share-status-text { display: grid; flex: 1; min-width: 12rem; }
+.share-status-text strong { font-size: 13px; font-weight: 600; }
+.share-status-text span { color: var(--muted-foreground); font-size: 12px; }
+.share-status code { min-width: 0; max-width: 100%; overflow: hidden; color: var(--muted-foreground); font-family: var(--font-mono); font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap; }
+
+.share-card { display: grid; gap: 14px; padding: 18px; border: 1px solid color-mix(in srgb, var(--border) 80%, transparent); border-radius: 16px; }
+.share-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.share-card-head h3 { font-size: 14px; font-weight: 600; }
+.share-card-head p { margin-top: 2px; color: var(--muted-foreground); font-size: 12.5px; line-height: 1.5; }
+.share-empty { padding: 18px; border: 1px dashed color-mix(in srgb, var(--border) 90%, transparent); border-radius: 12px; color: var(--muted-foreground); font-size: 12.5px; text-align: center; }
+
+.share-form { display: grid; gap: 12px; padding: 16px; border-radius: 12px; background: color-mix(in srgb, var(--foreground) 3%, transparent); }
+.share-form label { display: grid; gap: 6px; font-size: 12px; font-weight: 550; }
+.share-form-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; align-items: end; gap: 10px; }
+.share-form .share-hint { margin-top: -6px; }
+.share-choice { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+.share-choice button { display: grid; gap: 3px; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--border) 90%, transparent); border-radius: 10px; background: var(--background); text-align: left; transition: border-color .15s, background-color .15s; }
+.share-choice button strong { font-size: 12.5px; font-weight: 600; }
+.share-choice button span { color: var(--muted-foreground); font-size: 11.5px; line-height: 1.45; }
+.share-choice button:hover { border-color: color-mix(in srgb, var(--foreground) 25%, transparent); }
+.share-choice button[aria-checked="true"] { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 7%, var(--background)); box-shadow: 0 0 0 1px var(--primary); }
+.share-folder-input { display: flex; gap: 8px; }
+.share-check { display: flex !important; grid-template-columns: none; align-items: flex-start; gap: 8px !important; font-weight: 400 !important; line-height: 1.45; }
+.share-check input { margin-top: 2px; }
+.share-expiry { display: grid; gap: 6px; font-size: 12px; font-weight: 550; }
+.share-segments { display: flex; gap: 2px; padding: 3px; border-radius: 10px; background: color-mix(in srgb, var(--foreground) 5%, transparent); }
+.share-segments button { height: 26px; padding: 0 12px; border-radius: 7px; color: var(--muted-foreground); font-size: 12px; font-weight: 500; }
+.share-segments button:hover { color: var(--foreground); }
+.share-segments button[aria-checked="true"] { background: var(--popover); color: var(--foreground); box-shadow: 0 1px 2px color-mix(in srgb, black 10%, transparent); }
+.share-form-row .share-segments { height: 36px; align-items: center; }
+.share-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+
+.share-people { display: grid; gap: 8px; padding: 0; list-style: none; }
+.share-people li { display: grid; gap: 10px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--border) 80%, transparent); border-radius: 12px; }
+.share-people li[data-ended] .share-person { opacity: .6; }
+.share-card-actions { display: flex; flex: none; align-items: center; gap: 6px; }
+.share-person-name { display: flex; align-items: center; gap: 8px; }
+.share-person-name strong { font-size: 13px; font-weight: 600; }
+.share-person p { margin-top: 2px; color: var(--muted-foreground); font-size: 12px; overflow-wrap: anywhere; }
+.share-pill { padding: 1px 8px; border-radius: 99px; background: color-mix(in srgb, var(--foreground) 7%, transparent); color: var(--muted-foreground); font-size: 11px; font-weight: 600; }
+.share-pill[data-status="online"] { background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--success-foreground); }
+.share-pill[data-status="revoked"], .share-pill[data-status="expired"] { background: color-mix(in srgb, var(--destructive) 10%, transparent); color: var(--destructive-foreground); }
+.share-person-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.share-person-actions select { height: 26px; margin-right: 4px; padding: 0 8px; border: 1px solid var(--input); border-radius: 7px; background: var(--background); font-size: 12px; }
+.share-revoke:hover:not(:disabled) { color: var(--destructive-foreground); }
+.share-reset { display: flex; gap: 8px; }
+
+.share-link-on { display: grid; gap: 6px; }
+.share-url { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 6px 6px 12px; border-radius: 10px; background: color-mix(in srgb, var(--foreground) 4%, transparent); }
+.share-url > div { display: grid; min-width: 0; gap: 2px; }
+.share-url strong { font-size: 12px; font-weight: 600; }
+.share-url code { min-width: 0; overflow-wrap: anywhere; font-family: var(--font-mono); font-size: 12px; user-select: text; }
+
+.share-activity { font-size: 12px; }
+.share-activity summary { cursor: pointer; color: var(--muted-foreground); font-weight: 550; }
+.share-activity summary:hover { color: var(--foreground); }
+.share-activity ul { display: grid; gap: 3px; max-height: 10rem; margin-top: 8px; overflow: auto; overscroll-behavior: contain; padding: 0; list-style: none; }
+.share-activity time { margin-right: 8px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+
+@media (max-width: 980px) {
+  .share-columns { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 640px) {
+  .share-form-row { grid-template-columns: 1fr; }
+  .share-card { padding: 14px; }
+}

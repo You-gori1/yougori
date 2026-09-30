@@ -1,0 +1,16 @@
+{
+  "date": "2026-09-13",
+  "testsPassed": [
+    "bundled_appliance_runs_snapshots_and_enforces_connections",
+    "bundled_qemu_exposes_qmp_and_vnc_websocket",
+    "bundled_alpine_micro_vm_exposes_qmp_without_a_display",
+    "secure_vm_backups_preserve_identity_and_roll_back",
+    "secure_boot_rejects_unsigned_installer",
+    "installer_guest_restarts_keep_process_console_and_installed_disk",
+    "installer_guest_restarts_with_secure_boot",
+    "test-tpm-worker.py: 4 protocol, persistence and process-lifetime tests"
+  ],
+  "scope": "Disposable test environments; production app and user disks untouched",
+  "containerAndMicroVmTests": "Passed after first source-built QEMU replacement; subsequent change was confined to the TPM backend",
+  "secureVmTests": "Passed after TPM worker packaging"
+}

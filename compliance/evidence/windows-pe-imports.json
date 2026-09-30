@@ -1,0 +1,1414 @@
+[
+  {
+    "file": "src-tauri/resources/runtime/qemu/libbrotlicommon.dll",
+    "sha256": "c62c08223e450dfc2fff33c752cc228505ffd9d755201958ba800d5d30481a2c",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu/libbrotlidec.dll",
+    "sha256": "e270b6e576594ee8ee6e33ccc54e34a54304616dd6225652e11e49d6f17ef896",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll",
+      "libbrotlicommon.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu/libbrotlienc.dll",
+    "sha256": "82573820fe9cc3f57004b6603428e2fa1bfc9d2048707bfcead3cfc5ef3ab284",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-math-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll",
+      "libbrotlicommon.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu/libbz2-1.dll",
+    "sha256": "1790bf6473c9d48db14c1f0ee8124142327556d281299ea2a72ee361118ee01a",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-math-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu/libEGL.dll",
+    "sha256": "43076136e5df61281273865d364ddc4f18f4493c51515e75e1e489ed7d1bcfa0",
+    "imports": [
+      "KERNEL32.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu/libEGL_angle.dll",
+    "sha256": "06f40e31e81b93a9dca4ec9a6241449aa0a007873e7abd799337d480c9908ed2",
+    "imports": [
+      "libgcc_s_seh-1.dll",
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-math-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll",
+      "libwinpthread-1.dll",
+      "libstdc++-6.dll",
+      "api-ms-win-core-synch-l1-2-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu/libepoxy-0.dll",
+    "sha256": "dc4055b53d0d6507740e9f3be18c9f2b1318faa531b9b2913eef3c5332fffedc",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu/libffi-8.dll",
+    "sha256": "f96cf79b75f33a10023d001673b564538023395c94b3c58e1db53114976a7c25",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu/libgcc_s_seh-1.dll",
+    "sha256": "80940372431cc76224dfda06e2d33f01e49af3b4e7c499c535be856ebcadd273",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "libwinpthread-1.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu/libgio-2.0-0.dll",
+    "sha256": "da8abbcbe4ea8ce650c6cb5953f775699a6cd2126d3291faa35b83cc0659cc12",
+    "imports": [
+      "ADVAPI32.dll",
+      "DNSAPI.dll",
+      "libintl-8.dll",
+      "IPHLPAPI.DLL",
+      "KERNEL32.dll",
+      "api-ms-win-crt-conio-l1-1-0.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll",
+      "ole32.dll",
+      "SHELL32.dll",
+      "SHLWAPI.dll",
+      "USER32.dll",
+      "WS2_32.dll",
+      "zlib1.dll",
+      "libglib-2.0-0.dll",
+      "libgmodule-2.0-0.dll",
+      "libgobject-2.0-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu/libGLESv2.dll",
+    "sha256": "f40b2c8eddf09fc52ba4701620776f8cbdde55d06d8c317c21e844936d758a8e",
+    "imports": [
+      "dxgi.dll",
+      "libgcc_s_seh-1.dll",
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-math-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll",
+      "libwinpthread-1.dll",
+      "libstdc++-6.dll",
+      "api-ms-win-core-synch-l1-2-0.dll",
+      "USER32.dll",
+      "zlib1.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu/libglib-2.0-0.dll",
+    "sha256": "052e1d5e9cb072c7d2fb9db3ea6c29c1889b05110b1228e4fb846884eed387dd",
+    "imports": [
+      "ADVAPI32.dll",
+      "libintl-8.dll",
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-environment-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-math-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-process-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-time-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll",
+      "ole32.dll",
+      "SHELL32.dll",
+      "USER32.dll",
+      "WS2_32.dll",
+      "libpcre2-8-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu/libgmodule-2.0-0.dll",
+    "sha256": "702e4c3a331d116cf96ac4fb4f04dec64aea7f8236220a639e123ec033b7d4b7",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll",
+      "libglib-2.0-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu/libgmp-10.dll",
+    "sha256": "c2567ccf3f410c3411ba7cd4b7ba14f393a0e70a1d0c0593297df6706b5fba96",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-environment-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-time-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu/libgnutls-30.dll",
+    "sha256": "f7f05c96572506c81f2ffa89b518234afa4af2603aad8903db257a4f1e97e9e6",
+    "imports": [
+      "ADVAPI32.dll",
+      "libbrotlidec.dll",
+      "libbrotlienc.dll",
+      "CRYPT32.dll",
+      "libgmp-10.dll",
+      "libhogweed-7.dll",
+      "libidn2-0.dll",
+      "libintl-8.dll",
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-environment-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-math-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-time-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll",
+      "ncrypt.dll",
+      "libnettle-9.dll",
+      "libp11-kit-0.dll",
+      "libwinpthread-1.dll",
+      "libtasn1-6.dll",
+      "libunistring-5.dll",
+      "WS2_32.dll",
+      "zlib1.dll",
+      "libzstd.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu/libgobject-2.0-0.dll",
+    "sha256": "469d2e3b60f5307d00809f1efc0ab494f7c230e58a93cd2cbf75fb64aa2aa786",
+    "imports": [
+      "libffi-8.dll",
+      "KERNEL32.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll",
+      "libglib-2.0-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu/libhogweed-7.dll",
+    "sha256": "b48e33181b78d715ba310581f4c72376c959854638bf635e1703e5fc1b783498",
+    "imports": [
+      "libgmp-10.dll",
+      "KERNEL32.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll",
+      "libnettle-9.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu/libiconv-2.dll",
+    "sha256": "94ec68fb8d342b6c91b6b48a8d95092819cdcd006a7166e0b68062f946afd08a",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu/libidn2-0.dll",
+    "sha256": "a054a6bb69aaf4666157f968740412e9697085cbc1e48a78f8dd9622169c5aaf",
+    "imports": [
+      "libiconv-2.dll",
+      "libintl-8.dll",
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll",
+      "libunistring-5.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu/libintl-8.dll",
+    "sha256": "0e5a178731e6be6d115442a6ade3df7f03265cd1fc4338f8b6f86a8001cbf582",
+    "imports": [
+      "ADVAPI32.dll",
+      "libiconv-2.dll",
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-environment-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-math-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu/libjpeg-8.dll",
+    "sha256": "c63acd5a3231725aa96aa35444b74cd8d607a6fbdab1dd18b0e0ada7e39476d4",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-environment-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu/libnettle-9.dll",
+    "sha256": "9b9f8bffca94d3cca7d1afb77d9deb0fa34427eaa05f1832037f46bc9e3dc134",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-environment-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu/libp11-kit-0.dll",
+    "sha256": "c24fcbd4d67f6f837a1cc29bd37a2980670febfa64b1a424720e5768ff91cfa8",
+    "imports": [
+      "libffi-8.dll",
+      "libintl-8.dll",
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-environment-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-process-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-time-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll",
+      "SHELL32.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu/libpcre2-8-0.dll",
+    "sha256": "752f04bb7a60d2a049788ffaec14b45602c4dec4c29534001dfcf434d26da19c",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu/libpixman-1-0.dll",
+    "sha256": "12e693d94829f013e0bd7c042b30998b20e91ece7b6f4d5f075ddbb58b373c92",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-environment-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-math-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu/libpng16-16.dll",
+    "sha256": "5c1dd5410af563f4a3c4aee10d1f749aa71e0d7fb3b4fac240eb9e96cadebd26",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-math-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-time-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll",
+      "zlib1.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu/libslirp-0.dll",
+    "sha256": "4b547f2324ddba5bf5222ea31530b621e8ca7baf4884c5c52059aa88b64af782",
+    "imports": [
+      "IPHLPAPI.DLL",
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-environment-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll",
+      "WS2_32.dll",
+      "libglib-2.0-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu/libstdc++-6.dll",
+    "sha256": "69200d6d96b903dac4c873031813485a0455828be8101479efc56008862420cc",
+    "imports": [
+      "libgcc_s_seh-1.dll",
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-environment-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-math-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-time-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll",
+      "libwinpthread-1.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu/libtasn1-6.dll",
+    "sha256": "9793128fa5028fe8d8b49407a6ed900a2315444f9f7444a146f0b62f08c1c5bb",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu/libunistring-5.dll",
+    "sha256": "ee39258fa1086269674a8179d3cfaf7c4e380ada14441b5dd9ed53d82d15c4e3",
+    "imports": [
+      "libiconv-2.dll",
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-environment-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-math-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu/libvirglrenderer-1.dll",
+    "sha256": "92d4266b479b4eaf91b518d01533d49efe1bee8c00bc515d16b7e34e406c7322",
+    "imports": [
+      "libgcc_s_seh-1.dll",
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-environment-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-math-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-time-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll",
+      "libwinpthread-1.dll",
+      "libepoxy-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu/libwinpthread-1.dll",
+    "sha256": "cd5fc7573f1ecf9a157bb62fbc35f8b97862dde6057ffabd6cebb3fc9fe6ff1d",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu/libzstd.dll",
+    "sha256": "48368ab0ca622d0ec12f41ce85d91f22866bf5da92c77a69a06483564c93816c",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-time-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu/opendock-gpu-probe.exe",
+    "sha256": "579f884cfbc32bd627c43ef672a18be147116fcbc0a553499e7338435f8f6cc0",
+    "imports": [
+      "dxgi.dll",
+      "KERNEL32.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu/qemu-img.exe",
+    "sha256": "179f6fbc6c4fb5fb95f770d2ab802b3d7557a53372fc950dcdd6c17ad34383df",
+    "imports": [
+      "libbz2-1.dll",
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-environment-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-math-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-time-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll",
+      "api-ms-win-core-path-l1-1-0.dll",
+      "libwinpthread-1.dll",
+      "api-ms-win-core-synch-l1-2-0.dll",
+      "WS2_32.dll",
+      "libglib-2.0-0.dll",
+      "libgnutls-30.dll",
+      "zlib1.dll",
+      "libzstd.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu/qemu-system-x86_64.exe",
+    "sha256": "91c97f488ad768e11ef302362c25348fb4babf60da7c9b047905c3b7d23963fb",
+    "imports": [
+      "ADVAPI32.dll",
+      "libbz2-1.dll",
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-environment-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-math-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-process-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-time-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll",
+      "ole32.dll",
+      "api-ms-win-core-path-l1-1-0.dll",
+      "libwinpthread-1.dll",
+      "api-ms-win-core-synch-l1-2-0.dll",
+      "USER32.dll",
+      "WINMM.dll",
+      "WS2_32.dll",
+      "libepoxy-0.dll",
+      "libgio-2.0-0.dll",
+      "libglib-2.0-0.dll",
+      "libgmodule-2.0-0.dll",
+      "libgnutls-30.dll",
+      "libgobject-2.0-0.dll",
+      "libjpeg-8.dll",
+      "libpixman-1-0.dll",
+      "libpng16-16.dll",
+      "libslirp-0.dll",
+      "libvirglrenderer-1.dll",
+      "zlib1.dll",
+      "libzstd.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu/zlib1.dll",
+    "sha256": "11cd91171765cd65f1c3362e3df67e5f5a618a6b88c8cdec899b802eaf1c7b0d",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/libbrotlicommon.dll",
+    "sha256": "c62c08223e450dfc2fff33c752cc228505ffd9d755201958ba800d5d30481a2c",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/libbrotlidec.dll",
+    "sha256": "e270b6e576594ee8ee6e33ccc54e34a54304616dd6225652e11e49d6f17ef896",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll",
+      "libbrotlicommon.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/libbrotlienc.dll",
+    "sha256": "82573820fe9cc3f57004b6603428e2fa1bfc9d2048707bfcead3cfc5ef3ab284",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-math-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll",
+      "libbrotlicommon.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/libbz2-1.dll",
+    "sha256": "1790bf6473c9d48db14c1f0ee8124142327556d281299ea2a72ee361118ee01a",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-math-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/libcrypto-3-x64.dll",
+    "sha256": "7d25614b72d98b1a280d50de253f395f4062058af8e22d2dc1ec44fb648f0028",
+    "imports": [
+      "ADVAPI32.dll",
+      "CRYPT32.dll",
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-environment-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-time-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll",
+      "USER32.dll",
+      "WS2_32.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/libEGL.dll",
+    "sha256": "a0655d055da73d0273a7708bfc31d673a114429e59a47eb9efee6a10671e5962",
+    "imports": [
+      "KERNEL32.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/libEGL_angle.dll",
+    "sha256": "06f40e31e81b93a9dca4ec9a6241449aa0a007873e7abd799337d480c9908ed2",
+    "imports": [
+      "libgcc_s_seh-1.dll",
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-math-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll",
+      "libwinpthread-1.dll",
+      "libstdc++-6.dll",
+      "api-ms-win-core-synch-l1-2-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/libepoxy-0.dll",
+    "sha256": "dc4055b53d0d6507740e9f3be18c9f2b1318faa531b9b2913eef3c5332fffedc",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/libffi-8.dll",
+    "sha256": "f96cf79b75f33a10023d001673b564538023395c94b3c58e1db53114976a7c25",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/libgcc_s_seh-1.dll",
+    "sha256": "80940372431cc76224dfda06e2d33f01e49af3b4e7c499c535be856ebcadd273",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "libwinpthread-1.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/libgio-2.0-0.dll",
+    "sha256": "da8abbcbe4ea8ce650c6cb5953f775699a6cd2126d3291faa35b83cc0659cc12",
+    "imports": [
+      "ADVAPI32.dll",
+      "DNSAPI.dll",
+      "libintl-8.dll",
+      "IPHLPAPI.DLL",
+      "KERNEL32.dll",
+      "api-ms-win-crt-conio-l1-1-0.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll",
+      "ole32.dll",
+      "SHELL32.dll",
+      "SHLWAPI.dll",
+      "USER32.dll",
+      "WS2_32.dll",
+      "zlib1.dll",
+      "libglib-2.0-0.dll",
+      "libgmodule-2.0-0.dll",
+      "libgobject-2.0-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/libGLESv2.dll",
+    "sha256": "f40b2c8eddf09fc52ba4701620776f8cbdde55d06d8c317c21e844936d758a8e",
+    "imports": [
+      "dxgi.dll",
+      "libgcc_s_seh-1.dll",
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-math-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll",
+      "libwinpthread-1.dll",
+      "libstdc++-6.dll",
+      "api-ms-win-core-synch-l1-2-0.dll",
+      "USER32.dll",
+      "zlib1.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/libglib-2.0-0.dll",
+    "sha256": "052e1d5e9cb072c7d2fb9db3ea6c29c1889b05110b1228e4fb846884eed387dd",
+    "imports": [
+      "ADVAPI32.dll",
+      "libintl-8.dll",
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-environment-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-math-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-process-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-time-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll",
+      "ole32.dll",
+      "SHELL32.dll",
+      "USER32.dll",
+      "WS2_32.dll",
+      "libpcre2-8-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/libgmodule-2.0-0.dll",
+    "sha256": "702e4c3a331d116cf96ac4fb4f04dec64aea7f8236220a639e123ec033b7d4b7",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll",
+      "libglib-2.0-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/libgmp-10.dll",
+    "sha256": "c2567ccf3f410c3411ba7cd4b7ba14f393a0e70a1d0c0593297df6706b5fba96",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-environment-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-time-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/libgnutls-30.dll",
+    "sha256": "f7f05c96572506c81f2ffa89b518234afa4af2603aad8903db257a4f1e97e9e6",
+    "imports": [
+      "ADVAPI32.dll",
+      "libbrotlidec.dll",
+      "libbrotlienc.dll",
+      "CRYPT32.dll",
+      "libgmp-10.dll",
+      "libhogweed-7.dll",
+      "libidn2-0.dll",
+      "libintl-8.dll",
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-environment-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-math-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-time-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll",
+      "ncrypt.dll",
+      "libnettle-9.dll",
+      "libp11-kit-0.dll",
+      "libwinpthread-1.dll",
+      "libtasn1-6.dll",
+      "libunistring-5.dll",
+      "WS2_32.dll",
+      "zlib1.dll",
+      "libzstd.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/libgobject-2.0-0.dll",
+    "sha256": "469d2e3b60f5307d00809f1efc0ab494f7c230e58a93cd2cbf75fb64aa2aa786",
+    "imports": [
+      "libffi-8.dll",
+      "KERNEL32.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll",
+      "libglib-2.0-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/libhogweed-7.dll",
+    "sha256": "b48e33181b78d715ba310581f4c72376c959854638bf635e1703e5fc1b783498",
+    "imports": [
+      "libgmp-10.dll",
+      "KERNEL32.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll",
+      "libnettle-9.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/libiconv-2.dll",
+    "sha256": "94ec68fb8d342b6c91b6b48a8d95092819cdcd006a7166e0b68062f946afd08a",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/libidn2-0.dll",
+    "sha256": "a054a6bb69aaf4666157f968740412e9697085cbc1e48a78f8dd9622169c5aaf",
+    "imports": [
+      "libiconv-2.dll",
+      "libintl-8.dll",
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll",
+      "libunistring-5.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/libintl-8.dll",
+    "sha256": "0e5a178731e6be6d115442a6ade3df7f03265cd1fc4338f8b6f86a8001cbf582",
+    "imports": [
+      "ADVAPI32.dll",
+      "libiconv-2.dll",
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-environment-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-math-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/libjpeg-8.dll",
+    "sha256": "c63acd5a3231725aa96aa35444b74cd8d607a6fbdab1dd18b0e0ada7e39476d4",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-environment-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/libnettle-9.dll",
+    "sha256": "9b9f8bffca94d3cca7d1afb77d9deb0fa34427eaa05f1832037f46bc9e3dc134",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-environment-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/libp11-kit-0.dll",
+    "sha256": "c24fcbd4d67f6f837a1cc29bd37a2980670febfa64b1a424720e5768ff91cfa8",
+    "imports": [
+      "libffi-8.dll",
+      "libintl-8.dll",
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-environment-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-process-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-time-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll",
+      "SHELL32.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/libpcre2-8-0.dll",
+    "sha256": "752f04bb7a60d2a049788ffaec14b45602c4dec4c29534001dfcf434d26da19c",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/libpixman-1-0.dll",
+    "sha256": "12e693d94829f013e0bd7c042b30998b20e91ece7b6f4d5f075ddbb58b373c92",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-environment-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-math-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/libpng16-16.dll",
+    "sha256": "5c1dd5410af563f4a3c4aee10d1f749aa71e0d7fb3b4fac240eb9e96cadebd26",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-math-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-time-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll",
+      "zlib1.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/libslirp-0.dll",
+    "sha256": "4b547f2324ddba5bf5222ea31530b621e8ca7baf4884c5c52059aa88b64af782",
+    "imports": [
+      "IPHLPAPI.DLL",
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-environment-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll",
+      "WS2_32.dll",
+      "libglib-2.0-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/libstdc++-6.dll",
+    "sha256": "69200d6d96b903dac4c873031813485a0455828be8101479efc56008862420cc",
+    "imports": [
+      "libgcc_s_seh-1.dll",
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-environment-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-math-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-time-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll",
+      "libwinpthread-1.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/libtasn1-6.dll",
+    "sha256": "9793128fa5028fe8d8b49407a6ed900a2315444f9f7444a146f0b62f08c1c5bb",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/libunistring-5.dll",
+    "sha256": "ee39258fa1086269674a8179d3cfaf7c4e380ada14441b5dd9ed53d82d15c4e3",
+    "imports": [
+      "libiconv-2.dll",
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-environment-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-math-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/libvirglrenderer-1.dll",
+    "sha256": "92d4266b479b4eaf91b518d01533d49efe1bee8c00bc515d16b7e34e406c7322",
+    "imports": [
+      "libgcc_s_seh-1.dll",
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-environment-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-math-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-time-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll",
+      "libwinpthread-1.dll",
+      "libepoxy-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/libwinpthread-1.dll",
+    "sha256": "cd5fc7573f1ecf9a157bb62fbc35f8b97862dde6057ffabd6cebb3fc9fe6ff1d",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/libzstd.dll",
+    "sha256": "48368ab0ca622d0ec12f41ce85d91f22866bf5da92c77a69a06483564c93816c",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-time-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/opendock-gpu-probe.exe",
+    "sha256": "f04850ec4032573e4d55d1ce82e8d96fdb1ecfd1bcea66c2c7ea5e16dfcd86e0",
+    "imports": [
+      "dxgi.dll",
+      "KERNEL32.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/opendock-tpm-init.exe",
+    "sha256": "ebee62274b6394d69895d146b64f47ff31c3bdc67a4c00b233dc2cef6fa1ca90",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-environment-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-math-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/opendock-tpm-worker.exe",
+    "sha256": "e6ad54bad62429edbacc8bc40f0105bf0c1aa0d00c368a47e3ae23b7ae32086d",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-environment-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-math-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/opendock-tpm.dll",
+    "sha256": "2dc77f3d9207cac3398d8bde8b6c2bafc6253fa0d658e632d5f8af1c946db121",
+    "imports": [
+      "bcrypt.dll",
+      "libcrypto-3-x64.dll",
+      "KERNEL32.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-time-l1-1-0.dll",
+      "libwinpthread-1.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/qemu-system-x86_64.exe",
+    "sha256": "16cc67411ed6d644a1d1c7787c51df77c1a1d50607229a80e503b4ca289de6e1",
+    "imports": [
+      "ADVAPI32.dll",
+      "libbz2-1.dll",
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-environment-l1-1-0.dll",
+      "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-math-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-process-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-time-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll",
+      "ole32.dll",
+      "api-ms-win-core-path-l1-1-0.dll",
+      "libwinpthread-1.dll",
+      "api-ms-win-core-synch-l1-2-0.dll",
+      "USER32.dll",
+      "WINMM.dll",
+      "WS2_32.dll",
+      "libepoxy-0.dll",
+      "libgio-2.0-0.dll",
+      "libglib-2.0-0.dll",
+      "libgmodule-2.0-0.dll",
+      "libgnutls-30.dll",
+      "libgobject-2.0-0.dll",
+      "libjpeg-8.dll",
+      "libpixman-1-0.dll",
+      "libpng16-16.dll",
+      "libslirp-0.dll",
+      "libvirglrenderer-1.dll",
+      "zlib1.dll",
+      "libzstd.dll"
+    ]
+  },
+  {
+    "file": "src-tauri/resources/runtime/qemu-secure/zlib1.dll",
+    "sha256": "11cd91171765cd65f1c3362e3df67e5f5a618a6b88c8cdec899b802eaf1c7b0d",
+    "imports": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-utility-l1-1-0.dll"
+    ]
+  }
+]

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Yougori · Shared files</title>
+<style>
+:root{color-scheme:dark;font:14px system-ui;background:#121417;color:#e5e7eb}body{max-width:1100px;margin:32px auto;padding:0 20px}header,.bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}h1{font-size:19px;font-weight:600;margin:0 auto 0 0}p,small{color:#aab1bd;line-height:1.5}button,select,input{font:inherit;color:inherit;background:#1c2027;border:1px solid #343b48;border-radius:7px;padding:8px 12px}button{cursor:pointer}button:hover{background:#283244}button:disabled{opacity:.45;cursor:default}select{max-width:100%}.bar{margin:22px 0 12px}#path{flex:1;min-width:180px}table{width:100%;border-collapse:collapse}td,th{text-align:left;border-bottom:1px solid #292e37;padding:12px 8px}th{font-weight:500;color:#aab1bd}td:first-child{word-break:break-word}td:last-child{white-space:nowrap;text-align:right}.name{padding:0;background:none;border:0;color:#93b9ef;text-align:left}#message{min-height:24px;color:#d4ae78}textarea{width:100%;height:48vh;box-sizing:border-box;background:#0f1114;color:#e5e7eb;border:1px solid #424b5a;padding:14px;font:13px/1.6 monospace;border-radius:7px}dialog{width:min(850px,85vw);background:#181c22;color:inherit;border:1px solid #424b5a;border-radius:12px;padding:22px}dialog::backdrop{background:#000a}dialog .bar{justify-content:flex-end}#editing{margin-right:auto}.muted{color:#aab1bd}a{color:#93b9ef}
+</style>
+<header><h1>Shared files</h1><select id="shares" aria-label="Connection folder"></select><span id="access"></span></header>
+<p>Browse the connection folder or open Selected folders to work with the exact guest directories chosen for this link. Changes in a selected folder affect the original guest files.</p>
+<div class="bar"><button id="up">↑ Parent</button><input id="path" aria-label="Folder path" readonly><button id="refresh">Refresh</button><button id="folder">New folder</button><button id="new">New text file</button><button id="upload">Upload files</button><input type="file" id="pick" multiple hidden></div>
+<p id="message" role="status" aria-live="polite"></p><table><thead><tr><th>Name</th><th>Size</th><th>Actions</th></tr></thead><tbody id="entries"></tbody></table>
+<p><small>Disconnecting the graph connection revokes access. Downloads are copies and cannot be revoked. Shared folders are separate from VM snapshots/backups.</small></p>
+<dialog id="editor"><div class="bar"><strong id="editing"></strong><button id="close">Cancel</button><button id="save">Save changes</button></div><textarea id="text" aria-label="File contents" spellcheck="false"></textarea></dialog>
+<script>
+'use strict';
+const $=id=>document.getElementById(id), chunk=64*1024;
+let shares=[], current='', dir='', busy=false, editPath='', creating=false, epoch=0;
+const join=name=>dir?dir+'/'+name:name;
+const writable=()=>!!shares.find(s=>s.id===current)?.writable;
+const message=text=>{$('message').textContent=text};
+function controls(){for(const id of ['shares','up','refresh','folder','new','upload','save'])$(id).disabled=busy||(['folder','new','upload','save'].includes(id)&&!writable());$('access').textContent=current?(writable()?'Read & write':'Read only'):'';}
+async function api(operation,path='',extra={}){const response=await fetch('/api',{method:'POST',headers:{'Content-Type':'application/json','X-Yougori-Files':'1'},body:JSON.stringify({connectionId:current,operation,path,...extra})});const result=await response.json();if(!response.ok)throw Error(result.error||'File operation failed');return result;}
+async function work(action){if(busy)return;busy=true;controls();message('Working…');try{await action();if($('message').textContent==='Working…'||$('message').textContent.startsWith('Saving '))message('')}catch(error){message(error.message)}finally{busy=false;controls()}}
+function button(text,action,disabled=false){const b=document.createElement('button');b.textContent=text;b.disabled=disabled;b.onclick=()=>work(action);return b;}
+async function list(){
+ const version=++epoch;const response=await fetch('/connections');if(!response.ok)throw Error('Cannot read connections');shares=await response.json();
+ if(!shares.some(s=>s.id===current)){current=shares[0]?.id||'';dir=''}
+ $('shares').replaceChildren(...shares.map(s=>{const o=document.createElement('option');o.value=s.id;o.textContent=s.label;return o}));$('shares').value=current;$('path').value='/'+dir;controls();
+ if(!current){$('entries').replaceChildren();message('No active shared folders. Connect environments with Files or Data enabled.');return}
+ const data=await api('list',dir);if(version!==epoch)return;
+ $('entries').replaceChildren(...data.entries.sort((a,b)=>Number(b.directory)-Number(a.directory)||a.name.localeCompare(b.name)).map(entry=>{
+  const row=document.createElement('tr'),name=document.createElement('td'),size=document.createElement('td'),actions=document.createElement('td');
+  const label=entry.guestPath?entry.ownerId+' · '+entry.guestPath:entry.name==='_selected'?'Selected folders':entry.name;
+  const open=button((entry.directory?'▸ ':'')+label,async()=>{if(entry.directory){dir=join(entry.name);await list()}else await download(entry)});open.className='name';name.append(open);size.textContent=entry.directory?'Folder':new Intl.NumberFormat().format(entry.size)+' B';
+  if(!entry.directory){actions.append(button('Download',()=>download(entry)));if(entry.size<=1024*1024)actions.append(button('Edit',()=>edit(entry),!writable()))}
+  if(entry.name!=='_selected'&&!entry.guestPath)actions.append(button('Delete',async()=>{const path=join(entry.name);if(confirm('Delete '+path+' from this shared folder for both environments?')){await api('remove',path);await list()}},!writable()));row.append(name,size,actions);return row;
+ }));
+}
+function decode(text){return Uint8Array.from(atob(text),c=>c.charCodeAt(0))}
+function encode(bytes){let result='';for(let i=0;i<bytes.length;i+=8192)result+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(result)}
+async function read(path,size){const parts=[];for(let offset=0;offset<size;offset+=chunk){const result=decode((await api('read',path,{offset,length:Math.min(chunk,size-offset)})).data);parts.push(result);if(result.length<Math.min(chunk,size-offset))break}return parts}
+async function download(entry){if(entry.size>128*1024*1024)throw Error('Browser downloads are limited to 128 MB. Use the chunked API or a mounted connection folder for larger files.');const blob=new Blob(await read(join(entry.name),entry.size));const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=entry.name;a.click();setTimeout(()=>URL.revokeObjectURL(url),30000)}
+async function write(path,blob,isNew){if(isNew)await api('create',path);for(let offset=0;offset<blob.size;offset+=chunk){message('Saving '+Math.floor(offset/Math.max(blob.size,1)*100)+'%');await api('write',path,{offset,data:encode(new Uint8Array(await blob.slice(offset,offset+chunk).arrayBuffer()))})}await api('truncate',path,{length:blob.size})}
+async function edit(entry){editPath=join(entry.name);creating=false;const blob=new Blob(await read(editPath,entry.size));const bytes=new Uint8Array(await blob.arrayBuffer());if(bytes.includes(0))throw Error('This looks like a binary file. Download it instead.');$('text').value=new TextDecoder('utf-8',{fatal:true}).decode(bytes);$('editing').textContent=editPath;$('editor').showModal()}
+function validName(name){return name&&!/[\\/:\x00-\x1f]/.test(name)&&name!=='.'&&name!=='..'}
+$('shares').onchange=()=>{current=$('shares').value;dir='';void work(list)};
+$('up').onclick=()=>work(async()=>{dir=dir.split('/').slice(0,-1).join('/');await list()});$('refresh').onclick=()=>work(list);
+$('folder').onclick=()=>work(async()=>{const name=prompt('Folder name');if(name===null)return;if(!validName(name))throw Error('Enter a single folder name');await api('mkdir',join(name));await list()});
+$('new').onclick=()=>{const name=prompt('Text file name');if(name===null)return;if(!validName(name)){message('Enter a single file name');return}editPath=join(name);creating=true;$('text').value='';$('editing').textContent=editPath;$('editor').showModal()};
+$('close').onclick=()=>$('editor').close();$('save').onclick=()=>work(async()=>{await write(editPath,new Blob([$('text').value]),creating);$('editor').close();await list()});
+$('upload').onclick=()=>$('pick').click();$('pick').onchange=()=>work(async()=>{const files=Array.from($('pick').files);$('pick').value='';for(const file of files){if(!validName(file.name))throw Error('Invalid filename');await write(join(file.name),file,true)}await list()});
+void work(list);
+</script></html>

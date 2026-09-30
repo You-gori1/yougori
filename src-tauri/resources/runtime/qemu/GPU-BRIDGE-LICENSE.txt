@@ -1,0 +1,12 @@
+Yougori Windows EGL bridge and GPU probe
+Copyright 2026 Yougori LLC
+
+The code in egl-bridge.c may be used under the GNU General Public License,
+version 2 or (at your option) any later version.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+The QEMU runtime distribution selects GPL version 2 or later for this bridge.
+The full GPL version 2 text accompanies QEMU in COPYING or QEMU-LICENSE.txt.
+
+This grant does not relicense ANGLE. The unmodified ANGLE library and its
+third-party notices retain their own licenses.

@@ -1,0 +1,31 @@
+# Runtime manifests cover the exact bytes, including license and metadata files.
+# Do not let checkout line-ending conversion invalidate those checksums.
+/src-tauri/resources/runtime/** -text
+/src-tauri/resources/runtime/appliance/appliance-base.qcow2 filter=lfs diff=lfs merge=lfs -text
+/compliance/source-updates/*.tar.gz filter=lfs diff=lfs merge=lfs -text
+/src-tauri/boot-helper/*.efi binary
+
+# Compiled native-installer artwork is checked by its exact bytes.
+/src-tauri/installer/*.bmp binary
+/src-tauri/installer/*.png binary
+
+# This Markdown template is imported verbatim by the frontend and native app.
+/src/lib/connection-skill-template.txt text eol=lf
+/src/lib/environment-skill-template.txt text eol=lf
+/src-tauri/src/host_files_browser.html text eol=lf
+
+# Inline-script CSP hashes must match the browser's normalized HTML text.
+/src-tauri/src/runtime/connection_files.html text eol=lf
+
+# Preserve the exact functional patch bytes recorded in QEMU build provenance.
+/runtime/security/*.patch text eol=lf
+/runtime/security/tpm-qemu.c text eol=lf
+/runtime/security/tpm-api.h text eol=lf
+/runtime/security/tpm-worker.c text eol=lf
+/runtime/security/shipped/tpm-qemu.c text eol=lf
+
+# Generated inventories preserve their existing Windows line endings.
+/compliance/**/*.json whitespace=cr-at-eol
+/compliance/*.json whitespace=cr-at-eol
+# Keep upstream license texts intact, including their original whitespace.
+/src-tauri/resources/*LICENSES.txt -whitespace

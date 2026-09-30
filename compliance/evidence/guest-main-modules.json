@@ -1,0 +1,68 @@
+[
+  {
+    "binary": "cuda/opendock-agent",
+    "module": "opendock.local/appliance-agent",
+    "version": "(devel)",
+    "revision": null
+  },
+  {
+    "binary": "bin/containerd",
+    "module": "github.com/containerd/containerd/v2",
+    "version": "v2.3.3",
+    "revision": "aad11006b869517fcd3009450b6f82da282e1a9b"
+  },
+  {
+    "binary": "bin/containerd-shim-runc-v2",
+    "module": "github.com/containerd/containerd/v2",
+    "version": "v2.3.3",
+    "revision": "aad11006b869517fcd3009450b6f82da282e1a9b"
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/nerdctl/v2",
+    "version": "v2.3.5",
+    "revision": "347782c28efe1753d5cc9652f6304752ed431221"
+  },
+  {
+    "binary": "bin/runc",
+    "module": "github.com/opencontainers/runc",
+    "version": "v1.5.1",
+    "revision": "8f2685a471d3347a686ad3909783d8aafc6bb208"
+  },
+  {
+    "binary": "libexec/cni/bridge",
+    "module": "github.com/containernetworking/plugins",
+    "version": "v1.9.1",
+    "revision": "adc3e6b5b581638afbd194cf2e9319ecbb0151a1"
+  },
+  {
+    "binary": "libexec/cni/firewall",
+    "module": "github.com/containernetworking/plugins",
+    "version": "v1.9.1",
+    "revision": "adc3e6b5b581638afbd194cf2e9319ecbb0151a1"
+  },
+  {
+    "binary": "libexec/cni/host-local",
+    "module": "github.com/containernetworking/plugins",
+    "version": "v1.9.1",
+    "revision": "adc3e6b5b581638afbd194cf2e9319ecbb0151a1"
+  },
+  {
+    "binary": "libexec/cni/loopback",
+    "module": "github.com/containernetworking/plugins",
+    "version": "v1.9.1",
+    "revision": "adc3e6b5b581638afbd194cf2e9319ecbb0151a1"
+  },
+  {
+    "binary": "libexec/cni/portmap",
+    "module": "github.com/containernetworking/plugins",
+    "version": "v1.9.1",
+    "revision": "adc3e6b5b581638afbd194cf2e9319ecbb0151a1"
+  },
+  {
+    "binary": "libexec/cni/tuning",
+    "module": "github.com/containernetworking/plugins",
+    "version": "v1.9.1",
+    "revision": "adc3e6b5b581638afbd194cf2e9319ecbb0151a1"
+  }
+]

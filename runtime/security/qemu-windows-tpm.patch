@@ -1,0 +1,118 @@
+diff --git a/backends/tpm/meson.build b/backends/tpm/meson.build
+index 0bfa6c4..41c0f3c 100644
+--- a/backends/tpm/meson.build
++++ b/backends/tpm/meson.build
+@@ -2,5 +2,9 @@ if have_tpm
+   system_ss.add(files('tpm_backend.c'))
+   system_ss.add(files('tpm_util.c'))
+   system_ss.add(when: 'CONFIG_TPM_PASSTHROUGH', if_true: files('tpm_passthrough.c'))
+-  system_ss.add(when: 'CONFIG_TPM_EMULATOR', if_true: files('tpm_emulator.c'))
++  if host_os == 'windows'
++    system_ss.add(files('tpm-qemu.c'))
++  else
++    system_ss.add(when: 'CONFIG_TPM_EMULATOR', if_true: files('tpm_emulator.c'))
++  endif
+ endif
+diff --git a/meson.build b/meson.build
+index 49a5baf..b0c2a1b 100644
+--- a/meson.build
++++ b/meson.build
+@@ -15,7 +15,11 @@ add_test_setup('slow', exclude_suites: ['thorough'],
+ add_test_setup('thorough',
+                env: ['G_TEST_SLOW=1', 'SPEED=thorough', 'RUST_BACKTRACE=1'])
+ 
+-meson.add_postconf_script(find_program('scripts/symlink-install-tree.py'))
++# OpenDock stages explicit runtime artifacts; Windows development does not need
++# the optional symlink installation tree (or host Developer Mode privileges).
++if host_machine.system() != 'windows'
++  meson.add_postconf_script(find_program('scripts/symlink-install-tree.py'))
++endif
+ 
+ ####################
+ # Global variables #
+@@ -219,9 +223,7 @@ vfio_user_server_allowed = get_option('vfio_user_server') \
+   .require(host_os == 'linux', error_message: 'vfio-user server is supported only on Linux') \
+   .allowed()
+ 
+-have_tpm = get_option('tpm') \
+-  .require(host_os != 'windows', error_message: 'TPM emulation only available on POSIX systems') \
+-  .allowed()
++have_tpm = get_option('tpm').allowed()
+ 
+ # vhost
+ have_vhost_user = get_option('vhost_user') \
+diff --git a/qapi/tpm.json b/qapi/tpm.json
+index 3f2850a..d4b9745 100644
+--- a/qapi/tpm.json
++++ b/qapi/tpm.json
+@@ -48,9 +48,11 @@
+ #
+ # @emulator: Software Emulator TPM type (since 2.11)
+ #
++# @opendock: Private in-process TPM 2.0 (OpenDock Windows build)
++#
+ # Since: 1.5
+ ##
+-{ 'enum': 'TpmType', 'data': [ 'passthrough', 'emulator' ],
++{ 'enum': 'TpmType', 'data': [ 'passthrough', 'emulator', 'opendock' ],
+   'if': 'CONFIG_TPM' }
+ 
+ ##
+@@ -97,6 +99,25 @@
+ { 'struct': 'TPMEmulatorOptions', 'data': { 'chardev' : 'str' },
+   'if': 'CONFIG_TPM' }
+ 
++##
++# @TPMOpenDockOptions:
++#
++# @state: Private persistent TPM state file
++#
++# Since: 11.1
++##
++{ 'struct': 'TPMOpenDockOptions', 'data': { 'state': 'str' },
++  'if': 'CONFIG_TPM' }
++##
++# @TPMOpenDockOptionsWrapper:
++#
++# @data: Private software TPM configuration
++#
++# Since: 11.1
++##
++{ 'struct': 'TPMOpenDockOptionsWrapper', 'data': { 'data': 'TPMOpenDockOptions' },
++  'if': 'CONFIG_TPM' }
++
+ ##
+ # @TPMPassthroughOptionsWrapper:
+ #
+@@ -130,6 +151,7 @@
+ #       passthrough type
+ #     - 'emulator' The configuration options for TPM emulator backend
+ #       type
++#     - 'opendock' Private in-process TPM configuration
+ #
+ # Since: 1.5
+ ##
+@@ -137,7 +159,8 @@
+   'base': { 'type': 'TpmType' },
+   'discriminator': 'type',
+   'data': { 'passthrough' : 'TPMPassthroughOptionsWrapper',
+-            'emulator': 'TPMEmulatorOptionsWrapper' },
++            'emulator': 'TPMEmulatorOptionsWrapper',
++            'opendock': 'TPMOpenDockOptionsWrapper' },
+   'if': 'CONFIG_TPM' }
+ 
+ ##
+diff --git a/system/tpm-hmp-cmds.c b/system/tpm-hmp-cmds.c
+index 9ed6ad6..7925f49 100644
+--- a/system/tpm-hmp-cmds.c
++++ b/system/tpm-hmp-cmds.c
+@@ -52,6 +52,9 @@ void hmp_info_tpm(Monitor *mon, const QDict *qdict)
+             teo = ti->options->u.emulator.data;
+             monitor_printf(mon, ",chardev=%s", teo->chardev);
+             break;
++        case TPM_TYPE_OPENDOCK:
++            monitor_printf(mon, ",state=%s", ti->options->u.opendock.data->state);
++            break;
+         case TPM_TYPE__MAX:
+             break;
+         }

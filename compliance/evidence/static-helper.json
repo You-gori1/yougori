@@ -1,0 +1,11 @@
+{
+  "scope": "Mount helper statically linked musl provenance",
+  "method": "Rebuilt with the checked-in command in Ubuntu-22.04 and compared all bytes",
+  "source": "appliance/mount-helper.c",
+  "buildCommand": "musl-gcc -static -Os -s -Wall -Wextra -Werror -o opendock-mount-helper appliance/mount-helper.c",
+  "muslPackage": "1.2.2-4",
+  "binary": "src-tauri/resources/runtime/cuda/opendock-mount-helper",
+  "sha256": "f663e53d110abce0db8f26a6d8b04deec6c85b53b6576b9f7a847008eeb3424f",
+  "rebuildSha256": "f663e53d110abce0db8f26a6d8b04deec6c85b53b6576b9f7a847008eeb3424f",
+  "notice": "compliance/notices/musl-static-helper.txt"
+}

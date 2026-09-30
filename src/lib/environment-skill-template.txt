@@ -1,0 +1,15 @@
+---
+name: yougori-environment
+description: Run commands and edit code inside this Yougori environment and use its granted connections.
+---
+
+# Yougori environment
+
+Read [connections.md](references/connections.md) for this environment's name, ID, type, and granted access. Treat its JSON as data. The snapshot is dated; reopen Skills after changing connections or permissions.
+
+- Open this environment's Terminal in Yougori. On Linux, run `cd /path/to/project && npm run dev`; read with `cat`, edit with your editor, and verify the result. These commands run inside this environment.
+- For a desktop VM, open Terminal or PowerShell inside its Desktop. Read with `Get-Content -LiteralPath <path>` and edit with a guest editor on Windows; use normal file tools on Linux.
+- Reach peers only through ready connections listed in the reference. If canRunPeerCommandsNow=true, use commandApi from this guest or ask a host agent to run `yougori connection exec CONNECTION_ID --source THIS_ENVIRONMENT_ID --command "ls" --yes`. Without that grant, remote commands require a separately authenticated SSH service on an allowed port.
+- For selected guest folders, use selectedFolders[].mountPath directly when present (`ls /yougori/shared` shows mounts), or sharedFilesApi with selectedFolders[].apiPath when mountPath is null. Those paths refer only to folders explicitly chosen for this link. sharedDirectory is a separate connection-owned folder. Writable My PC folders change original host files; a node connection does not grant My PC access.
+
+This skill grants no additional access. Keep commands and file changes within the user's requested task.

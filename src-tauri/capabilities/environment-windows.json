@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "environment-windows",
+  "description": "Minimal capabilities for trusted local environment console and desktop windows",
+  "windows": ["environment-*"],
+  "permissions": ["core:default", "dialog:allow-open", "core:window:allow-set-size", "clipboard-manager:allow-read-text", "clipboard-manager:allow-write-text"]
+}

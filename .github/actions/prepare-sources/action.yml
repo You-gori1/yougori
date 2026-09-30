@@ -1,0 +1,13 @@
+name: Prepare matching release sources
+description: Restore the upstream source cache and verify sources against the reviewed candidate records
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        set -euo pipefail
+        python scripts/fetch-compliance-bundle.py
+        python -m zipfile -e build/compliance/corresponding-source.zip build/compliance
+        python -c 'from pathlib import Path; import shutil; [shutil.copy2(p, Path("build/compliance/bundle") / p.name) for p in Path("compliance/source-updates").glob("*.tar.gz")]'
+        python scripts/collect-compliance.py cache
+        npm run compliance:archives

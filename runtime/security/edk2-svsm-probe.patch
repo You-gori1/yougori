@@ -1,0 +1,43 @@
+Guard the SVSM probe before reading the SNP secrets page. A normal WHPX guest
+can leave Windows data at that physical address across a warm reboot; nonzero
+bytes there are not evidence of an AMD SEV-SNP Secure Virtual Services Module.
+Without this guard, Windows PE restart reproducibly executes VMGEXIT on Intel
+and stalls in OVMF's #UD exception handler. Keep genuine SNP probing unchanged.
+SPDX-License-Identifier: BSD-2-Clause-Patent
+
+diff --git a/OvmfPkg/VirtMmCommunicationDxe/Svsm.c b/OvmfPkg/VirtMmCommunicationDxe/Svsm.c
+--- a/OvmfPkg/VirtMmCommunicationDxe/Svsm.c
++++ b/OvmfPkg/VirtMmCommunicationDxe/Svsm.c
+@@ -5,6 +5,7 @@
+ **/
+ 
+ #include <Library/BaseLib.h>
++#include <Library/MemEncryptSevLib.h>
+ 
+ #include <Library/AmdSvsmLib.h>
+ #include <Register/Amd/Msr.h>
+@@ -22,6 +23,13 @@
+ {
+   UINT32  Min, Max;
+ 
++  // On an ordinary VM this address is not an SNP secrets page. In
++  // particular, RAM from the previous OS survives a warm reboot.
++  // Do not mistake its contents for SVSM metadata or issue VMGEXIT.
++  if (!MemEncryptSevSnpIsEnabled ()) {
++    return FALSE;
++  }
++
+   if (!AmdSvsmIsSvsmPresent ()) {
+     DEBUG ((DEBUG_VERBOSE, "%a: no SVSM present\n", __func__));
+     return FALSE;
+diff --git a/OvmfPkg/VirtMmCommunicationDxe/VirtMmCommunication.inf b/OvmfPkg/VirtMmCommunicationDxe/VirtMmCommunication.inf
+--- a/OvmfPkg/VirtMmCommunicationDxe/VirtMmCommunication.inf
++++ b/OvmfPkg/VirtMmCommunicationDxe/VirtMmCommunication.inf
+@@ -59,6 +59,7 @@
+   DxeHardwareInfoLib
+   QemuFwCfgLib
+   AmdSvsmLib
++  MemEncryptSevLib
+ 
+ [LibraryClasses.AARCH64, LibraryClasses.RISCV64, LibraryClasses.LOONGARCH64]
+   FdtLib

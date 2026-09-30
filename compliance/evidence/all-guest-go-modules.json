@@ -1,0 +1,1838 @@
+[
+  {
+    "binary": "opendock-agent-update",
+    "module": "github.com/containerd/containerd/api",
+    "version": "v1.11.1",
+    "goSum": "h1:h8nfoDW9+fNsC/9TwiAHj8B1GzXKtR4eFtkhi/X5RLU="
+  },
+  {
+    "binary": "opendock-agent-update",
+    "module": "github.com/containerd/log",
+    "version": "v0.1.0",
+    "goSum": "h1:TCJt7ioM2cr/tfR8GPbGf9/VRAX8D2B4PjzCpfX540I="
+  },
+  {
+    "binary": "opendock-agent-update",
+    "module": "github.com/containerd/ttrpc",
+    "version": "v1.2.5",
+    "goSum": "h1:IFckT1EFQoFBMG4c3sMdT8EP3/aKfumK1msY+Ze4oLU="
+  },
+  {
+    "binary": "opendock-agent-update",
+    "module": "github.com/gorilla/websocket",
+    "version": "v1.5.3",
+    "goSum": "h1:saDtZ6Pbx/0u+bgYQ3q96pZgCzfhKXGPqt7kZ72aNNg="
+  },
+  {
+    "binary": "opendock-agent-update",
+    "module": "github.com/hanwen/go-fuse/v2",
+    "version": "v2.5.1",
+    "goSum": "h1:OQBE8zVemSocRxA4OaFJbjJ5hlpCmIWbGr7r0M4uoQQ="
+  },
+  {
+    "binary": "opendock-agent-update",
+    "module": "github.com/opencontainers/go-digest",
+    "version": "v1.0.0",
+    "goSum": "h1:apOUWs51W5PlhuyGyz9FCeeBIOUDA/6nW8Oi/yOhh5U="
+  },
+  {
+    "binary": "opendock-agent-update",
+    "module": "github.com/opencontainers/image-spec",
+    "version": "v1.1.1",
+    "goSum": "h1:y0fUlFfIZhPF1W537XOLg0/fcx6zcHCJwooC2xJA040="
+  },
+  {
+    "binary": "opendock-agent-update",
+    "module": "github.com/sirupsen/logrus",
+    "version": "v1.9.3",
+    "goSum": "h1:dueUQJ1C2q9oE3F7wvmSGAaVtTmUizReu6fjN8uqzbQ="
+  },
+  {
+    "binary": "opendock-agent-update",
+    "module": "golang.org/x/net",
+    "version": "v0.58.0",
+    "goSum": "h1:ynWG7rqYi4ccpTEuPZ2QGWHktVEM9DMCj9yzDE0Q7To="
+  },
+  {
+    "binary": "opendock-agent-update",
+    "module": "golang.org/x/sys",
+    "version": "v0.47.0",
+    "goSum": "h1:o7XGOvZQCADBQQ4Y7VNq2dRWQR7JmOUW8Kxx4ZsNgWs="
+  },
+  {
+    "binary": "opendock-agent-update",
+    "module": "golang.org/x/text",
+    "version": "v0.41.0",
+    "goSum": "h1:vz/seA0lnX87Othu2f/0L24RcgrXD9/YFTSuGjj3rH8="
+  },
+  {
+    "binary": "opendock-agent-update",
+    "module": "google.golang.org/genproto/googleapis/rpc",
+    "version": "v0.0.0-20260526163538-3dc84a4a5aaa",
+    "goSum": "h1:mZHHdPZl0dbGHCflZgAq/Q468DWVFcU2whhB2KAo8fk="
+  },
+  {
+    "binary": "opendock-agent-update",
+    "module": "google.golang.org/grpc",
+    "version": "v1.83.2",
+    "goSum": "h1:EManeRomTObA0BU7I8vXgg/78uE5MJ9M8B39EX2WscU="
+  },
+  {
+    "binary": "opendock-agent-update",
+    "module": "google.golang.org/protobuf",
+    "version": "v1.36.11",
+    "goSum": "h1:fV6ZwhNocDyBLK0dj+fg8ektcVegBBuEolpbTQyBNVE="
+  },
+  {
+    "binary": "opendock-agent-update",
+    "module": "github.com/containerd/containerd/api",
+    "version": "v1.11.1",
+    "goSum": "h1:h8nfoDW9+fNsC/9TwiAHj8B1GzXKtR4eFtkhi/X5RLU="
+  },
+  {
+    "binary": "opendock-agent-update",
+    "module": "github.com/containerd/log",
+    "version": "v0.1.0",
+    "goSum": "h1:TCJt7ioM2cr/tfR8GPbGf9/VRAX8D2B4PjzCpfX540I="
+  },
+  {
+    "binary": "opendock-agent-update",
+    "module": "github.com/containerd/ttrpc",
+    "version": "v1.2.5",
+    "goSum": "h1:IFckT1EFQoFBMG4c3sMdT8EP3/aKfumK1msY+Ze4oLU="
+  },
+  {
+    "binary": "opendock-agent-update",
+    "module": "github.com/gorilla/websocket",
+    "version": "v1.5.3",
+    "goSum": "h1:saDtZ6Pbx/0u+bgYQ3q96pZgCzfhKXGPqt7kZ72aNNg="
+  },
+  {
+    "binary": "opendock-agent-update",
+    "module": "github.com/hanwen/go-fuse/v2",
+    "version": "v2.5.1",
+    "goSum": "h1:OQBE8zVemSocRxA4OaFJbjJ5hlpCmIWbGr7r0M4uoQQ="
+  },
+  {
+    "binary": "opendock-agent-update",
+    "module": "github.com/opencontainers/go-digest",
+    "version": "v1.0.0",
+    "goSum": "h1:apOUWs51W5PlhuyGyz9FCeeBIOUDA/6nW8Oi/yOhh5U="
+  },
+  {
+    "binary": "opendock-agent-update",
+    "module": "github.com/opencontainers/image-spec",
+    "version": "v1.1.1",
+    "goSum": "h1:y0fUlFfIZhPF1W537XOLg0/fcx6zcHCJwooC2xJA040="
+  },
+  {
+    "binary": "opendock-agent-update",
+    "module": "github.com/sirupsen/logrus",
+    "version": "v1.9.3",
+    "goSum": "h1:dueUQJ1C2q9oE3F7wvmSGAaVtTmUizReu6fjN8uqzbQ="
+  },
+  {
+    "binary": "opendock-agent-update",
+    "module": "golang.org/x/net",
+    "version": "v0.58.0",
+    "goSum": "h1:ynWG7rqYi4ccpTEuPZ2QGWHktVEM9DMCj9yzDE0Q7To="
+  },
+  {
+    "binary": "opendock-agent-update",
+    "module": "golang.org/x/sys",
+    "version": "v0.47.0",
+    "goSum": "h1:o7XGOvZQCADBQQ4Y7VNq2dRWQR7JmOUW8Kxx4ZsNgWs="
+  },
+  {
+    "binary": "opendock-agent-update",
+    "module": "golang.org/x/text",
+    "version": "v0.41.0",
+    "goSum": "h1:vz/seA0lnX87Othu2f/0L24RcgrXD9/YFTSuGjj3rH8="
+  },
+  {
+    "binary": "opendock-agent-update",
+    "module": "google.golang.org/genproto/googleapis/rpc",
+    "version": "v0.0.0-20260526163538-3dc84a4a5aaa",
+    "goSum": "h1:mZHHdPZl0dbGHCflZgAq/Q468DWVFcU2whhB2KAo8fk="
+  },
+  {
+    "binary": "opendock-agent-update",
+    "module": "google.golang.org/grpc",
+    "version": "v1.83.2",
+    "goSum": "h1:EManeRomTObA0BU7I8vXgg/78uE5MJ9M8B39EX2WscU="
+  },
+  {
+    "binary": "opendock-agent-update",
+    "module": "google.golang.org/protobuf",
+    "version": "v1.36.11",
+    "goSum": "h1:fV6ZwhNocDyBLK0dj+fg8ektcVegBBuEolpbTQyBNVE="
+  },
+  {
+    "binary": "cuda/opendock-agent",
+    "module": "github.com/containerd/containerd/api",
+    "version": "v1.11.1",
+    "goSum": "h1:h8nfoDW9+fNsC/9TwiAHj8B1GzXKtR4eFtkhi/X5RLU="
+  },
+  {
+    "binary": "cuda/opendock-agent",
+    "module": "github.com/containerd/log",
+    "version": "v0.1.0",
+    "goSum": "h1:TCJt7ioM2cr/tfR8GPbGf9/VRAX8D2B4PjzCpfX540I="
+  },
+  {
+    "binary": "cuda/opendock-agent",
+    "module": "github.com/containerd/ttrpc",
+    "version": "v1.2.5",
+    "goSum": "h1:IFckT1EFQoFBMG4c3sMdT8EP3/aKfumK1msY+Ze4oLU="
+  },
+  {
+    "binary": "cuda/opendock-agent",
+    "module": "github.com/gorilla/websocket",
+    "version": "v1.5.3",
+    "goSum": "h1:saDtZ6Pbx/0u+bgYQ3q96pZgCzfhKXGPqt7kZ72aNNg="
+  },
+  {
+    "binary": "cuda/opendock-agent",
+    "module": "github.com/hanwen/go-fuse/v2",
+    "version": "v2.5.1",
+    "goSum": "h1:OQBE8zVemSocRxA4OaFJbjJ5hlpCmIWbGr7r0M4uoQQ="
+  },
+  {
+    "binary": "cuda/opendock-agent",
+    "module": "github.com/opencontainers/go-digest",
+    "version": "v1.0.0",
+    "goSum": "h1:apOUWs51W5PlhuyGyz9FCeeBIOUDA/6nW8Oi/yOhh5U="
+  },
+  {
+    "binary": "cuda/opendock-agent",
+    "module": "github.com/opencontainers/image-spec",
+    "version": "v1.1.1",
+    "goSum": "h1:y0fUlFfIZhPF1W537XOLg0/fcx6zcHCJwooC2xJA040="
+  },
+  {
+    "binary": "cuda/opendock-agent",
+    "module": "github.com/sirupsen/logrus",
+    "version": "v1.9.3",
+    "goSum": "h1:dueUQJ1C2q9oE3F7wvmSGAaVtTmUizReu6fjN8uqzbQ="
+  },
+  {
+    "binary": "cuda/opendock-agent",
+    "module": "golang.org/x/net",
+    "version": "v0.58.0",
+    "goSum": "h1:ynWG7rqYi4ccpTEuPZ2QGWHktVEM9DMCj9yzDE0Q7To="
+  },
+  {
+    "binary": "cuda/opendock-agent",
+    "module": "golang.org/x/sys",
+    "version": "v0.47.0",
+    "goSum": "h1:o7XGOvZQCADBQQ4Y7VNq2dRWQR7JmOUW8Kxx4ZsNgWs="
+  },
+  {
+    "binary": "cuda/opendock-agent",
+    "module": "golang.org/x/text",
+    "version": "v0.41.0",
+    "goSum": "h1:vz/seA0lnX87Othu2f/0L24RcgrXD9/YFTSuGjj3rH8="
+  },
+  {
+    "binary": "cuda/opendock-agent",
+    "module": "google.golang.org/genproto/googleapis/rpc",
+    "version": "v0.0.0-20260526163538-3dc84a4a5aaa",
+    "goSum": "h1:mZHHdPZl0dbGHCflZgAq/Q468DWVFcU2whhB2KAo8fk="
+  },
+  {
+    "binary": "cuda/opendock-agent",
+    "module": "google.golang.org/grpc",
+    "version": "v1.83.2",
+    "goSum": "h1:EManeRomTObA0BU7I8vXgg/78uE5MJ9M8B39EX2WscU="
+  },
+  {
+    "binary": "cuda/opendock-agent",
+    "module": "google.golang.org/protobuf",
+    "version": "v1.36.11",
+    "goSum": "h1:fV6ZwhNocDyBLK0dj+fg8ektcVegBBuEolpbTQyBNVE="
+  },
+  {
+    "binary": "cuda/opendock-agent",
+    "module": "github.com/containerd/containerd/api",
+    "version": "v1.11.1",
+    "goSum": "h1:h8nfoDW9+fNsC/9TwiAHj8B1GzXKtR4eFtkhi/X5RLU="
+  },
+  {
+    "binary": "cuda/opendock-agent",
+    "module": "github.com/containerd/log",
+    "version": "v0.1.0",
+    "goSum": "h1:TCJt7ioM2cr/tfR8GPbGf9/VRAX8D2B4PjzCpfX540I="
+  },
+  {
+    "binary": "cuda/opendock-agent",
+    "module": "github.com/containerd/ttrpc",
+    "version": "v1.2.5",
+    "goSum": "h1:IFckT1EFQoFBMG4c3sMdT8EP3/aKfumK1msY+Ze4oLU="
+  },
+  {
+    "binary": "cuda/opendock-agent",
+    "module": "github.com/gorilla/websocket",
+    "version": "v1.5.3",
+    "goSum": "h1:saDtZ6Pbx/0u+bgYQ3q96pZgCzfhKXGPqt7kZ72aNNg="
+  },
+  {
+    "binary": "cuda/opendock-agent",
+    "module": "github.com/hanwen/go-fuse/v2",
+    "version": "v2.5.1",
+    "goSum": "h1:OQBE8zVemSocRxA4OaFJbjJ5hlpCmIWbGr7r0M4uoQQ="
+  },
+  {
+    "binary": "cuda/opendock-agent",
+    "module": "github.com/opencontainers/go-digest",
+    "version": "v1.0.0",
+    "goSum": "h1:apOUWs51W5PlhuyGyz9FCeeBIOUDA/6nW8Oi/yOhh5U="
+  },
+  {
+    "binary": "cuda/opendock-agent",
+    "module": "github.com/opencontainers/image-spec",
+    "version": "v1.1.1",
+    "goSum": "h1:y0fUlFfIZhPF1W537XOLg0/fcx6zcHCJwooC2xJA040="
+  },
+  {
+    "binary": "cuda/opendock-agent",
+    "module": "github.com/sirupsen/logrus",
+    "version": "v1.9.3",
+    "goSum": "h1:dueUQJ1C2q9oE3F7wvmSGAaVtTmUizReu6fjN8uqzbQ="
+  },
+  {
+    "binary": "cuda/opendock-agent",
+    "module": "golang.org/x/net",
+    "version": "v0.58.0",
+    "goSum": "h1:ynWG7rqYi4ccpTEuPZ2QGWHktVEM9DMCj9yzDE0Q7To="
+  },
+  {
+    "binary": "cuda/opendock-agent",
+    "module": "golang.org/x/sys",
+    "version": "v0.47.0",
+    "goSum": "h1:o7XGOvZQCADBQQ4Y7VNq2dRWQR7JmOUW8Kxx4ZsNgWs="
+  },
+  {
+    "binary": "cuda/opendock-agent",
+    "module": "golang.org/x/text",
+    "version": "v0.41.0",
+    "goSum": "h1:vz/seA0lnX87Othu2f/0L24RcgrXD9/YFTSuGjj3rH8="
+  },
+  {
+    "binary": "cuda/opendock-agent",
+    "module": "google.golang.org/genproto/googleapis/rpc",
+    "version": "v0.0.0-20260526163538-3dc84a4a5aaa",
+    "goSum": "h1:mZHHdPZl0dbGHCflZgAq/Q468DWVFcU2whhB2KAo8fk="
+  },
+  {
+    "binary": "cuda/opendock-agent",
+    "module": "google.golang.org/grpc",
+    "version": "v1.83.2",
+    "goSum": "h1:EManeRomTObA0BU7I8vXgg/78uE5MJ9M8B39EX2WscU="
+  },
+  {
+    "binary": "cuda/opendock-agent",
+    "module": "google.golang.org/protobuf",
+    "version": "v1.36.11",
+    "goSum": "h1:fV6ZwhNocDyBLK0dj+fg8ektcVegBBuEolpbTQyBNVE="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/Masterminds/semver/v3",
+    "version": "v3.5.0",
+    "goSum": "h1:kQceYJfbupGfZOKZQg0kou0DgAKhzDg2NZPAwZ/2OOE="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/cespare/xxhash/v2",
+    "version": "v2.3.0",
+    "goSum": "h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/cilium/ebpf",
+    "version": "v0.17.3",
+    "goSum": "h1:FnP4r16PWYSE4ux6zN+//jMcW4nMVRvuTLVTvCjyyjg="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/compose-spec/compose-go/v2",
+    "version": "v2.12.1",
+    "goSum": "h1:+xBZNxcgSus4atQJwXPEdhHRgCEyZmj/BuqN5m33Ou0="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/accelerated-container-image",
+    "version": "v1.4.3",
+    "goSum": "h1:mxC5l+CDzojoqf9gGzO1yu1o/A6kzQpD74VzfOwv4OI="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/cgroups/v3",
+    "version": "v3.1.3",
+    "goSum": "h1:eUNflyMddm18+yrDmZPn3jI7C5hJ9ahABE5q6dyLYXQ="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/console",
+    "version": "v1.0.5",
+    "goSum": "h1:R0ymNeydRqH2DmakFNdmjR2k0t7UPuiOV/N/27/qqsc="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/containerd/api",
+    "version": "v1.11.1",
+    "goSum": "h1:h8nfoDW9+fNsC/9TwiAHj8B1GzXKtR4eFtkhi/X5RLU="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/containerd/v2",
+    "version": "v2.3.2",
+    "goSum": "h1:eLven1YxRMkeiKu7IcMrPKE+gn8sGR1DqHbbshMEvWM="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/continuity",
+    "version": "v0.5.0",
+    "goSum": "h1:7a85HZpCSs+1Zps0Ee3DPSuAWY+0SJM1JNM51nlEVDg="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/errdefs",
+    "version": "v1.0.0",
+    "goSum": "h1:tg5yIfIlQIrxYtu9ajqY42W3lpS19XqdxRQeEwYG8PI="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/errdefs/pkg",
+    "version": "v0.3.0",
+    "goSum": "h1:9IKJ06FvyNlexW690DXuQNx2KA2cUJXx151Xdx3ZPPE="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/fifo",
+    "version": "v1.1.0",
+    "goSum": "h1:4I2mbh5stb1u6ycIABlBw9zgtlK8viPI9QkQNRQEEmY="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/go-cni",
+    "version": "v1.1.13",
+    "goSum": "h1:eFSGOKlhoYNxpJ51KRIMHZNlg5UgocXEIEBGkY7Hnis="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/go-runc",
+    "version": "v1.1.0",
+    "goSum": "h1:OX4f+/i2y5sUT7LhmcJH7GYrjjhHa1QI4e8yO0gGleA="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/imgcrypt/v2",
+    "version": "v2.0.2",
+    "goSum": "h1:WOEaE33CaSxzuRF8YLfAjHWuu1Xh27aPPQtqtALqfuM="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/log",
+    "version": "v0.1.0",
+    "goSum": "h1:TCJt7ioM2cr/tfR8GPbGf9/VRAX8D2B4PjzCpfX540I="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/nydus-snapshotter",
+    "version": "v0.15.15",
+    "goSum": "h1:kVYbFpYA4K43qxGVoc/VBwRXLAVWn4X9mdwGrR+HsLk="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/platforms",
+    "version": "v1.0.0-rc.4",
+    "goSum": "h1:M42JrUT4zfZTqtkUwkr0GzmUWbfyO5VO0Q5b3op97T4="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/plugin",
+    "version": "v1.1.0",
+    "goSum": "h1:O+7lczNJVMy8rz0YNx3xGB8tTf5qY4i5abF041Ew19U="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/stargz-snapshotter",
+    "version": "v0.18.2",
+    "goSum": "h1:Ev/sxfQUjwzJQ9eqy3XzttcQ3osMIqkQgMYlcET+10M="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/stargz-snapshotter/estargz",
+    "version": "v0.18.2",
+    "goSum": "h1:yXkZFYIzz3eoLwlTUZKz2iQ4MrckBxJjkmD16ynUTrw="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/stargz-snapshotter/ipfs",
+    "version": "v0.18.2",
+    "goSum": "h1:GPkGnRka0GcsiAXh7rN2C+XesH/6BBuJcdtV6ymGlGg="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/ttrpc",
+    "version": "v1.2.8",
+    "goSum": "h1:xbVu6D4qF2jihdh9rDVOKqUMiFBQk6YctTdo1zk087Y="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/typeurl/v2",
+    "version": "v2.3.0",
+    "goSum": "h1:HZHPhRWo5XMy3QGQoPrUzbW/2ckwjfweHmOwlkIrPAQ="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containernetworking/cni",
+    "version": "v1.3.0",
+    "goSum": "h1:v6EpN8RznAZj9765HhXQrtXgX+ECGebEYEmnuFjskwo="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containernetworking/plugins",
+    "version": "v1.9.1",
+    "goSum": "h1:8oU6WsIsU3bpnNZuvHp74a6cE1MJwbj2P7s4/yTUNlA="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containers/ocicrypt",
+    "version": "v1.2.1",
+    "goSum": "h1:0qIOTT9DoYwcKmxSt8QJt+VzMY18onl9jUXsxpVhSmM="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/coreos/go-iptables",
+    "version": "v0.8.0",
+    "goSum": "h1:MPc2P89IhuVpLI7ETL/2tx3XZ61VeICZjYqDEgNsPRc="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/coreos/go-systemd/v22",
+    "version": "v22.7.0",
+    "goSum": "h1:LAEzFkke61DFROc7zNLX/WA2i5J8gYqe0rSj9KI28KA="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/cyphar/filepath-securejoin",
+    "version": "v0.7.0",
+    "goSum": "h1:s0Y3ITPy6sQn5xt54DuYvTF8hu134ooYLUb58DX/HjE="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/distribution/reference",
+    "version": "v0.6.0",
+    "goSum": "h1:0IXCQ5g4/QMHHkarYzh5l+u8T3t73zM5QvfrDyIgxBk="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/djherbis/times",
+    "version": "v1.6.0",
+    "goSum": "h1:w2ctJ92J8fBvWPxugmXIv7Nz7Q3iDMKNx9v5ocVH20c="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/docker/cli",
+    "version": "v29.6.1+incompatible",
+    "goSum": "h1:oO7F4nn3Ovr/5TlfTUWFbMwBSS/B7Xs6Epv26gBrUP8="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/docker/docker-credential-helpers",
+    "version": "v0.9.3",
+    "goSum": "h1:gAm/VtF9wgqJMoxzT3Gj5p4AqIjCBS4wrsOh9yRqcz8="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/docker/go-connections",
+    "version": "v0.7.0",
+    "goSum": "h1:6SsRfJddP22WMrCkj19x9WKjEDTB+ahsdiGYf0mN39c="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/docker/go-units",
+    "version": "v0.5.0",
+    "goSum": "h1:69rxXcBk27SvSaaxTtLh/8llcHD8vYHT7WSdRZ/jvr4="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/fahedouch/go-logrotate",
+    "version": "v0.3.0",
+    "goSum": "h1:XP+dHIDgWZ1ckz43mG6gl5ASer3PZDVr755SVMyzaUQ="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/fatih/color",
+    "version": "v1.19.0",
+    "goSum": "h1:Zp3PiM21/9Ld6FzSKyL5c/BULoe/ONr9KlbYVOfG8+w="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/felixge/httpsnoop",
+    "version": "v1.0.4",
+    "goSum": "h1:NFTV2Zj1bL4mc9sqWACXbQFVBBg2W3GPvqp8/ESS2Wg="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/fluent/fluent-logger-golang",
+    "version": "v1.10.1",
+    "goSum": "h1:wu54iN1O2afll5oQrtTjhgZRwWcfOeFFzwRsEkABfFQ="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/fsnotify/fsnotify",
+    "version": "v1.9.0",
+    "goSum": "h1:2Ml+OJNzbYCTzsxtv8vKSFD9PbJjmhYF14k/jKC7S9k="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/go-jose/go-jose/v4",
+    "version": "v4.1.4",
+    "goSum": "h1:moDMcTHmvE6Groj34emNPLs/qtYXRVcd6S7NHbHz3kA="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/go-logr/logr",
+    "version": "v1.4.3",
+    "goSum": "h1:CjnDlHq8ikf6E492q6eKboGOC0T8CDaOvkHCIg8idEI="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/go-logr/stdr",
+    "version": "v1.2.2",
+    "goSum": "h1:hSWxHoqTgW2S2qGc0LTAI563KZ5YKYRhT3MFKZMbjag="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/go-viper/mapstructure/v2",
+    "version": "v2.5.0",
+    "goSum": "h1:vM5IJoUAy3d7zRSVtIwQgBj7BiWtMPfmPEgAXnvj1Ro="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/godbus/dbus/v5",
+    "version": "v5.2.2",
+    "goSum": "h1:TUR3TgtSVDmjiXOgAAyaZbYmIeP3DPkld3jgKGV8mXQ="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/golang/protobuf",
+    "version": "v1.5.4",
+    "goSum": "h1:i7eJL8qZTpSEXOPTxNKhASYpMn+8e5Q6AdndVa1dWek="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/google/go-cmp",
+    "version": "v0.7.0",
+    "goSum": "h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/ipfs/go-cid",
+    "version": "v0.6.1",
+    "goSum": "h1:T5TnNb08+ueovG76Z5gx1L4Y7QOaGTXHg1F6raWFxIc="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/klauspost/compress",
+    "version": "v1.18.6",
+    "goSum": "h1:2jupLlAwFm95+YDR+NwD2MEfFO9d4z4Prjl1XXDjuao="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/klauspost/cpuid/v2",
+    "version": "v2.2.8",
+    "goSum": "h1:+StwCXwm9PdpiEkPyzBXIy+M9KUb4ODm0Zarf1kS5BM="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/mattn/go-colorable",
+    "version": "v0.1.14",
+    "goSum": "h1:9A9LHSqF/7dyVVX6g0U9cwm9pG3kP9gSzcuIPHPsaIE="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/mattn/go-isatty",
+    "version": "v0.0.22",
+    "goSum": "h1:j8l17JJ9i6VGPUFUYoTUKPSgKe/83EYU2zBC7YNKMw4="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/mattn/go-shellwords",
+    "version": "v1.0.13",
+    "goSum": "h1:DC0OMEpGjm6LfNFU4ckYcvbQKyp2vE8atyFGXNtDcf4="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/mitchellh/go-homedir",
+    "version": "v1.1.0",
+    "goSum": "h1:lukF9ziXFxDFPkA1vsr5zpc1XuPDn/wFntq5mG+4E0Y="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/moby/docker-image-spec",
+    "version": "v1.3.1",
+    "goSum": "h1:jMKff3w6PgbfSa69GfNg+zN/XLhfXJGnEx3Nl2EsFP0="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/moby/locker",
+    "version": "v1.0.1",
+    "goSum": "h1:fOXqR41zeveg4fFODix+1Ch4mj/gT0NE1XJbp/epuBg="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/moby/moby/api",
+    "version": "v1.55.0",
+    "goSum": "h1:2/sexvQyqIWS8pRSCFddBfpW2qE7vR7FCL+vN8pxwMc="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/moby/moby/client",
+    "version": "v0.5.0",
+    "goSum": "h1:5XhyPk2fuOWf6RlSFa3MkIIgDZkF25xToXW8Q/BH7cc="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/moby/moby/v2",
+    "version": "v2.0.0-beta.18",
+    "goSum": "h1:eOu0ZKNhBbtLmjVVHfEhpM6PEVG0SZZoRhdSLMZo2TY="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/moby/sys/capability",
+    "version": "v0.4.0",
+    "goSum": "h1:4D4mI6KlNtWMCM1Z/K0i7RV1FkX+DBDHKVJpCndZoHk="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/moby/sys/mount",
+    "version": "v0.3.5",
+    "goSum": "h1:eS3fsZTjHaBihwjp4/+5Z3jxqLXYsbwxqpVSfFv3M00="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/moby/sys/mountinfo",
+    "version": "v0.7.2",
+    "goSum": "h1:1shs6aH5s4o5H2zQLn796ADW1wMrIwHsyJ2v9KouLrg="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/moby/sys/signal",
+    "version": "v0.7.1",
+    "goSum": "h1:PrQxdvxcGijdo6UXXo/lU/TvHUWyPhj7UOpSo8tuvk0="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/moby/sys/user",
+    "version": "v0.4.1",
+    "goSum": "h1:RgjRlaDKi/Xmyrz4t8lyzXT6v2ooFeO/7xtchmhVWE0="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/moby/sys/userns",
+    "version": "v0.1.0",
+    "goSum": "h1:tVLXkFOxVu9A64/yh59slHVv9ahO9UIev4JZusOLG/g="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/moby/term",
+    "version": "v0.5.2",
+    "goSum": "h1:6qk3FJAFDs6i/q3W/pQ97SX192qKfZgGjCQqfCJkgzQ="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/mr-tron/base58",
+    "version": "v1.3.0",
+    "goSum": "h1:K6Y13R2h+dku0wOqKtecgRnBUBPrZzLZy5aIj8lCcJI="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/muesli/cancelreader",
+    "version": "v0.2.2",
+    "goSum": "h1:3I4Kt4BQjOR54NavqnDogx/MIoWBFa0StPA8ELUXHmA="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/multiformats/go-base32",
+    "version": "v0.1.0",
+    "goSum": "h1:pVx9xoSPqEIQG8o+UbAe7DNi51oej1NtK+aGkbLYxPE="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/multiformats/go-base36",
+    "version": "v0.2.0",
+    "goSum": "h1:lFsAbNOGeKtuKozrtBsAkSVhv1p9D0/qedU9rQyccr0="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/multiformats/go-multiaddr",
+    "version": "v0.16.1",
+    "goSum": "h1:fgJ0Pitow+wWXzN9do+1b8Pyjmo8m5WhGfzpL82MpCw="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/multiformats/go-multibase",
+    "version": "v0.3.0",
+    "goSum": "h1:8helZD2+4Db7NNWFiktk2NePbF0boolBe6bDQvM4r68="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/multiformats/go-multihash",
+    "version": "v0.2.3",
+    "goSum": "h1:7Lyc8XfX/IY2jWb/gI7JP+o7JEq9hOa7BFvVU9RSh+U="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/multiformats/go-varint",
+    "version": "v0.1.0",
+    "goSum": "h1:i2wqFp4sdl3IcIxfAonHQV9qU5OsZ4Ts9IOoETFs5dI="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/opencontainers/go-digest",
+    "version": "v1.0.0",
+    "goSum": "h1:apOUWs51W5PlhuyGyz9FCeeBIOUDA/6nW8Oi/yOhh5U="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/opencontainers/image-spec",
+    "version": "v1.1.1",
+    "goSum": "h1:y0fUlFfIZhPF1W537XOLg0/fcx6zcHCJwooC2xJA040="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/opencontainers/runtime-spec",
+    "version": "v1.3.0",
+    "goSum": "h1:YZupQUdctfhpZy3TM39nN9Ika5CBWT5diQ8ibYCRkxg="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/opencontainers/runtime-tools",
+    "version": "v0.9.1-0.20251114084447-edf4cb3d2116",
+    "goSum": "h1:tAKu3NkKWZYpqBSOJKwTxT1wIGueiF7gcmcNgr5pNTY="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/opencontainers/selinux",
+    "version": "v1.15.1",
+    "goSum": "h1:ERxeh5caJvCzNAKdI8WQbJmB1LDTn4BuaAg8wihLBpA="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/pelletier/go-toml/v2",
+    "version": "v2.4.2",
+    "goSum": "h1:M2fKKbmyvI+hGId/D0W64qDBMVhJnNR10O5gIbMc//Q="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/philhofer/fwd",
+    "version": "v1.2.0",
+    "goSum": "h1:e6DnBTl7vGY+Gz322/ASL4Gyp1FspeMvx1RNDoToZuM="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/pkg/errors",
+    "version": "v0.9.1",
+    "goSum": "h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/rootless-containers/bypass4netns",
+    "version": "v0.4.2",
+    "goSum": "h1:JUZcpX7VLRfDkLxBPC6fyNalJGv9MjnjECOilZIvKRc="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/rootless-containers/rootlesskit/v3",
+    "version": "v3.0.1",
+    "goSum": "h1:AbYUo1O3b8YFL9X8YuEaaWkVFTwdU551CKyuOt0nJok="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/santhosh-tekuri/jsonschema/v6",
+    "version": "v6.0.1",
+    "goSum": "h1:PKK9DyHxif4LZo+uQSgXNqs0jj5+xZwwfKHgph2lxBw="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/sirupsen/logrus",
+    "version": "v1.9.4",
+    "goSum": "h1:TsZE7l11zFCLZnZ+teH4Umoq5BhEIfIzfRDZ1Uzql2w="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/smallstep/pkcs7",
+    "version": "v0.1.1",
+    "goSum": "h1:x+rPdt2W088V9Vkjho4KtoggyktZJlMduZAtRHm68LU="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/spaolacci/murmur3",
+    "version": "v1.1.0",
+    "goSum": "h1:7c1g84S4BPRrfL5Xrdp6fOJ206sU9y293DDHaoy0bLI="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/spf13/cobra",
+    "version": "v1.10.2",
+    "goSum": "h1:DMTTonx5m65Ic0GOoRY2c16WCbHxOOw6xxezuLaBpcU="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/spf13/pflag",
+    "version": "v1.0.10",
+    "goSum": "h1:4EBh2KAYBwaONj6b2Ye1GiHfwjqyROoF4RwYO+vPwFk="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/stefanberger/go-pkcs11uri",
+    "version": "v0.0.0-20230803200340-78284954bff6",
+    "goSum": "h1:pnnLyeX7o/5aX8qUQ69P/mLojDqwda8hFOCBTmP/6hw="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/tinylib/msgp",
+    "version": "v1.3.0",
+    "goSum": "h1:ULuf7GPooDaIlbyvgAxBV/FI7ynli6LZ1/nVUNu+0ww="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/vbatts/tar-split",
+    "version": "v0.12.3",
+    "goSum": "h1:Cd46rkGXI3Td4yrVNwU8ripbxFaQbmesqhjBUUYAJSw="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/vishvananda/netlink",
+    "version": "v1.3.1",
+    "goSum": "h1:3AEMt62VKqz90r0tmNhog0r/PpWKmrEShJU0wJW6bV0="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/vishvananda/netns",
+    "version": "v0.0.5",
+    "goSum": "h1:DfiHV+j8bA32MFM7bfEunvT8IAqQ/NzSJHtcmW5zdEY="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/xhit/go-str2duration/v2",
+    "version": "v2.1.0",
+    "goSum": "h1:lxklc02Drh6ynqX+DdPyp5pCKLUQpRT8bp8Ydu2Bstc="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/yuchanns/srslog",
+    "version": "v1.1.0",
+    "goSum": "h1:CEm97Xxxd8XpJThE0gc/XsqUGgPufh5u5MUjC27/KOk="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "go.opentelemetry.io/auto/sdk",
+    "version": "v1.2.1",
+    "goSum": "h1:jXsnJ4Lmnqd11kwkBV2LgLoFMZKizbCi5fNZ/ipaZ64="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp",
+    "version": "v0.69.0",
+    "goSum": "h1:8tvICD4vSTOOsNrsI4Ljf6C+6UKvpTEH5XY3JMoyPoo="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "go.opentelemetry.io/otel",
+    "version": "v1.44.0",
+    "goSum": "h1:JjwHmHpA4iZ3wBxluu2fbbE7j4kqlE8jXyAyPXH7HqU="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "go.opentelemetry.io/otel/metric",
+    "version": "v1.44.0",
+    "goSum": "h1:1w0gILTcHdr3YI+ixLyjemwrVnsMURbTZFrSYCdDdmc="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "go.opentelemetry.io/otel/trace",
+    "version": "v1.44.0",
+    "goSum": "h1:jxF5CsGYCe74MCRx2X4g7WsY/VBKRqqpNvXlX/6gtIk="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "go.yaml.in/yaml/v2",
+    "version": "v2.4.4",
+    "goSum": "h1:tuyd0P+2Ont/d6e2rl3be67goVK4R6deVxCUX5vyPaQ="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "go.yaml.in/yaml/v3",
+    "version": "v3.0.4",
+    "goSum": "h1:tfq32ie2Jv2UxXFdLJdh3jXuOzWiL1fo0bu/FbuKpbc="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "go.yaml.in/yaml/v4",
+    "version": "v4.0.0-rc.4",
+    "goSum": "h1:UP4+v6fFrBIb1l934bDl//mmnoIZEDK0idg1+AIvX5U="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "golang.org/x/crypto",
+    "version": "v0.53.0",
+    "goSum": "h1:QZ4Muo8THX6CizN2vPPd5fBGHyogrdK9fG4wLPFUsto="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "golang.org/x/exp",
+    "version": "v0.0.0-20250711185948-6ae5c78190dc",
+    "goSum": "h1:TS73t7x3KarrNd5qAipmspBDS1rkMcgVG/fS1aRb4Rc="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "golang.org/x/mod",
+    "version": "v0.37.0",
+    "goSum": "h1:vF1DjpVEshcIqoEaauuHebaLk1O1forxjxBaVn884JQ="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "golang.org/x/net",
+    "version": "v0.56.0",
+    "goSum": "h1:Rw8j/hFzGvJUZwNBXnAtf5sVDVt+65SK2C7IxCxZt5o="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "golang.org/x/sync",
+    "version": "v0.21.0",
+    "goSum": "h1:HLII4xRRTtCRkxYp4HNFF0Js/Og6q2i++KXbg0gHCwM="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "golang.org/x/sys",
+    "version": "v0.46.0",
+    "goSum": "h1:noSf2Fq6F8DBgS+LysIkx7rIExoNHJsxOAtPp4rthXw="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "golang.org/x/term",
+    "version": "v0.44.0",
+    "goSum": "h1:0rLvDRCtNj0gZkyIXhCyOb2OAzEhLVqc4B+hrsBhrmc="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "golang.org/x/text",
+    "version": "v0.38.0",
+    "goSum": "h1:sXmwo9DwP3OK9EZ7PqAdaooSGozfl/3a6/xJcbzPRhE="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "google.golang.org/genproto/googleapis/rpc",
+    "version": "v0.0.0-20260526163538-3dc84a4a5aaa",
+    "goSum": "h1:mZHHdPZl0dbGHCflZgAq/Q468DWVFcU2whhB2KAo8fk="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "google.golang.org/grpc",
+    "version": "v1.81.1",
+    "goSum": "h1:VnnIIZ88UzOOKLukQi+ImGz8O1Wdp8nAGGnvOfEIWQQ="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "google.golang.org/protobuf",
+    "version": "v1.36.12-0.20260120151049-f2248ac996af",
+    "goSum": "h1:+5/Sw3GsDNlEmu7TfklWKPdQ0Ykja5VEmq2i817+jbI="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "gopkg.in/yaml.v3",
+    "version": "v3.0.1",
+    "goSum": "h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "gotest.tools/v3",
+    "version": "v3.5.2",
+    "goSum": "h1:7koQfIKdy+I8UTetycgUqXWSDwpgv193Ka+qRsmBY8Q="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "lukechampine.com/blake3",
+    "version": "v1.3.0",
+    "goSum": "h1:sJ3XhFINmHSrYCgl958hscfIa3bw8x4DqMP3u1YvoYE="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "sigs.k8s.io/knftables",
+    "version": "v0.0.18",
+    "goSum": "h1:6Duvmu0s/HwGifKrtl6G3AyAPYlWiZqTgS8bkVMiyaE="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "sigs.k8s.io/yaml",
+    "version": "v1.6.0",
+    "goSum": "h1:G8fkbMSAFqgEFgh4b1wmtzDnioxFCUgTZhlbj5P9QYs="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "tags.cncf.io/container-device-interface",
+    "version": "v1.1.0",
+    "goSum": "h1:RnxNhxF1JOu6CJUVpetTYvrXHdxw9j9jFYgZpI+anSY="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "tags.cncf.io/container-device-interface/specs-go",
+    "version": "v1.1.0",
+    "goSum": "h1:QRZVeAceQM+zTZe12eyfuJuuzp524EKYwhmvLd+h+yQ="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/Masterminds/semver/v3",
+    "version": "v3.5.0",
+    "goSum": "h1:kQceYJfbupGfZOKZQg0kou0DgAKhzDg2NZPAwZ/2OOE="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/cespare/xxhash/v2",
+    "version": "v2.3.0",
+    "goSum": "h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/cilium/ebpf",
+    "version": "v0.17.3",
+    "goSum": "h1:FnP4r16PWYSE4ux6zN+//jMcW4nMVRvuTLVTvCjyyjg="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/compose-spec/compose-go/v2",
+    "version": "v2.12.1",
+    "goSum": "h1:+xBZNxcgSus4atQJwXPEdhHRgCEyZmj/BuqN5m33Ou0="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/accelerated-container-image",
+    "version": "v1.4.3",
+    "goSum": "h1:mxC5l+CDzojoqf9gGzO1yu1o/A6kzQpD74VzfOwv4OI="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/cgroups/v3",
+    "version": "v3.1.3",
+    "goSum": "h1:eUNflyMddm18+yrDmZPn3jI7C5hJ9ahABE5q6dyLYXQ="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/console",
+    "version": "v1.0.5",
+    "goSum": "h1:R0ymNeydRqH2DmakFNdmjR2k0t7UPuiOV/N/27/qqsc="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/containerd/api",
+    "version": "v1.11.1",
+    "goSum": "h1:h8nfoDW9+fNsC/9TwiAHj8B1GzXKtR4eFtkhi/X5RLU="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/containerd/v2",
+    "version": "v2.3.2",
+    "goSum": "h1:eLven1YxRMkeiKu7IcMrPKE+gn8sGR1DqHbbshMEvWM="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/continuity",
+    "version": "v0.5.0",
+    "goSum": "h1:7a85HZpCSs+1Zps0Ee3DPSuAWY+0SJM1JNM51nlEVDg="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/errdefs",
+    "version": "v1.0.0",
+    "goSum": "h1:tg5yIfIlQIrxYtu9ajqY42W3lpS19XqdxRQeEwYG8PI="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/errdefs/pkg",
+    "version": "v0.3.0",
+    "goSum": "h1:9IKJ06FvyNlexW690DXuQNx2KA2cUJXx151Xdx3ZPPE="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/fifo",
+    "version": "v1.1.0",
+    "goSum": "h1:4I2mbh5stb1u6ycIABlBw9zgtlK8viPI9QkQNRQEEmY="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/go-cni",
+    "version": "v1.1.13",
+    "goSum": "h1:eFSGOKlhoYNxpJ51KRIMHZNlg5UgocXEIEBGkY7Hnis="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/go-runc",
+    "version": "v1.1.0",
+    "goSum": "h1:OX4f+/i2y5sUT7LhmcJH7GYrjjhHa1QI4e8yO0gGleA="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/imgcrypt/v2",
+    "version": "v2.0.2",
+    "goSum": "h1:WOEaE33CaSxzuRF8YLfAjHWuu1Xh27aPPQtqtALqfuM="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/log",
+    "version": "v0.1.0",
+    "goSum": "h1:TCJt7ioM2cr/tfR8GPbGf9/VRAX8D2B4PjzCpfX540I="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/nydus-snapshotter",
+    "version": "v0.15.15",
+    "goSum": "h1:kVYbFpYA4K43qxGVoc/VBwRXLAVWn4X9mdwGrR+HsLk="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/platforms",
+    "version": "v1.0.0-rc.4",
+    "goSum": "h1:M42JrUT4zfZTqtkUwkr0GzmUWbfyO5VO0Q5b3op97T4="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/plugin",
+    "version": "v1.1.0",
+    "goSum": "h1:O+7lczNJVMy8rz0YNx3xGB8tTf5qY4i5abF041Ew19U="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/stargz-snapshotter",
+    "version": "v0.18.2",
+    "goSum": "h1:Ev/sxfQUjwzJQ9eqy3XzttcQ3osMIqkQgMYlcET+10M="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/stargz-snapshotter/estargz",
+    "version": "v0.18.2",
+    "goSum": "h1:yXkZFYIzz3eoLwlTUZKz2iQ4MrckBxJjkmD16ynUTrw="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/stargz-snapshotter/ipfs",
+    "version": "v0.18.2",
+    "goSum": "h1:GPkGnRka0GcsiAXh7rN2C+XesH/6BBuJcdtV6ymGlGg="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/ttrpc",
+    "version": "v1.2.8",
+    "goSum": "h1:xbVu6D4qF2jihdh9rDVOKqUMiFBQk6YctTdo1zk087Y="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containerd/typeurl/v2",
+    "version": "v2.3.0",
+    "goSum": "h1:HZHPhRWo5XMy3QGQoPrUzbW/2ckwjfweHmOwlkIrPAQ="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containernetworking/cni",
+    "version": "v1.3.0",
+    "goSum": "h1:v6EpN8RznAZj9765HhXQrtXgX+ECGebEYEmnuFjskwo="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containernetworking/plugins",
+    "version": "v1.9.1",
+    "goSum": "h1:8oU6WsIsU3bpnNZuvHp74a6cE1MJwbj2P7s4/yTUNlA="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/containers/ocicrypt",
+    "version": "v1.2.1",
+    "goSum": "h1:0qIOTT9DoYwcKmxSt8QJt+VzMY18onl9jUXsxpVhSmM="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/coreos/go-iptables",
+    "version": "v0.8.0",
+    "goSum": "h1:MPc2P89IhuVpLI7ETL/2tx3XZ61VeICZjYqDEgNsPRc="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/coreos/go-systemd/v22",
+    "version": "v22.7.0",
+    "goSum": "h1:LAEzFkke61DFROc7zNLX/WA2i5J8gYqe0rSj9KI28KA="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/cyphar/filepath-securejoin",
+    "version": "v0.7.0",
+    "goSum": "h1:s0Y3ITPy6sQn5xt54DuYvTF8hu134ooYLUb58DX/HjE="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/distribution/reference",
+    "version": "v0.6.0",
+    "goSum": "h1:0IXCQ5g4/QMHHkarYzh5l+u8T3t73zM5QvfrDyIgxBk="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/djherbis/times",
+    "version": "v1.6.0",
+    "goSum": "h1:w2ctJ92J8fBvWPxugmXIv7Nz7Q3iDMKNx9v5ocVH20c="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/docker/cli",
+    "version": "v29.6.1+incompatible",
+    "goSum": "h1:oO7F4nn3Ovr/5TlfTUWFbMwBSS/B7Xs6Epv26gBrUP8="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/docker/docker-credential-helpers",
+    "version": "v0.9.3",
+    "goSum": "h1:gAm/VtF9wgqJMoxzT3Gj5p4AqIjCBS4wrsOh9yRqcz8="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/docker/go-connections",
+    "version": "v0.7.0",
+    "goSum": "h1:6SsRfJddP22WMrCkj19x9WKjEDTB+ahsdiGYf0mN39c="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/docker/go-units",
+    "version": "v0.5.0",
+    "goSum": "h1:69rxXcBk27SvSaaxTtLh/8llcHD8vYHT7WSdRZ/jvr4="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/fahedouch/go-logrotate",
+    "version": "v0.3.0",
+    "goSum": "h1:XP+dHIDgWZ1ckz43mG6gl5ASer3PZDVr755SVMyzaUQ="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/fatih/color",
+    "version": "v1.19.0",
+    "goSum": "h1:Zp3PiM21/9Ld6FzSKyL5c/BULoe/ONr9KlbYVOfG8+w="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/felixge/httpsnoop",
+    "version": "v1.0.4",
+    "goSum": "h1:NFTV2Zj1bL4mc9sqWACXbQFVBBg2W3GPvqp8/ESS2Wg="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/fluent/fluent-logger-golang",
+    "version": "v1.10.1",
+    "goSum": "h1:wu54iN1O2afll5oQrtTjhgZRwWcfOeFFzwRsEkABfFQ="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/fsnotify/fsnotify",
+    "version": "v1.9.0",
+    "goSum": "h1:2Ml+OJNzbYCTzsxtv8vKSFD9PbJjmhYF14k/jKC7S9k="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/go-jose/go-jose/v4",
+    "version": "v4.1.4",
+    "goSum": "h1:moDMcTHmvE6Groj34emNPLs/qtYXRVcd6S7NHbHz3kA="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/go-logr/logr",
+    "version": "v1.4.3",
+    "goSum": "h1:CjnDlHq8ikf6E492q6eKboGOC0T8CDaOvkHCIg8idEI="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/go-logr/stdr",
+    "version": "v1.2.2",
+    "goSum": "h1:hSWxHoqTgW2S2qGc0LTAI563KZ5YKYRhT3MFKZMbjag="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/go-viper/mapstructure/v2",
+    "version": "v2.5.0",
+    "goSum": "h1:vM5IJoUAy3d7zRSVtIwQgBj7BiWtMPfmPEgAXnvj1Ro="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/godbus/dbus/v5",
+    "version": "v5.2.2",
+    "goSum": "h1:TUR3TgtSVDmjiXOgAAyaZbYmIeP3DPkld3jgKGV8mXQ="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/golang/protobuf",
+    "version": "v1.5.4",
+    "goSum": "h1:i7eJL8qZTpSEXOPTxNKhASYpMn+8e5Q6AdndVa1dWek="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/google/go-cmp",
+    "version": "v0.7.0",
+    "goSum": "h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/ipfs/go-cid",
+    "version": "v0.6.1",
+    "goSum": "h1:T5TnNb08+ueovG76Z5gx1L4Y7QOaGTXHg1F6raWFxIc="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/klauspost/compress",
+    "version": "v1.18.6",
+    "goSum": "h1:2jupLlAwFm95+YDR+NwD2MEfFO9d4z4Prjl1XXDjuao="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/klauspost/cpuid/v2",
+    "version": "v2.2.8",
+    "goSum": "h1:+StwCXwm9PdpiEkPyzBXIy+M9KUb4ODm0Zarf1kS5BM="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/mattn/go-colorable",
+    "version": "v0.1.14",
+    "goSum": "h1:9A9LHSqF/7dyVVX6g0U9cwm9pG3kP9gSzcuIPHPsaIE="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/mattn/go-isatty",
+    "version": "v0.0.22",
+    "goSum": "h1:j8l17JJ9i6VGPUFUYoTUKPSgKe/83EYU2zBC7YNKMw4="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/mattn/go-shellwords",
+    "version": "v1.0.13",
+    "goSum": "h1:DC0OMEpGjm6LfNFU4ckYcvbQKyp2vE8atyFGXNtDcf4="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/mitchellh/go-homedir",
+    "version": "v1.1.0",
+    "goSum": "h1:lukF9ziXFxDFPkA1vsr5zpc1XuPDn/wFntq5mG+4E0Y="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/moby/docker-image-spec",
+    "version": "v1.3.1",
+    "goSum": "h1:jMKff3w6PgbfSa69GfNg+zN/XLhfXJGnEx3Nl2EsFP0="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/moby/locker",
+    "version": "v1.0.1",
+    "goSum": "h1:fOXqR41zeveg4fFODix+1Ch4mj/gT0NE1XJbp/epuBg="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/moby/moby/api",
+    "version": "v1.55.0",
+    "goSum": "h1:2/sexvQyqIWS8pRSCFddBfpW2qE7vR7FCL+vN8pxwMc="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/moby/moby/client",
+    "version": "v0.5.0",
+    "goSum": "h1:5XhyPk2fuOWf6RlSFa3MkIIgDZkF25xToXW8Q/BH7cc="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/moby/moby/v2",
+    "version": "v2.0.0-beta.18",
+    "goSum": "h1:eOu0ZKNhBbtLmjVVHfEhpM6PEVG0SZZoRhdSLMZo2TY="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/moby/sys/capability",
+    "version": "v0.4.0",
+    "goSum": "h1:4D4mI6KlNtWMCM1Z/K0i7RV1FkX+DBDHKVJpCndZoHk="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/moby/sys/mount",
+    "version": "v0.3.5",
+    "goSum": "h1:eS3fsZTjHaBihwjp4/+5Z3jxqLXYsbwxqpVSfFv3M00="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/moby/sys/mountinfo",
+    "version": "v0.7.2",
+    "goSum": "h1:1shs6aH5s4o5H2zQLn796ADW1wMrIwHsyJ2v9KouLrg="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/moby/sys/signal",
+    "version": "v0.7.1",
+    "goSum": "h1:PrQxdvxcGijdo6UXXo/lU/TvHUWyPhj7UOpSo8tuvk0="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/moby/sys/user",
+    "version": "v0.4.1",
+    "goSum": "h1:RgjRlaDKi/Xmyrz4t8lyzXT6v2ooFeO/7xtchmhVWE0="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/moby/sys/userns",
+    "version": "v0.1.0",
+    "goSum": "h1:tVLXkFOxVu9A64/yh59slHVv9ahO9UIev4JZusOLG/g="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/moby/term",
+    "version": "v0.5.2",
+    "goSum": "h1:6qk3FJAFDs6i/q3W/pQ97SX192qKfZgGjCQqfCJkgzQ="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/mr-tron/base58",
+    "version": "v1.3.0",
+    "goSum": "h1:K6Y13R2h+dku0wOqKtecgRnBUBPrZzLZy5aIj8lCcJI="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/muesli/cancelreader",
+    "version": "v0.2.2",
+    "goSum": "h1:3I4Kt4BQjOR54NavqnDogx/MIoWBFa0StPA8ELUXHmA="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/multiformats/go-base32",
+    "version": "v0.1.0",
+    "goSum": "h1:pVx9xoSPqEIQG8o+UbAe7DNi51oej1NtK+aGkbLYxPE="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/multiformats/go-base36",
+    "version": "v0.2.0",
+    "goSum": "h1:lFsAbNOGeKtuKozrtBsAkSVhv1p9D0/qedU9rQyccr0="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/multiformats/go-multiaddr",
+    "version": "v0.16.1",
+    "goSum": "h1:fgJ0Pitow+wWXzN9do+1b8Pyjmo8m5WhGfzpL82MpCw="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/multiformats/go-multibase",
+    "version": "v0.3.0",
+    "goSum": "h1:8helZD2+4Db7NNWFiktk2NePbF0boolBe6bDQvM4r68="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/multiformats/go-multihash",
+    "version": "v0.2.3",
+    "goSum": "h1:7Lyc8XfX/IY2jWb/gI7JP+o7JEq9hOa7BFvVU9RSh+U="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/multiformats/go-varint",
+    "version": "v0.1.0",
+    "goSum": "h1:i2wqFp4sdl3IcIxfAonHQV9qU5OsZ4Ts9IOoETFs5dI="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/opencontainers/go-digest",
+    "version": "v1.0.0",
+    "goSum": "h1:apOUWs51W5PlhuyGyz9FCeeBIOUDA/6nW8Oi/yOhh5U="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/opencontainers/image-spec",
+    "version": "v1.1.1",
+    "goSum": "h1:y0fUlFfIZhPF1W537XOLg0/fcx6zcHCJwooC2xJA040="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/opencontainers/runtime-spec",
+    "version": "v1.3.0",
+    "goSum": "h1:YZupQUdctfhpZy3TM39nN9Ika5CBWT5diQ8ibYCRkxg="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/opencontainers/runtime-tools",
+    "version": "v0.9.1-0.20251114084447-edf4cb3d2116",
+    "goSum": "h1:tAKu3NkKWZYpqBSOJKwTxT1wIGueiF7gcmcNgr5pNTY="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/opencontainers/selinux",
+    "version": "v1.15.1",
+    "goSum": "h1:ERxeh5caJvCzNAKdI8WQbJmB1LDTn4BuaAg8wihLBpA="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/pelletier/go-toml/v2",
+    "version": "v2.4.2",
+    "goSum": "h1:M2fKKbmyvI+hGId/D0W64qDBMVhJnNR10O5gIbMc//Q="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/philhofer/fwd",
+    "version": "v1.2.0",
+    "goSum": "h1:e6DnBTl7vGY+Gz322/ASL4Gyp1FspeMvx1RNDoToZuM="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/pkg/errors",
+    "version": "v0.9.1",
+    "goSum": "h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/rootless-containers/bypass4netns",
+    "version": "v0.4.2",
+    "goSum": "h1:JUZcpX7VLRfDkLxBPC6fyNalJGv9MjnjECOilZIvKRc="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/rootless-containers/rootlesskit/v3",
+    "version": "v3.0.1",
+    "goSum": "h1:AbYUo1O3b8YFL9X8YuEaaWkVFTwdU551CKyuOt0nJok="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/santhosh-tekuri/jsonschema/v6",
+    "version": "v6.0.1",
+    "goSum": "h1:PKK9DyHxif4LZo+uQSgXNqs0jj5+xZwwfKHgph2lxBw="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/sirupsen/logrus",
+    "version": "v1.9.4",
+    "goSum": "h1:TsZE7l11zFCLZnZ+teH4Umoq5BhEIfIzfRDZ1Uzql2w="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/smallstep/pkcs7",
+    "version": "v0.1.1",
+    "goSum": "h1:x+rPdt2W088V9Vkjho4KtoggyktZJlMduZAtRHm68LU="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/spaolacci/murmur3",
+    "version": "v1.1.0",
+    "goSum": "h1:7c1g84S4BPRrfL5Xrdp6fOJ206sU9y293DDHaoy0bLI="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/spf13/cobra",
+    "version": "v1.10.2",
+    "goSum": "h1:DMTTonx5m65Ic0GOoRY2c16WCbHxOOw6xxezuLaBpcU="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/spf13/pflag",
+    "version": "v1.0.10",
+    "goSum": "h1:4EBh2KAYBwaONj6b2Ye1GiHfwjqyROoF4RwYO+vPwFk="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/stefanberger/go-pkcs11uri",
+    "version": "v0.0.0-20230803200340-78284954bff6",
+    "goSum": "h1:pnnLyeX7o/5aX8qUQ69P/mLojDqwda8hFOCBTmP/6hw="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/tinylib/msgp",
+    "version": "v1.3.0",
+    "goSum": "h1:ULuf7GPooDaIlbyvgAxBV/FI7ynli6LZ1/nVUNu+0ww="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/vbatts/tar-split",
+    "version": "v0.12.3",
+    "goSum": "h1:Cd46rkGXI3Td4yrVNwU8ripbxFaQbmesqhjBUUYAJSw="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/vishvananda/netlink",
+    "version": "v1.3.1",
+    "goSum": "h1:3AEMt62VKqz90r0tmNhog0r/PpWKmrEShJU0wJW6bV0="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/vishvananda/netns",
+    "version": "v0.0.5",
+    "goSum": "h1:DfiHV+j8bA32MFM7bfEunvT8IAqQ/NzSJHtcmW5zdEY="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/xhit/go-str2duration/v2",
+    "version": "v2.1.0",
+    "goSum": "h1:lxklc02Drh6ynqX+DdPyp5pCKLUQpRT8bp8Ydu2Bstc="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "github.com/yuchanns/srslog",
+    "version": "v1.1.0",
+    "goSum": "h1:CEm97Xxxd8XpJThE0gc/XsqUGgPufh5u5MUjC27/KOk="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "go.opentelemetry.io/auto/sdk",
+    "version": "v1.2.1",
+    "goSum": "h1:jXsnJ4Lmnqd11kwkBV2LgLoFMZKizbCi5fNZ/ipaZ64="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp",
+    "version": "v0.69.0",
+    "goSum": "h1:8tvICD4vSTOOsNrsI4Ljf6C+6UKvpTEH5XY3JMoyPoo="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "go.opentelemetry.io/otel",
+    "version": "v1.44.0",
+    "goSum": "h1:JjwHmHpA4iZ3wBxluu2fbbE7j4kqlE8jXyAyPXH7HqU="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "go.opentelemetry.io/otel/metric",
+    "version": "v1.44.0",
+    "goSum": "h1:1w0gILTcHdr3YI+ixLyjemwrVnsMURbTZFrSYCdDdmc="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "go.opentelemetry.io/otel/trace",
+    "version": "v1.44.0",
+    "goSum": "h1:jxF5CsGYCe74MCRx2X4g7WsY/VBKRqqpNvXlX/6gtIk="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "go.yaml.in/yaml/v2",
+    "version": "v2.4.4",
+    "goSum": "h1:tuyd0P+2Ont/d6e2rl3be67goVK4R6deVxCUX5vyPaQ="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "go.yaml.in/yaml/v3",
+    "version": "v3.0.4",
+    "goSum": "h1:tfq32ie2Jv2UxXFdLJdh3jXuOzWiL1fo0bu/FbuKpbc="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "go.yaml.in/yaml/v4",
+    "version": "v4.0.0-rc.4",
+    "goSum": "h1:UP4+v6fFrBIb1l934bDl//mmnoIZEDK0idg1+AIvX5U="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "golang.org/x/crypto",
+    "version": "v0.53.0",
+    "goSum": "h1:QZ4Muo8THX6CizN2vPPd5fBGHyogrdK9fG4wLPFUsto="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "golang.org/x/exp",
+    "version": "v0.0.0-20250711185948-6ae5c78190dc",
+    "goSum": "h1:TS73t7x3KarrNd5qAipmspBDS1rkMcgVG/fS1aRb4Rc="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "golang.org/x/mod",
+    "version": "v0.37.0",
+    "goSum": "h1:vF1DjpVEshcIqoEaauuHebaLk1O1forxjxBaVn884JQ="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "golang.org/x/net",
+    "version": "v0.56.0",
+    "goSum": "h1:Rw8j/hFzGvJUZwNBXnAtf5sVDVt+65SK2C7IxCxZt5o="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "golang.org/x/sync",
+    "version": "v0.21.0",
+    "goSum": "h1:HLII4xRRTtCRkxYp4HNFF0Js/Og6q2i++KXbg0gHCwM="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "golang.org/x/sys",
+    "version": "v0.46.0",
+    "goSum": "h1:noSf2Fq6F8DBgS+LysIkx7rIExoNHJsxOAtPp4rthXw="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "golang.org/x/term",
+    "version": "v0.44.0",
+    "goSum": "h1:0rLvDRCtNj0gZkyIXhCyOb2OAzEhLVqc4B+hrsBhrmc="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "golang.org/x/text",
+    "version": "v0.38.0",
+    "goSum": "h1:sXmwo9DwP3OK9EZ7PqAdaooSGozfl/3a6/xJcbzPRhE="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "google.golang.org/genproto/googleapis/rpc",
+    "version": "v0.0.0-20260526163538-3dc84a4a5aaa",
+    "goSum": "h1:mZHHdPZl0dbGHCflZgAq/Q468DWVFcU2whhB2KAo8fk="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "google.golang.org/grpc",
+    "version": "v1.81.1",
+    "goSum": "h1:VnnIIZ88UzOOKLukQi+ImGz8O1Wdp8nAGGnvOfEIWQQ="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "google.golang.org/protobuf",
+    "version": "v1.36.12-0.20260120151049-f2248ac996af",
+    "goSum": "h1:+5/Sw3GsDNlEmu7TfklWKPdQ0Ykja5VEmq2i817+jbI="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "gopkg.in/yaml.v3",
+    "version": "v3.0.1",
+    "goSum": "h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "gotest.tools/v3",
+    "version": "v3.5.2",
+    "goSum": "h1:7koQfIKdy+I8UTetycgUqXWSDwpgv193Ka+qRsmBY8Q="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "lukechampine.com/blake3",
+    "version": "v1.3.0",
+    "goSum": "h1:sJ3XhFINmHSrYCgl958hscfIa3bw8x4DqMP3u1YvoYE="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "sigs.k8s.io/knftables",
+    "version": "v0.0.18",
+    "goSum": "h1:6Duvmu0s/HwGifKrtl6G3AyAPYlWiZqTgS8bkVMiyaE="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "sigs.k8s.io/yaml",
+    "version": "v1.6.0",
+    "goSum": "h1:G8fkbMSAFqgEFgh4b1wmtzDnioxFCUgTZhlbj5P9QYs="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "tags.cncf.io/container-device-interface",
+    "version": "v1.1.0",
+    "goSum": "h1:RnxNhxF1JOu6CJUVpetTYvrXHdxw9j9jFYgZpI+anSY="
+  },
+  {
+    "binary": "bin/nerdctl",
+    "module": "tags.cncf.io/container-device-interface/specs-go",
+    "version": "v1.1.0",
+    "goSum": "h1:QRZVeAceQM+zTZe12eyfuJuuzp524EKYwhmvLd+h+yQ="
+  }
+]

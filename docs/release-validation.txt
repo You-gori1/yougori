@@ -1,0 +1,59 @@
+Release validation
+
+Local candidates (no GitHub or commits required)
+Run npm run release:local -- --output NEW_DIRECTORY on the native target platform.
+On Windows add --runtime-tests for the disposable native smoke gate. Packages,
+matching source ZIP, checksums and logs are collected beside release-report.json.
+The source manifest identifies exact uncommitted contents; the base commit is
+context only. Failures are retained and stop packaging. Existing output directories
+are rejected. Review docs/production-readiness.md for toolchain prerequisites and
+the remaining signature, clean-machine and release acceptance requirements.
+
+Build candidates in a separate checkout so a newly built appliance never replaces
+the backing image of development containers. Automatic disk migration is deferred.
+scripts/prepare-release-checkout.py copies current source (including new files),
+dependencies and runtime into a NEW directory and creates a private Git index.
+It never stages files in the developer's index. Set the three GIT_* variables from
+the adjacent .environment.json while collecting/checking that candidate's sources.
+Keep corresponding-source ZIPs next to the installer that uses those exact bytes.
+
+Linux
+glib 0.18.5 is locally patched for RUSTSEC-2024-0429 (see vendor/glib/YOUGORI_PATCH.txt).
+The upstream two-line fix is tested with optimization enabled in Linux CI. This
+keeps GTK3 compatibility; do not remove the Cargo patch or omit vendor/ from sources.
+
+Windows signing
+Use a CA-issued code-signing certificate with its private key accessible in the
+current user's Windows certificate store (a hardware-backed key is supported by
+the Windows SDK). Set YOUGORI_SIGN_CERT_SHA1 to its 40-character thumbprint.
+Do not put passwords/private keys into the source checkout or command line.
+Run powershell -NoProfile -File scripts/build-signed-windows.ps1.
+Preflight refuses absent, expired or untrusted certificates. SHA-256 signing uses
+an HTTPS timestamp service, then verifies the trusted signature and timestamp.
+The CLI, compatibility aliases and vault are signed before Tauri packages them;
+Tauri's custom signer signs the desktop and installers. A development/unsigned
+build does not count as a signed release. No certificate is created automatically.
+Reference: https://tauri.app/distribute/sign/windows/
+
+Clean Windows test
+Use a fresh disposable Windows VM/account with WebView2 and no developer toolchain
+or existing Yougori installation/data. Copy the exact signed NSIS installer and
+scripts/test-windows-installer.ps1 plus scripts/sign-windows-release.ps1 there.
+Run:
+powershell -NoProfile -File scripts/test-windows-installer.ps1 -DisposableMachine -Installer C:\Test\Yougori-setup.exe -Report C:\Test\installer-results.json
+The smoke test checks signatures, silent installation, CLI help in a fresh shell,
+PATH, reinstallation data preservation, uninstall and retained user data. Pass an
+actual newer -UpgradeInstaller to test a version upgrade. Same-version reinstall
+does NOT count as a version upgrade. The script refuses a non-clean profile.
+-AllowUnsignedPreview is only for preview testing and is recorded in the report.
+
+Also test UI startup, workload creation/start/stop, vault first-use/in-app approval,
+app close confirmation and complete owned-runtime shutdown interactively on the
+clean VM. These are not claimed by the installer smoke report. Do not infer them
+from an installer exit code, CLI --help, or a developer workstation test.
+
+Public distribution
+Verify exact payload/source manifests and review the recorded source coverage.
+Publish matching sources and verify their download before public distribution.
+Package evidence is not a legal certification; historical release evidence never
+automatically approves newly built runtime binaries.

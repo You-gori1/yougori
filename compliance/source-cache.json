@@ -1,0 +1,8 @@
+{
+  "status": "verified",
+  "scope": "Verified source cache for unchanged upstream archives. Current application source is in this repository; current checkout source publication is recorded separately in release.json.",
+  "sourceTag": "sources-cache-20260930-4d0dc95dafa2fd63",
+  "bundleUrl": "https://github.com/You-gori1/yougori/releases/download/sources-cache-20260930-4d0dc95dafa2fd63/Yougori-corresponding-source-4d0dc95dafa2fd63.zip",
+  "bundleSha256": "b769d9f21354ec82cdb6d64d0cdd5b1d78c6d08a66a94ed01d01816e2fc0626d",
+  "bundleBytes": 1169363840
+}

@@ -1,0 +1,322 @@
+# CLI operations
+
+Run `yougori help` and `yougori schema` for the current complete command catalog. Schemas include required/optional parameters, examples, and confirmation requirements. In a development checkout replace `yougori` with `npm run cli --`.
+
+The engine owns disks and runtime state. The CLI connects through a same-user local pipe/socket, never a public HTTP listener. `app start` launches the installed desktop app with `--headless`, or the standalone engine (`yougori-engine`, no desktop app, needs no display) when the app is not installed; `app start --engine` (or YOUGORI_ENGINE_ONLY=1) prefers the standalone engine. Only one engine runs at a time and both share the same state. `app status` reports `engineOnly`. `app show` opens the dashboard; a standalone engine hands over to the desktop app when nothing is running, and otherwise says what to stop first. Windows (guest, app and service windows) and Personal Vault approvals need the desktop app. `app quit --yes` shuts down the engine and its workloads gracefully. In development, run `npm run desktop:dev -- -- -- --headless` in a separate terminal (the separators belong to npm, Tauri, then its runner; Vite is still needed for any windows you open).
+
+## Install, health and updates
+
+```text
+irm https://yougori.com/install.ps1 | iex          # Windows
+curl -fsSL https://yougori.com/install.sh | sh      # macOS / Linux
+$env:YOUGORI_ENGINE_ONLY=1; irm https://yougori.com/install.ps1 | iex      # engine + CLI, no desktop app
+curl -fsSL https://yougori.com/install.sh | YOUGORI_ENGINE_ONLY=1 sh        # same, for servers without a display
+yougori doctor
+yougori app autostart on [--dashboard] | off | status
+yougori update --check
+yougori update --yes
+yougori uninstall --yes
+```
+
+`doctor` checks the CLI, PATH, engine, each runtime, disk space, start-at-login and the GPU, and prints a fix for anything wrong; it exits 1 when something must be fixed. `app autostart on` starts the engine in the background at login (no dashboard); `--dashboard` opens the app instead. `update` installs only a release whose SHA-256 matches the published manifest and, on Windows, whose signature comes from the same publisher as the installed app; it stops workloads while installing, so run it only when the user asks. `uninstall` removes the app but keeps environments and their data, and reports where they are. Engine-only installs update from the release's `-engine` archive, checked the same way. On Linux the standalone engine uses the system QEMU (`qemu-system-x86_64`, `qemu-img`, OVMF) and GTK 3 libraries; it does not need a display.
+
+## Public workload commands
+
+Project launcher: run `yougori launch` inside a JavaScript project with a dev, start or serve script. The first run offers recommended container settings or Customize (CPU/GPU, fixed CPU/RAM/storage, ports and localhost/LAN/quick-link/saved-domain access). It detects npm, pnpm, yarn or bun and a supported Node.js major from .nvmrc, .node-version or engines.node. Settings and the environment ID live in ~/.yougori/launch, keyed by canonical directory. The first run copies code into /workspace; later launches send differences at startup or from the Sync menu, including deletions. Dependency/lockfile changes reinstall dependencies and restart the dev server when synced. Logs stream in normal terminal scrollback; y opens Sync, o opens the browser, u lists URLs, r restarts, s shows usage, and q or Ctrl+C stops the container.
+
+Project source is copied, never mounted. All ordinary project files are included: databases, uploads, snapshots, host dependencies, .git and generated output. Launch ignores .gitignore and .yougoriignore patterns. Only .env files explicitly kept on the PC and temporary sync protocol files are omitted. Links are not followed. Large files use bounded transfers without the previous 256 MiB cap. Dependencies are still installed for the Linux runtime. New containers mount ONLY ~/.yougori/cache/packages as a shared read/write package cache at /yougori/cache; that directory is shared across launch projects and must not hold private documents or credentials. Old containers retain their existing mounts. Launch a monorepo from its workspace root. If the required Node major changes, the launcher keeps the old container and asks for its deliberate removal/recreation rather than silently replacing its disk. Published development traffic goes through a container-local proxy for host checks and websocket hot reload; localhost always stays available. Public URLs expose your development app, so select them deliberately.
+
+Project setup recommends Continuously for folders below 2.5 GB, or On demand at 2.5 GB and above, using the full measured project size. The first review selects the recommendation; editing settings keeps the user's reviewed choice selected. Both sync once on launch. With On demand, press y to Sync to container or, with two-way enabled, Sync to this computer / Sync both ways. No filesystem watcher, periodic comparison or exit sync runs in this mode. Opposite-direction changes remain pending across restarts, and the saved conflict priority applies to files, folders, deletions and SQLite records. First imports use SQLite page backups with committed WAL data and persisted row checksums; existing databases receive record changes rather than raw file replacement.
+
+The first launch adds `"yougori": "yougori launch"` to scripts in package.json if absent, preserving existing scripts. Use `npm run yougori` to start again in that directory. Ctrl+C stops the container and leaves its disk for next time. `npm run yougori -- --change` or `yougori launch --change` reopens resources and networking; `-change` is also accepted directly and via npm versions that forward npm_config_change. Prefer the supported npm separator. One launcher per canonical directory can run at a time. Models remain separate: `yougori run hf.co/OWNER/MODEL`.
+
+`yougori run hf.co/OWNER/MODEL` in a terminal opens model setup directly. The launcher shows usage and recent logs while loading, then can run a generated `yougori_chat.py` under ~/.yougori/chat. Existing files are never overwritten. Python 3.8+ is required; it uses only standard-library modules, without pip dependencies. The Python client retrieves API credentials from `yougori model access ENV` at runtime and asks for a system prompt. Q leaves the live view with the environment running, S stops it, and A shows model API credentials. GPU usage is host-wide, not an invented per-container measurement.
+
+Agents should use noninteractive commands, not the launcher: `yougori model run hf.co/OWNER/MODEL --api` (or `yougori run hf.co/OWNER/MODEL --api ...`). A model reserves 2 CPU, 4 GB memory and 20 GB storage unless `--cpu N --memory GB --storage GB` say otherwise; the GPU does the work. Use `--dry-run` to inspect the plan. Check `yougori model status ENV` for readiness and `yougori model access ENV` for actual API URLs and the private bearer token. Do not put that token in committed source files. Public model URLs still require the API token.
+
+The public executable is `yougori`. `yougori-cli` is a compatibility name. Public environment commands accept an ID or an unambiguous case-insensitive name; advanced `env` and backend commands generally require IDs.
+
+```text
+yougori run [-d] [-it] [OPTIONS] IMAGE [COMMAND...]
+yougori create [OPTIONS] IMAGE [COMMAND...]
+yougori status
+yougori ps [-a|--all] [--type container|gpu|model|microvm|vm|cloud|shared|app]
+yougori start ENV
+yougori stop ENV
+yougori restart ENV
+yougori rm ENV --yes
+yougori exec ENV COMMAND [ARG...]
+yougori logs ENV
+yougori inspect ENV
+yougori cp PC_PATH [PC_PATH...] ENV
+yougori ls ENV [PATH]
+yougori rename ENV NEW_NAME
+yougori pull IMAGE
+yougori images
+yougori image rm IMAGE
+yougori info
+yougori version
+yougori --version
+yougori help
+```
+
+`run` locates/starts the engine, resolves/pulls the OCI image when needed, creates and starts the workload. Docker Desktop/Engine is not required. `create` creates without starting. Use `-d` to return after startup; otherwise run follows logs. Ctrl+C while following logs detaches and leaves the workload running. `-it` opens a guest shell (Ctrl+] detaches); without a custom command it replaces image startup with a keep-alive process. `logs` returns current logs; it has no `-f` option. `ps` returns every environment of every type, with or without `-a`; `--type gpu` includes models. Long startup commands are shortened in `ps`; `inspect` shows them in full. `status` gives one overview (engine, environments by type, published links, sharing, saved domains, connections, active jobs) and reports a stopped engine instead of starting it. `status`, `ps` and `ports list --all` print a table in an interactive terminal and JSON when piped; `--format json|table` overrides. `cp` imports PC files into containers, microVMs, full VMs and cloud servers without changing the originals. It exports files from containers, microVMs, cloud servers and shared environments into a new PC destination, and can copy between environments. Full VM export still needs guest SSH transfer; remote shared environments do not accept imports. `ls` lists folder and file names inside an environment. The app and the CLI share one engine: anything created in either appears in both.
+
+Run/create options (place before IMAGE):
+- `-d`, `--detach`; `-it`, `-ti`, `--interactive`; `--name NAME`; `--dry-run`.
+- `--cpu CORES`; `-m`, `--memory 4GB`; `--storage 30GB`; `--storage-drive PATH`. Bare memory/storage numbers are GiB.
+- `--gpu nvidia`; `--isolation container|microvm`; `--internet true|false` (public run defaults true).
+- `-p`, `--publish HOST:GUEST` (repeatable, TCP, loopback only); `-e`, `--env KEY=VALUE` (repeatable).
+- `-v`, `--volume NAME:/guest/path[:ro|:rw]`; `--mount PC_FOLDER:/guest/path[:ro|:rw]`. Host mounts grant PC access; default mount mode is read/write.
+- `-w`, `--workdir PATH`; `-u`, `--user USER`; `--entrypoint PROGRAM`; `--restart POLICY`.
+
+```text
+yougori run -d --name website -p 8080:80 nginx:alpine
+yougori run -d --name cache redis
+yougori run -it ubuntu
+yougori pull postgres
+yougori images
+yougori image rm nginx:alpine
+yougori run --dry-run --cpu 2 --memory 4GB nginx
+```
+
+Public mutations such as `rm` execute directly: there is no `--yes` flag on these commands. Only perform deletion requested by the user. Advanced commands use their own confirmation flags. Do not append advanced flags (`--yes`, `--no-wait`, `--file`) to public commands unless listed for that command. Public dry-run is supported by run/create, VM run aliases, project actions, import and model commands; it is not a universal flag. Avoid literal secrets in `-e` shell history; use protected project configuration or the schema-driven stdin interface instead.
+
+## GPU, microVMs and full VMs
+
+```text
+yougori run -d --gpu nvidia IMAGE
+yougori run -d --isolation microvm ubuntu
+yougori microvm run -d ubuntu
+yougori machine run -d C:/Images/Linux.iso
+yougori vm run -d C:/Images/Linux.iso
+yougori gpu status
+yougori gpu setup --yes
+yougori gpu test ENV_ID --yes
+```
+
+`machine run` and `vm run` accept a local disk image or ISO path, not an OCI registry reference. GPU workloads require supported NVIDIA CUDA hardware/runtime and container isolation; `--gpu` cannot be combined with microVM isolation. A successful create/start is not proof that an OS installer or model is ready.
+
+## Declarative projects and Compose import
+
+```text
+yougori up [-f yougori.yaml] [--dry-run]
+yougori apply [-f yougori.yaml] [--dry-run]
+yougori down [-f yougori.yaml] [--dry-run]
+yougori import compose.yaml [--dry-run]
+```
+
+Without `-f`, project commands locate yougori.yaml from the working directory upwards. Up/apply reconcile and start project environments; removed definitions and data are preserved. Down stops project workloads without deleting volumes. Import translates supported Compose settings and writes yougori.yaml beside the input without overwriting an existing file; then use `up -f PATH`. Unsupported Compose features report errors rather than silently approximating them.
+
+```yaml
+project: my-app
+environments:
+  frontend:
+    image: node:24
+    cpu: 2
+    memory: 4GB
+    internet: true
+    working_dir: /app
+    command: npm run dev
+    ports: ["3000:3000"]
+    permissions: {pc: true, edit: false}
+    volumes:
+      - {source: ./frontend, target: /app, bind: true, read_only: true}
+  database:
+    image: redis
+    memory: 2GB
+    volumes:
+      - {source: database-data, target: /data}
+connections:
+  - frontend -> database
+```
+
+The frontend example assumes ./frontend contains the application and its dependencies. Fields include `type` (container/gpu/microvm/vm/cloud/shared), `image`, VM `source`, `cpu`, `memory`, `gpu`, `storage`, `storage_drive`, `command`, `entrypoint`, `environment`, `working_dir`, `user`, `volumes`, `ports`, `internet`, `pc_access`, `permissions`, `depends_on`, `restart`, `cloud`, and `shared`. Internet defaults false in YAML. Host mounts need permissions.pc; writable mounts also need permissions.edit. Cloud uses an existing SSH profile, and shared uses a JSON invitation; neither creates a paid provider VM automatically.
+
+Top-level `publish` maps environment names to a hostname or an object with `port`, optional `hostname`, and optional `token_env`. Publishing creates external access and requires the user's intent and valid tunnel configuration. Inspect errors instead of assuming a DNS name alone configures a provider account.
+
+## Changes and diffs
+
+```text
+yougori changes ENV
+yougori changes ENV --baseline
+yougori changes ENV --offset 100
+```
+
+Requires shared My PC folders. Compares files, package inventory, environment variables and configuration with a recorded baseline where supported. First use establishes a baseline; `--baseline` replaces it, so do not reset it before reviewing changes the user wants to inspect. Follow nextOffset for additional file results. Binary/large-file diffs and unsupported package inventories are limited; returned warnings explain missing coverage. Changes may originate from the user or other applications, not just the environment.
+
+## Files, volumes and project files
+
+```text
+yougori cp ./site web                 # PC folder into a new yougori-import folder in web
+yougori cp ./site web:/srv            # into a chosen folder (containers and microVMs)
+yougori cp web:/app/data ./backup     # out of an environment: ./backup/data, never overwriting
+yougori cp web:/app/data db           # between environments, through a temporary PC folder
+yougori ls web /app
+yougori volume ls [--scan] [--size]
+yougori volume rm old-data --yes
+yougori volume prune [--yes]
+yougori volume cp data:/exports ./out
+yougori volume cp ./seed data:/import
+yougori init
+```
+
+Copying into full VMs creates an imported-files drive; copying out of full VMs is not supported (use the VM's own SSH). Importing into a remote shared environment is not supported. Copies out of an environment go to `DEST/NAME`, `NAME (2)` and so on, so nothing on the PC is overwritten; symlinks and special files are skipped. Cloud servers and environments shared with you support copying out when their permissions allow reading. Volumes are created when an environment mounts one (`run -v NAME:/data`) and outlive it; `volume cp` works through a running environment that mounts the volume (read/write for copying in). `volume ls` asks running container runtimes; `--scan` also starts stopped ones to find volumes left by deleted environments, and `--size` adds up their files. `volume rm NAME --yes` permanently deletes a volume and its data and is refused while any environment mounts it; `volume prune` lists volumes nothing uses and `--yes` deletes them. Both delete data: ask the user first and name the volumes. The GPU runtime's volumes are included only while a GPU environment runs.
+
+A copied folder's `.yougoriignore` (gitignore syntax: `#`, `!`, trailing `/`, anchored `/`, `*`, `?`, `[a-z]`, `**`) leaves matching files behind; results report `skippedIgnored`. `yougori init` creates `yougori.yaml` (or points to `yougori import` when a Compose file exists), `.yougoriignore` with secrets and build output excluded, and `.yougori/PREFERENCES.md`; inside Git it adds `.yougori/local.yaml` and `.yougori/state.json` to `.gitignore`. It never overwrites existing files.
+
+## Preferences
+
+`yougori prefs show` prints the user and project preference files; `prefs remember KEY VALUE [--project]` records a confirmed choice with a count and date; `prefs forget KEY [--project]` removes it; `prefs path` shows where they live. Values that look like secrets are refused. Preferences are suggestions: always ask the user before acting.
+
+## Hugging Face models
+
+```text
+yougori model run hf.co/TinyLlama/TinyLlama-1.1B-Chat-v1.0
+yougori model run hf.co/OWNER/MODEL --api --port 8000
+yougori model chat ENV
+yougori model status ENV
+yougori model api ENV --port 8000
+yougori model access ENV
+yougori model usage ENV [--days 7] [--reset --yes]
+yougori model history ENV
+yougori model chat ENV --new
+```
+
+Model run reuses the environment that already has this model (starting it if stopped, preferring a running one) and only creates an NVIDIA GPU container when none exists; it then downloads/loads the model. Without --api, in a terminal it opens a chat with streamed replies; `/api` there turns local and public API access on or off, shows or copies the key and prints code examples; Ctrl+C or /exit stops the model and /detach leaves it running. Creating or starting a stopped model asks how much CPU, memory and storage to reserve (2 CPU, 4 GB memory, 20 GB storage recommended); `--change` changes an existing model's resources, live if it is running, and storage can only grow. Model chat reconnects to an existing model environment. Status checks loading/readiness. API exposes the model service; use its returned endpoint. Hardware memory, model compatibility and download access still matter; not every Hugging Face repository is a supported chat model. Local API access and public publishing are separate. Stop the model with `yougori stop ENV` when requested. `model chat` continues the conversation that is open in the desktop app, with the saved system prompt, temperature and reply length, and saves each reply so the app shows it; `/new` or `--new` starts a new conversation. `model history` lists saved conversations. `model access` returns the private API key and any local and public API addresses; never paste the key into shared text. `model usage` groups requests, tokens, failures and refused API keys by UTC day, plus the 10 newest requests; prompts are never recorded. `--reset` clears the history permanently, so only use it when the user asks. Models started by older versions report that usage needs the model to be run again. Use `model run ... --dry-run` to inspect without starting.
+
+## Personal Vault MCP
+
+```text
+yougori vault status
+yougori vault approve
+yougori vault add
+yougori vault open
+yougori vault help
+yougori vault mcp
+yougori vault identity --output DEVICE.json
+yougori vault mcp --remote HOST:49731 --pin SERVER_SHA256 --identity DEVICE.json
+```
+
+`vault status` reports only whether the vault runs and how many requests wait for approval. `vault approve`, `vault add` and `vault open` bring the Yougori window forward on Personal Vault; the person reviews and decides there. The CLI never approves requests, reads items or enters values. Tell the user a request is waiting instead of retrying. Local vault mcp is a stdio bridge to the protected Windows vault configured in Desktop. The remote form uses a pinned TLS device identity; it is separate from the Cloudflare HTTPS /mcp connector URL. Keep identity files private. Vault tools may return selected personal information, execute supported provider actions, or share a credential only after its separate app approval. Credential sharing exposes the value to the receiving agent; never claim it remains secret from that agent after approval.
+
+## Complete advanced command groups
+
+Prefix every line with `yougori`. A vertical bar lists alternatives, not literal shell syntax. Use `schema METHOD` for backend parameter details, flags and IDs. `environment` is an alias of `env`.
+
+```text
+app start [--engine | --app ABSOLUTE_EXECUTABLE_PATH] | status | show | quit
+env list | show | create | start | stop | restart | pause | open | delete | reset | recover
+env resources | storage | internet | gpu | exec | console | skills
+connection list | create | folders | exec | enable | disable | delete
+share list | add | remove
+status | top [--once] | ps --type TYPE
+cloud scan | test | add | configure | connect | disconnect | show | auth | options | deploy | power | delete
+lan share | list | revoke | import
+project list | inspect
+agent setup
+env startup | install-skills
+volume ls [--scan] [--size] | inspect | rm | prune | cp
+prefs path | show | remember | forget
+ports list [--all] | add | remove | publish | unpublish
+domain list | add | edit | remember | remove
+drives list | attach | detach
+storage location [--set PATH] | reclaim
+snapshot list | create | restore | delete
+backup list | destinations | add-destination | delete-destination | run | restore | export | import
+gpu status | setup | test
+terminal create | read | write | resize | close | install
+microvm apps | open
+window list | focus | close | title | capture
+settings get | set
+jobs list | get | wait
+skills print
+skills install [--path SKILL_DIRECTORY]
+schema [METHOD]
+call METHOD --file request.json
+```
+
+`ports` and `share` require subcommands; there is no standalone `yougori ports ENV` or `yougori share ENV` shorthand. Cloud commands map to the backend methods: `cloud scan HOST` (scan_cloud_host), `cloud test|add --file` (test_cloud_connection, add_cloud_environment), `cloud connect|disconnect ENV`, `cloud show ENV` (get_cloud_connection), `cloud configure ENV --file`, `cloud auth --provider P --account A`, `cloud options KIND --provider P --account A [--region R]` (read-only lookups for the deploy request: regions, images, machineTypes, subnets, securityGroups, keyPairs, resourceGroups, sshKeys; each item's `id` goes into the request field named by `field`; machine types need a region, Google subnets need the zone), `cloud deploy --file --risk-acknowledged true` (billable), `cloud power ENV --action inspect|start|stop` and `cloud delete ENV --confirmation EXACT_NAME`. Duplication is available through `schema`/`call`; do not invent a `duplicate` command.
+
+`agent inventory` is a read-only JSON capability map for all compute, including local, shared, cloud and Neocloud nodes. It omits secrets and includes the current `exec`, file-transfer and logs readiness of each node. A full VM requires verified guest SSH for commands, and its files cannot be copied out through the file service. A shared environment also requires the owner's grant. A serverless API has no guest shell. This map never authorizes a new action on its own. For a noninteractive agent, `run -d` gives one JSON result with the new ID; plain `run` also returns JSON when stdout is piped. `logs` returns JSON with a `logs` field rather than mixing text and JSON. `exec` returns the guest exit code.
+
+Local-first cloud workflow: ask whether to run a local functional trial first. If no provider is chosen, use the workload's local OCI image with `run -d`, then compare live providers afterward. For a selected provider request, `neocloud plan --file request.json` returns exact `localTrial.runArgs` for RunPod pods and Vast GPU instances; this is a suggested local `run -d` command, not an action performed by `plan`. For other providers, the cloud image field is a VM image ID/template/model, so choose a separate equivalent OCI image before `run`, or a Hugging Face model with `model run` when supported. GPU trials require NVIDIA CUDA on this PC; a CPU-only test cannot validate GPU behavior. Use `exec` and `logs` to record real results. A failing command should be fixed locally; a capacity limitation or successful trial can motivate comparing live cloud offers. Ask which provider/offer to use and review charges before `create`. The cloud resource is created fresh, not cloned from the trial; after SSH setup use `cp` for specifically selected files and rerun checks. Keep the trial unless the user requests removal.
+
+Provider-CLI-backed resources use `neocloud providers`, `neocloud list`, `neocloud discover --provider P [--location REGION]`, `neocloud plan --file request.json`, `neocloud create --file request.json --yes`, and `neocloud inspect|start|stop ENV`. The file contains `{"request":{...}}`; creation also needs `"costAcknowledged":true` after review. `plan` applies the backend's provider-specific request checks without creating anything; it does not check the provider account or live price. `neocloud prices` (alias `compare`) queries supported configured provider CLIs and ranks only explicit USD hourly compute quotes. Filter with `--product gpu|cpu`, `--provider P`, `--min-vram-gb GB`, `--max-hourly USD`, `--hours N` for a compute-only estimate, `--limit N`, and `--format table|json`. `neocloud quote --provider P --offer ID --hours N` filters the same live report to one exact offer without creating anything. Unpriced, other-currency, unavailable and unsupported providers are reported separately; never infer zero cost. `--location` is a Civo region or Nebius project discovery context, not a universal geographic filter. Starting requires `--yes`; deleting requires `neocloud delete ENV --confirmation EXACT_NAME --yes`. `neocloud recover ENV --resource-id ID` records an independently verified provider ID after an ambiguous creation response. Review checkout pricing and billing separately; storage, IP, network and other charges may continue after a stop.
+
+## Create and configure
+
+```text
+yougori env create --name web --kind container --image docker.io/library/node:24 --cpu 2 --memory 2 --yes
+yougori env create --name database --kind container --image docker.io/library/mongo:8 --startup image --memory 2 --yes
+yougori env create --name ai --kind gpu --image docker.io/library/ubuntu:24.04 --cpu 4 --memory 8 --yes
+yougori env create --name tiny --kind microvm --cpu 2 --memory 2 --yes
+yougori env create --name windows --kind vm --source C:/Images/Windows.iso --cpu 4 --memory 8 --storage 64 --yes
+yougori env start ENV_ID --yes
+yougori env internet ENV_ID --enabled true --yes
+yougori env resources ENV_ID --cpu-min 1 --cpu 2 --cpu-max 4 --memory-min 1 --memory 4 --memory-max 8 --yes
+yougori env storage ENV_ID --capacity 100 --yes
+yougori env open ENV_ID --yes
+yougori env exec ENV_ID --command "uname -a" --yes
+```
+
+Creation returns the platform state including the new ID. Base-image containers default to a keep-alive process for terminal use. For database/server OCI images use `--startup image` to run their ENTRYPOINT/CMD, or `--command` for a custom startup command. Configure credentials as the application requires; image startup is not proof that a database is ready. A VM ISO starts an installer; it does not supply an already installed or licensed OS. Prefer custom JSON from `schema create_environment` when exact policies are needed. The CLI uses existing runtime checks; provider limits are not waived. If the shared OCI pool needs more capacity, create/configure the intended containers while its workloads are stopped; do not stop unrelated workloads without authorization. Disk expansion does not necessarily expand guest partitions. GPU setup: `gpu status`, `gpu setup --yes`, then `gpu test ENV_ID` runs the real CUDA check.
+
+`env stop` uses normal backend stop/recovery semantics. Force recovery (`env recover ENV_ID --yes`) requires the affected runtime to have no other live owner. Factory reset (`env reset ENV_ID --confirmation EXACT_NAME --yes`) erases guest data but retains source image. Deletion and snapshot restore also require `--yes`. Back up first if data matters.
+
+## Connect nodes and folders
+
+### Existing cloud servers
+
+`schema scan_cloud_host`, `schema add_cloud_environment` and `schema get_cloud_connection` describe the SSH node workflow (AWS EC2, Google Compute Engine, Azure VM, or another existing Linux server). This needs OpenSSH on the PC, Python 3 on the server, SSH reachability and a user-selected SSH identity file. Unlock encrypted keys in the local SSH agent first. No account provisioning, administrator install or remote system service is performed.
+
+Scan candidate keys, then have the user verify the fingerprint through their provider/administrator before submitting hostKey. Never automatically trust a scanned key or bypass a changed-key failure. Add the node with `call add_cloud_environment --file request.json --yes`. Connect using `call set_environment_status` with environmentId and status=running; disconnect with status=stopped. These are connection states, not server power controls. Restart/pause, resource allocation, factory reset, snapshots and Local network/Public access publishing are unavailable. Removing the node only removes Yougori access, not the remote machine/data.
+
+Connected cloud nodes support the regular terminal and env exec commands. Node links allow selected TCP ports and designated shared folders. Local nodes reach cloud peerAddress:port (forwarded to the server's loopback service). From a cloud terminal use the SOCKS5 URL in the current Skills/cloudProxy or $YOUGORI_SOCKS_PROXY to reach allowed local peers; there is no direct private NIC inside the cloud OS. The shared-files browser/API uses $YOUGORI_SHARED_FILES inside the cloud server, with the existing file API and direction permissions. No automatic whole-disk access, UDP, ping, LAN routes or transitive connections. Yougori disconnection closes its terminals/tunnels, leaving independent remote services running. Refresh Skills after reconnecting because loopback endpoints can change.
+
+### Local nodes and selected folders
+
+```text
+yougori connection create --source ENV_A --target ENV_B --direction bidirectional --permissions data,ports --ports 5432 --commands true --yes
+yougori connection folders ENV_A
+yougori connection exec CONNECTION_ID --source ENV_A --command "ls" --yes
+yougori env skills ENV_A
+yougori share add ENV_A --path C:/Projects/site --read-only true --yes
+yougori ports list ENV_A
+yougori ports add ENV_A --port 3000 --yes
+yougori ports publish ENV_A --port 3000 --kind local --host-port 13000 --yes
+yougori ports publish ENV_A --port 3000 --kind cloudflare --yes
+yougori ports unpublish PUBLICATION_ID --yes
+```
+
+Connections work across containers, GPU containers, microVMs and VMs where the runtime supports enforcement. For a website calling a database, point the website's **server backend** at the DB's private address from Skills, not localhost. Browsers outside Yougori cannot access this private address. The DB must listen on its guest interface and authenticate the website. A stopped peer cannot serve traffic.
+
+Host shares/publications are session-scoped and revoked when the environment or engine stops. Full-VM My PC access may use a private read-only file browser rather than a mounted drive. Inspect the actual returned mountPath/guestUrl. Do not promise write access when the backend reports read-only access.
+
+`local` exposes the TCP service to this PC/private LAN, subject to firewalls. `cloudflare` publishes a public HTTPS link; direct-public-IP publishing is not offered by the CLI. For an account tunnel use `schema publish_environment_service` and supply the optional cloudflare object, fixed hostPort, hostname, token, remember, and routesReviewed. Review dashboard routes yourself; Yougori does not configure DNS or visitor authentication. Never silently fall back from a failed account tunnel to a Quick Tunnel.
+
+Saved domains are reusable Cloudflare account tunnels shared by the app and the CLI. `yougori domain list` shows them (never tokens). Publish on one with `yougori ports publish ENV --port 3000 --domain app.example.com --yes` or share on one with `yougori remote start --domain app.example.com --yes`; any app port works because the saved token is reused. Add one only when the user provides a dedicated tunnel token: `yougori domain add app.example.com --tunnel-port 45000 --file - --yes` with `{"token":"..."}` on stdin, after the user routes the hostname to http://127.0.0.1:45000 in Cloudflare. When an environment already has a remembered tunnel, `yougori domain remember ENV --port 3000 --yes` copies it into reusable saved setups without showing the token. `yougori domain edit app.example.com --tunnel-port 45001 --app-port 3001 --yes` changes its ports (disconnect any environment using it before changing the tunnel port, then update the Cloudflare route to the new port). `yougori domain remove app.example.com --yes` forgets the token; active publications keep running until unpublished. A domain serves one environment at a time.
+
+`ports add` / `ports remove` only change the persisted graph declaration; they do not start a guest process, open a firewall, or unpublish an existing listener. Use `ports unpublish PUBLICATION_ID` to revoke access. CLI and desktop declarations are synchronized, including stopped environments.
+
+## Desktop terminal and agent setup
+
+Open **CLI â†’ Skills â†’ Install skill** in the dashboard, or run `yougori skills install`. The default location is `Yougori/Workspace/skills/yougori` inside the user's profile; `--path` selects another skill directory. Repeating setup safely updates only unchanged Yougori-managed files; personal edits are not overwritten. Ask your agent to read `skills/yougori/SKILL.md` from the workspace. Automatic discovery depends on the agent. Codex, Claude, and Gemini launch buttons start detected local commands in a fresh terminal tab; they do not install or sign in to an agent. **Copy agent guide** also works without installing anything in an agent's configuration.
+
+The integrated host terminal defaults to `Yougori/Workspace` inside the user's profile, created on first use, with the bundled CLI added to that session's PATH, not the system PATH. New shell/agent tabs use that workspace unless the user explicitly chooses a project with the folder picker. An existing tab's old home-folder location is not inherited. Changing the starting folder does not limit OS file access; do not describe it as a sandbox or permission grant. PowerShell loads normal user profiles and PSReadLine syntax colours; Yougori refuses to create host shells when the app is elevated. The panel has up to four shells, bounded output history, and no terminal transcript saved by Yougori. Programs you run may keep their own history or logs. Hide preserves sessions; ending a tab terminates its shell and its attached Windows job processes. Programs launched independently through the OS may outlive the shell.
+
+Automation equivalents are `get_host_terminal_info`, `set_up_agent_access`, and `host_terminal_action` in `schema`. Host create/write/close requests require `--yes`; read/resize do not. Host session IDs start with `host-`; data is base64 UTF-8; retain the returned byte offset while polling. CLI-owned host sessions are separate from dashboard shells. Ordinary `terminal` commands remain guest terminals. Never send an agent launch or command into an existing busy shell or password prompt; create a fresh host session for an explicitly requested host command.
+
+## Raw API and execution
+
+For raw JSON, `create_environment.request` accepts `name`, `kind` (`container`, `microVm`, `fullVm`), `provider` (`yougoriOci`, `yougoriCuda`, `qemu`), `runtime` (OCI image, VM media path, or `builtin:alpine`), `description`, `containerCommand`, `networkAccess`, `gpuAccess`, optional `storageGb`, and `resourcePolicy`. The policy has `cpu` and `memoryGb` ranges (`min`, `preferred`, `max`) and `priority` (`low`, `normal`, `high`, `critical`). To update an entire saved policy, include each range's `current` value from state; prefer `env resources` for partial changes. Legacy native-sandbox/computer-branch fields are not a supported way to run host applications.
+
+`create_connection.request` accepts `sourceId`, `targetId`, `direction` (`oneWay` or `bidirectional`), `permissions` (an array of `network`, `ports`, `files`, `volumes`, `data`, `secrets`), `ports` (TCP port strings), `commands` (explicit peer-command grant), and `selectedFolders` (up to eight `{environmentId,path}` guest directories). Select a specific directory inside the guest; sharing its filesystem root (`/`) is blocked. Selected folders require Data permission and a guest file agent. A full VM can consume a selected folder through its private browser/API but cannot provide one without an agent. `network` allows more than specific ports. Use enforcement status and live Skills to verify actual access. For a full-VM command target, pass a verified `request.ssh` profile through `call execute_connected_command --file request.json --yes`.
+
+After connecting, `yougori env skills ENV_A` shows each selected folder's `mountPath`. In a container or managed MicroVM, `ls /yougori/shared` lists the live connection mounts and `ls MOUNT_PATH` opens that selected folder directly. A cloud or full-VM guest without the mount helper has `mountPath: null`; use its `sharedFilesApi` and the folder's `apiPath` instead. The connection-owned `sharedDirectory` under `/yougori/shared` is separate from the original selected folders.
+
+`snapshot`, `backup`, `settings`, `terminal`, `microvm`, and `window` commands mirror backend features. Read the catalog for their exact options. `call METHOD --file -` reads a JSON parameter object from stdin; `--json` accepts an inline object but should not contain secrets. `--dry-run` validates syntax/confirmation requirements without dispatching the operation; it does not prove runtime readiness. Read-only commands need no `--yes`.
+
+`terminal create` returns a session owned by the CLI, separate from desktop terminals. Supply the same session ID for read/write/resize/close. Data uses base64, exactly as the desktop terminal protocol; reading returns data, offset, and done. `terminal install` stages an existing supported tool installer and starts it in that terminal; inspect subsequent terminal output for install success. `env exec` executes in standard/CUDA containers and built-in agent microVMs. Full VMs require their guest console or user-configured SSH; CLI access does not magically add a guest agent.
+
+Machine output is JSON. Interactive terminals show coloured keys, values and help; redirected or piped output remains plain JSON. A nonempty `NO_COLOR` disables CLI colours. New integrated terminals advertise truecolour and load normal shell profiles; they clear colour-disabling flags inherited from a build tool only in the child shell. Long operations return durable-for-this-engine-session job records, including failure and timestamps. Jobs are bounded and retained for 30 minutes after completion; restarting the engine loses job history, not persisted environment state. Closing a CLI client does not cancel an accepted operation. For interrupted VM creation, inspect the persisted node/error. Never automatically repeat create, restore, reset, or publish after an unknown outcome.

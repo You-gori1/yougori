@@ -1,0 +1,36 @@
+project: example-app
+
+environments:
+  frontend:
+    type: container
+    image: nginx:alpine
+    cpu: 1
+    memory: 512MB
+    storage: 6GB
+    ports: ["8080:80"]
+    internet: false
+    depends_on: [database]
+
+  database:
+    image: redis:alpine
+    cpu: 1
+    memory: 512MB
+    storage: 6GB
+    command: [redis-server, --appendonly, "yes"]
+    volumes:
+      - source: database-data
+        target: /data
+    environment:
+      TZ: UTC
+
+connections:
+  - from: frontend
+    to: database
+    ports: [6379]
+
+# Optional HTTPS publishing, after saving your Cloudflare account in Desktop:
+# publish:
+#   frontend:
+#     port: 80
+#     hostname: app.example.com
+#     token_env: CLOUDFLARE_API_TOKEN

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Fragment>
+    <DirectoryRef Id="INSTALLDIR">
+      <Component Id="YougoriPublicCliPath" Guid="C96A2C6B-6AE9-452B-B1F0-78C2A778204E" Win64="yes">
+        <RegistryValue Root="HKLM" Key="Software\Yougori\CLI" Name="Directory" Type="string" Value="[INSTALLDIR]cli" KeyPath="yes" />
+        <Environment Id="YougoriPublicCliEnvironment" Name="PATH" Value="[INSTALLDIR]cli" Permanent="no" Part="first" Action="set" System="yes" />
+      </Component>
+    </DirectoryRef>
+  </Fragment>
+</Wix>

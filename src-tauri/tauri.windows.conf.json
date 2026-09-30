@@ -1,0 +1,44 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "windows": {
+      "nsis": {
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico",
+        "headerImage": "installer/nsis-header.bmp",
+        "sidebarImage": "installer/nsis-sidebar.bmp",
+        "uninstallerHeaderImage": "installer/nsis-header.bmp",
+        "installerHooks": "installer/cli-hooks.nsh"
+      },
+      "wix": {
+        "bannerPath": "installer/wix-banner.bmp",
+        "dialogImagePath": "installer/wix-dialog.bmp",
+        "fragmentPaths": [
+          "installer/cli-path.wxs"
+        ],
+        "componentRefs": [
+          "YougoriPublicCliPath"
+        ]
+      }
+    },
+    "resources": {
+      "../LICENSE": "LICENSE",
+      "../COPYING": "COPYING",
+      "../COMMERCIAL_LICENSE.txt": "COMMERCIAL_LICENSE.txt",
+      "../NOTICE": "NOTICE",
+      "../node_modules/@novnc/novnc/": "third-party-sources/novnc/",
+      "../runtime/security/": "third-party-sources/runtime/security/",
+      "../runtime/gpu/": "third-party-sources/runtime/gpu/",
+      "../scripts/": "third-party-sources/scripts/",
+      "resources/runtime/": "runtime/",
+      "resources/vault/yougori-vault.exe": "vault/yougori-vault.exe",
+      "resources/cli/yougori.exe": "cli/yougori.exe",
+      "resources/cli/yougori-cli.exe": "cli/yougori-cli.exe",
+      "resources/cli/opendock-cli.exe": "cli/opendock-cli.exe",
+      "resources/THIRD_PARTY_NOTICES.txt": "THIRD_PARTY_NOTICES.txt",
+      "resources/APPLICATION_LICENSES.txt": "APPLICATION_LICENSES.txt",
+      "resources/RUNTIME_LICENSES.txt": "RUNTIME_LICENSES.txt",
+      "resources/WORKSPACE_LICENSES.txt": "WORKSPACE_LICENSES.txt"
+    }
+  }
+}

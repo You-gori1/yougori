@@ -1,0 +1,97 @@
+[package]
+name = "yougori"
+version = "1.0.0"
+description = "A local environment platform"
+authors = ["Yougori"]
+license = "AGPL-3.0-only"
+publish = false
+edition = "2021"
+
+[lib]
+name = "yougori_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[features]
+default = ["desktop"]
+# The desktop app: WebView dashboard, tray and native windows.
+desktop = ["tauri/wry", "tauri/tray-icon", "tauri/common-controls-v6", "tauri/x11", "tauri/dbus"]
+# The standalone background engine (../engine, `yougori-engine`): no WebView, windows or tray.
+engine-only = ["tauri/test"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+serde_json = "1"
+
+[dependencies]
+yougori-vault = { path = "../vault" }
+yougori-cli = { path = "../cli" }
+portable-pty = "0.9"
+yougori-cuda-runtime = { package = "yougori-cuda", path = "../runtime/cuda/host" }
+tauri = { version = "2", default-features = false, features = ["compression", "dynamic-acl"] }
+tauri-plugin-dialog = "2.7.3"
+tauri-plugin-clipboard-manager = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+sysinfo = "0.37"
+thiserror = "2"
+sha2 = "0.10"
+scrypt = { version = "0.11", default-features = false }
+futures-util = { version = "0.3", features = ["sink"] }
+tokio-tungstenite = { version = "0.30", features = ["rustls-tls-webpki-roots"] }
+similar = "2.7"
+cap-std = "3.4"
+rcgen = "0.14.7"
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+crc32fast = "1.5"
+hex = "0.4"
+base64 = "0.22"
+keyring = "4.2"
+age = "0.12.1"
+tar = "0.4"
+fatfs = "0.3.6"
+tempfile = "3"
+zstd = "0.13"
+flate2 = "1"
+zip = { version = "8.6.0", default-features = false }
+object_store = { version = "0.14.1", features = ["aws", "azure", "gcp"] }
+tokio = { version = "1", features = ["fs", "io-util", "macros", "net", "process", "rt-multi-thread", "sync", "time"] }
+url = "2"
+reqwest = { version = "0.13", default-features = false, features = ["json", "stream", "rustls"] }
+tokio-util = { version = "0.7", features = ["io", "io-util"] }
+smoltcp = { version = "0.12", default-features = false, features = ["std", "medium-ethernet", "proto-ipv4", "socket-tcp"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+tauri-plugin-notification = "2"
+webview2-com = "0.38.2"
+windows = { version = "0.61", features = ["Win32_System_Com"] }
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Gdi",
+  "Win32_System_LibraryLoader",
+  "Win32_System_SystemInformation",
+  "Win32_UI_WindowsAndMessaging",
+  "Win32_Security",
+  "Win32_Security_Authorization",
+  "Win32_Security_Isolation",
+  "Win32_System_JobObjects",
+  "Win32_System_Performance",
+  "Win32_System_Threading",
+  "Win32_System_Power",
+  "Win32_Storage_FileSystem",
+] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+opt-level = "s"
+panic = "abort"
+strip = "symbols"
+
+# GTK3 needs glib 0.18; retain its API and backport the upstream iterator fix.
+[patch.crates-io]
+glib = { path = "../vendor/glib" }

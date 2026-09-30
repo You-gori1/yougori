@@ -1,0 +1,27 @@
+[package]
+name = "yougori-engine"
+version = "1.0.0"
+description = "The Yougori engine without the desktop app, for command-line and server use"
+authors = ["Yougori"]
+license = "AGPL-3.0-only"
+publish = false
+edition = "2021"
+
+[[bin]]
+name = "yougori-engine"
+path = "src/main.rs"
+
+[dependencies]
+yougori = { path = "../src-tauri", default-features = false, features = ["engine-only"] }
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+opt-level = "s"
+panic = "abort"
+strip = "symbols"
+
+# Patches apply only from the manifest being built; keep this in step with
+# src-tauri so the engine never links the unsound glib (RUSTSEC-2024-0429).
+[patch.crates-io]
+glib = { path = "../vendor/glib" }

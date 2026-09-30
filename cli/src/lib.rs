@@ -1,0 +1,18 @@
+pub mod catalog;
+pub mod client;
+pub mod parse;
+pub mod skills;
+pub mod wire;
+pub mod manifest;
+pub mod workload;
+pub mod public;
+pub mod overview;
+pub mod project_files;
+pub mod launcher_state;
+pub mod terminal;
+pub mod doctor;
+pub mod update;
+pub mod vault;
+
+pub const SKILL: &str = include_str!("../../skills/yougori/SKILL.txt");
+pub const GUIDE: &str = include_str!("../../skills/yougori/references/cli.txt");

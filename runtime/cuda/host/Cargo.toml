@@ -1,0 +1,21 @@
+[package]
+name = "yougori-cuda"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "AGPL-3.0-only"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+hex = "0.4"
+uuid = { version = "1", features = ["v4"] }
+tokio = { version = "1", features = ["fs", "io-util", "net", "process", "sync", "time", "macros", "rt-multi-thread"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage_Vhd", "Win32_System_IO"] }
+
+[dev-dependencies]
+tempfile = "3"

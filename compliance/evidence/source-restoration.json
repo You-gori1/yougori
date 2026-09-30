@@ -1,0 +1,90 @@
+{
+  "method": "Verified archives restored into a fresh directory, patches applied with GNU patch, compared against the source tree used for the rebuilt QEMU",
+  "results": [
+    {
+      "path": "accel/accel-system.c",
+      "builtTreeSha256": "a008d09f5f4209fb85917f2f02a425a7f21236889f941f58e996bddbb4f81fb7",
+      "restoredTreeSha256": "a008d09f5f4209fb85917f2f02a425a7f21236889f941f58e996bddbb4f81fb7",
+      "matches": true
+    },
+    {
+      "path": "accel/whpx/whpx-common.c",
+      "builtTreeSha256": "e12bb23fe5aac6f3982a5755f421cbcbac620d503051f57c36cfe6e81c8500f6",
+      "restoredTreeSha256": "e12bb23fe5aac6f3982a5755f421cbcbac620d503051f57c36cfe6e81c8500f6",
+      "matches": true
+    },
+    {
+      "path": "backends/tpm/meson.build",
+      "builtTreeSha256": "4822e5d9419093bf5b5b348b077076803ba287b8b23b326bc99864443a9f4a0d",
+      "restoredTreeSha256": "4822e5d9419093bf5b5b348b077076803ba287b8b23b326bc99864443a9f4a0d",
+      "matches": true
+    },
+    {
+      "path": "backends/tpm/tpm-api.h",
+      "builtTreeSha256": "80a356ef7460c2da481ade73530ea3e3e1ea0e4b288f43456b82169ce31be2ca",
+      "restoredTreeSha256": "80a356ef7460c2da481ade73530ea3e3e1ea0e4b288f43456b82169ce31be2ca",
+      "matches": true
+    },
+    {
+      "path": "backends/tpm/tpm-qemu.c",
+      "builtTreeSha256": "8d6d0a3b80cc9c49a54bb00d66f850f50208f34bd7a452a1fec78a52ffa54e92",
+      "restoredTreeSha256": "8d6d0a3b80cc9c49a54bb00d66f850f50208f34bd7a452a1fec78a52ffa54e92",
+      "matches": true
+    },
+    {
+      "path": "hw/tpm/tpm_ppi.c",
+      "builtTreeSha256": "ab8d268b7db20cdb2e146ef281475c9b7857a8625273b114b0477423ff38929e",
+      "restoredTreeSha256": "ab8d268b7db20cdb2e146ef281475c9b7857a8625273b114b0477423ff38929e",
+      "matches": true
+    },
+    {
+      "path": "include/accel/accel-ops.h",
+      "builtTreeSha256": "5bc7042eb7483296e6f2b38fcbec8d8a52599c23ce69850b458ce2d0a41313f6",
+      "restoredTreeSha256": "5bc7042eb7483296e6f2b38fcbec8d8a52599c23ce69850b458ce2d0a41313f6",
+      "matches": true
+    },
+    {
+      "path": "include/qemu/accel.h",
+      "builtTreeSha256": "d4d6e67d7c0ab44a9fbf518d0f4c43dfb7a0d86222560a0d02bb36d742fd030c",
+      "restoredTreeSha256": "d4d6e67d7c0ab44a9fbf518d0f4c43dfb7a0d86222560a0d02bb36d742fd030c",
+      "matches": true
+    },
+    {
+      "path": "meson.build",
+      "builtTreeSha256": "ca581e764d9291448f4cc0f6bc39fac32cac37577378329e2e140308ec400991",
+      "restoredTreeSha256": "ca581e764d9291448f4cc0f6bc39fac32cac37577378329e2e140308ec400991",
+      "matches": true
+    },
+    {
+      "path": "qapi/tpm.json",
+      "builtTreeSha256": "01d98aed09613f0aecbdbbd11b4f75210e3d74e71ac808b5da62a5275733cbd8",
+      "restoredTreeSha256": "01d98aed09613f0aecbdbbd11b4f75210e3d74e71ac808b5da62a5275733cbd8",
+      "matches": true
+    },
+    {
+      "path": "system/runstate.c",
+      "builtTreeSha256": "17d31bd0c9bb5b5e879d7104ceb3dbb9104056c7d7d759f19ddab65a7255cba4",
+      "restoredTreeSha256": "17d31bd0c9bb5b5e879d7104ceb3dbb9104056c7d7d759f19ddab65a7255cba4",
+      "matches": true
+    },
+    {
+      "path": "system/tpm-hmp-cmds.c",
+      "builtTreeSha256": "bf112106aba06ddf369cdf5b0e545d6e877cf64a370cbe344f9c96e6e0e5da87",
+      "restoredTreeSha256": "bf112106aba06ddf369cdf5b0e545d6e877cf64a370cbe344f9c96e6e0e5da87",
+      "matches": true
+    }
+  ],
+  "configureAndDependencyGraph": "Passed original configure flags and ninja dry run for 1726 build steps from exported sources; not claimed to be a second full compilation",
+  "omittedHostLinks": [
+    {
+      "component": "edk2-secure-src",
+      "path": "EmulatorPkg/Unix/Host/X11IncludeHack",
+      "target": "/opt/X11/include"
+    },
+    {
+      "component": "qemu-secure-src/roms/edk2",
+      "path": "EmulatorPkg/Unix/Host/X11IncludeHack",
+      "target": "/opt/X11/include"
+    }
+  ]
+}

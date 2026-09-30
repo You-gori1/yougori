@@ -1,0 +1,145 @@
+/* Local to New connection; the rest of the dialog system remains unchanged. */
+.connection-workbench {
+  --connection-secondary: #596272;
+  --connection-surface: #f5f6f8;
+  --connection-input: #fff;
+  --connection-line: #dce0e6;
+  box-shadow: 0 24px 90px #0003;
+}
+.dark .connection-workbench {
+  --connection-secondary: #abb3c1;
+  --connection-surface: #14171c;
+  --connection-input: #20242b;
+  --connection-line: #303640;
+  background: #1a1d23;
+  box-shadow: 0 24px 90px #0008;
+}
+.connection-workbench .connection-header {
+  flex: 0 0 auto;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 16px 60px 16px 26px;
+  border-bottom: 1px solid var(--connection-line);
+}
+.connection-header > svg { width: 17px; height: 17px; flex-shrink: 0; color: var(--primary); }
+.connection-subtitle { margin-left: auto; font-size: 13px; color: var(--connection-secondary); }
+.connection-route { padding: 20px 26px 18px; border-bottom: 1px solid var(--connection-line); }
+.connection-endpoints { display: grid; grid-template-columns: minmax(0, 1fr) 48px minmax(0, 1fr); align-items: end; gap: 10px; }
+.connection-workbench [data-slot="field-label"] { width: 100%; font-size: 13px; line-height: 18px; }
+.connection-workbench .connection-endpoint {
+  min-width: 0;
+  min-height: 46px;
+  gap: 10px;
+  padding-inline: 14px;
+  border-radius: 12px;
+  border-color: var(--connection-line);
+  background: var(--connection-input);
+  font-size: 15px;
+  font-weight: 500;
+  box-shadow: none;
+}
+.connection-endpoint > svg { color: var(--connection-secondary); }
+.connection-workbench .connection-swap { width: 44px; height: 44px; align-self: end; justify-self: center; border-radius: 50%; color: var(--primary); }
+.connection-direction-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; margin-top: 14px; }
+.connection-directions { display: flex; flex-direction: row; flex-wrap: nowrap; gap: 3px; padding: 3px; border-radius: 999px; background: var(--connection-surface); }
+.connection-direction { position: relative; justify-content: center; min-height: 34px; gap: 7px; padding: 7px 13px; border-radius: 999px; cursor: pointer; font-size: 13px; white-space: nowrap; color: var(--connection-secondary); }
+.connection-direction [data-slot="radio"] { position: absolute; }
+.connection-direction > svg { width: 15px; height: 15px; }
+.connection-direction.is-selected { color: var(--primary); background: color-mix(in srgb, var(--primary) 12%, transparent); }
+.connection-direction:hover { color: var(--foreground); }
+.connection-direction:has(:focus-visible) { outline: 2px solid var(--ring); outline-offset: 2px; }
+.connection-direction-help, .connection-empty { font-size: 12px; line-height: 1.6; color: var(--connection-secondary); }
+.connection-empty { margin-top: 12px; }
+.connection-columns { display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr); }
+.connection-permissions, .connection-details { min-width: 0; padding: 22px 26px; }
+.connection-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.connection-section-heading h2 { font-size: 14px; font-weight: 600; }
+.connection-section-heading > span { color: var(--connection-secondary); font-size: 12px; font-variant-numeric: tabular-nums; }
+.connection-section-heading > svg { width: 16px; height: 16px; color: var(--connection-secondary); }
+.connection-permission-list { display: flex; flex-direction: column; margin-top: 10px; }
+.connection-permission {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 54px;
+  padding: 10px 8px;
+  margin-inline: -8px;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: background-color 120ms;
+}
+.connection-permission + .connection-permission { border-top: 1px solid color-mix(in srgb, var(--connection-line) 60%, transparent); }
+.connection-permission > svg { width: 18px; height: 18px; flex-shrink: 0; color: var(--connection-secondary); }
+.connection-permission.is-selected > svg { color: var(--primary); }
+.connection-permission:hover { background: color-mix(in srgb, var(--primary) 6%, transparent); }
+.connection-permission:has(:focus-visible) { outline: 2px solid var(--ring); outline-offset: 1px; }
+.connection-permission-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 4px; }
+.connection-permission-copy > span:first-child { font-size: 13px; line-height: 18px; font-weight: 500; }
+.connection-permission-copy > span:last-child { color: var(--connection-secondary); font-size: 12px; line-height: 17px; font-weight: 400; }
+.connection-advanced { margin-top: 10px; border-top: 1px solid var(--connection-line); }
+.connection-advanced > summary { padding: 12px 4px; cursor: pointer; color: var(--connection-secondary); font-size: 12px; }
+.connection-folders { padding: 18px 26px 22px; border-top: 1px solid var(--connection-line); }
+.connection-folders > .connection-help { margin: 6px 0 12px; }
+.connection-folder-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.connection-folder-browser { min-width: 0; padding: 12px; border: 1px solid var(--connection-line); border-radius: 12px; background: var(--connection-surface); }
+.connection-folder-heading, .connection-folder-path { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.connection-folder-heading { margin-bottom: 8px; font-size: 13px; }
+.connection-folder-heading > span { color: var(--connection-secondary); font-size: 11px; }
+.connection-folder-path { min-width: 0; }
+.connection-folder-path code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.connection-folder-list { min-height: 52px; max-height: 122px; overflow: auto; margin-top: 8px; border-top: 1px solid var(--connection-line); }
+.connection-folder-list > button { display: flex; align-items: center; width: 100%; gap: 7px; padding: 5px 4px; border-radius: 6px; text-align: left; font-size: 12px; }
+.connection-folder-list > button:hover { background: color-mix(in srgb, var(--primary) 9%, transparent); }
+.connection-folder-file { display: flex; align-items: center; width: 100%; gap: 7px; padding: 5px 4px; color: var(--connection-secondary); font-size: 12px; }
+.connection-folder-list svg { width: 14px; height: 14px; }
+.connection-folder-list > p { padding: 8px 4px; color: var(--connection-secondary); font-size: 12px; }
+.connection-chosen-folders { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.connection-chosen-folders > div { display: flex; align-items: center; gap: 5px; max-width: 100%; padding: 2px 4px 2px 9px; border: 1px solid var(--connection-line); border-radius: 999px; font-size: 11px; }
+.connection-chosen-folders span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.connection-command-box { display: grid; gap: 7px; padding: 12px; border: 1px solid var(--connection-line); border-radius: 10px; }
+.connection-command-box > div { display: flex; gap: 7px; }
+.connection-command-box .connection-input { min-width: 0; flex: 1; }
+.connection-command-box pre { max-height: 140px; overflow: auto; padding: 8px; border-radius: 6px; background: var(--connection-input); font: 11px/1.5 var(--font-mono); white-space: pre-wrap; word-break: break-word; }
+.connection-details { display: flex; flex-direction: column; gap: 20px; border-left: 1px solid var(--connection-line); background: var(--connection-surface); }
+.connection-summary { display: flex; flex-direction: column; gap: 10px; padding-bottom: 18px; border-bottom: 1px solid var(--connection-line); }
+.connection-summary-route { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 500; }
+.connection-summary-route > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.connection-summary-route > svg { width: 16px; height: 16px; flex-shrink: 0; color: var(--primary); }
+.connection-summary > p:last-child, .connection-workbench .connection-help { font-size: 12px; line-height: 1.65; color: var(--connection-secondary); overflow-wrap: anywhere; }
+.connection-workbench .connection-input { border-color: var(--connection-line); background: var(--connection-input); border-radius: 10px; box-shadow: none; }
+.connection-input input { height: 40px; font-size: 14px; line-height: 40px; }
+.connection-input input[name="ports"] { font-family: var(--font-mono); }
+.connection-optional { margin-left: auto; font-size: 11px; font-weight: 400; color: var(--connection-secondary); }
+.connection-scope { display: flex; align-items: flex-start; gap: 8px; margin-top: auto; padding-top: 4px; color: var(--connection-secondary); font-size: 12px; line-height: 1.6; }
+.connection-scope > svg { width: 14px; height: 14px; margin-top: 2px; flex-shrink: 0; }
+.connection-workbench .connection-footer { display: flex; flex-shrink: 0; flex-direction: column; padding: 12px 26px; gap: 10px; border-color: var(--connection-line); background: transparent; }
+.connection-footer-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.connection-footer-note { font-size: 12px; color: var(--connection-secondary); }
+.connection-actions { display: flex; align-items: center; gap: 8px; }
+.connection-workbench .connection-submit { height: 38px; padding-inline: 18px; border-radius: 999px; }
+.connection-error { color: var(--destructive-foreground); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.connection-direction:has([data-disabled]), .connection-permission:has([data-disabled]) { cursor: not-allowed; opacity: .6; }
+@media (max-width: 759px) {
+  .connection-columns { grid-template-columns: minmax(0, 1fr); }
+  .connection-folder-columns { grid-template-columns: minmax(0, 1fr); }
+  .connection-details { border-left: 0; border-top: 1px solid var(--connection-line); }
+  .connection-subtitle { display: none; }
+  .connection-direction-help { flex-basis: 100%; }
+  .connection-footer-note { display: none; }
+  .connection-footer-row { justify-content: flex-end; }
+}
+@media (max-width: 479px) {
+  .connection-workbench .connection-header { padding-left: 18px; }
+  .connection-route, .connection-permissions, .connection-details { padding: 18px; }
+  .connection-endpoints { grid-template-columns: minmax(0, 1fr) 32px minmax(0, 1fr); gap: 4px; }
+  .connection-workbench .connection-endpoint { padding-inline: 9px; font-size: 14px; }
+  .connection-endpoint > svg { display: none; }
+  .connection-workbench .connection-swap { width: 32px; }
+  .connection-workbench .connection-footer { padding: 12px 14px; }
+  .connection-workbench .connection-submit { padding-inline: 13px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .connection-permission { transition: none; }
+}

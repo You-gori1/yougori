@@ -1,0 +1,228 @@
+# Licensing and source distribution
+
+Original Yougori code is offered by **Yougori LLC** under
+[AGPL-3.0-only](../LICENSE), except where a file or directory has a separate
+notice. A [separate paid commercial license](../COMMERCIAL_LICENSE.txt) is
+available by written agreement for material Yougori LLC has authority to cover.
+[NOTICE](../NOTICE) carries the Yougori attribution.
+
+[LICENSE](../LICENSE) contains the completed Yougori copyright and license
+notice, project contact and source links. [COPYING](../COPYING) preserves the
+complete, unmodified AGPL text. Placeholders in its how-to appendix are
+generic examples, not missing project details. The project notice specifies
+version 3 only; the appendix example does not grant a later-version option.
+
+## Choosing a license
+
+The AGPL route allows use, modification and redistribution, including commercial
+use. It is not an internal-use-only or non-commercial license. Users do not have
+to buy a commercial license merely because they run a business.
+
+When conveying covered source or binaries, follow AGPL sections 4 through 6,
+including applicable notices, licensing and corresponding-source requirements.
+Section 13 requires a modified version to prominently offer its corresponding
+source to users interacting with it remotely over a computer network, as that
+section specifies. Running Yougori does not by itself put independent user data,
+container workloads, VM images or applications under AGPL.
+
+Customers needing different rights for Yougori-owned code can request a paid
+commercial agreement. The agreement must identify its actual scope; the public
+commercial-licensing page grants no automatic exception to AGPL. It does not
+waive third-party copyleft obligations or provide rights Yougori LLC does not own.
+Project metadata identifies AGPL-3.0-only as the public license; any commercial
+permission is supplied separately to the customer.
+
+Use the license supplied with the particular version. No general Yougori
+trademark rights are granted.
+
+## Third-party components
+
+Neither licensing route relicenses third-party components or files with their
+own notices. QEMU patches and `runtime/security/tpm-qemu.c` retain their GPL terms;
+TPM platform glue under `runtime/security/LICENSE` remains BSD-2-Clause. Linux
+packages, firmware, DLLs, noVNC and other dependencies keep their own licenses.
+
+The copied Coss UI components and shared class-name helper retain MIT for their
+upstream portions. See `src/components/ui/LICENSE.txt` and the exact file mapping
+in `compliance/frontend.json`. Coss's `apps/ui/` MIT exception and package
+declaration are retained at a pinned revision in `compliance/notices/`.
+Tailwind contributes production CSS even though it is an npm development
+dependency. Its full MIT notice is included in `APPLICATION_LICENSES.txt`.
+
+Original Yougori source/build material supplied as required corresponding source
+for a separately licensed component may additionally be used, modified and
+redistributed under that component's applicable license to the extent necessary
+to exercise its rights. This provision does not change third-party licenses.
+
+See [third-party notices](../src-tauri/resources/THIRD_PARTY_NOTICES.txt),
+`APPLICATION_LICENSES.txt`, `RUNTIME_LICENSES.txt` and `WORKSPACE_LICENSES.txt`. Package-level license
+fields can describe multiple files under different licenses; they do not establish
+compatibility of the actual linked binaries.
+
+## Collecting and checking source materials
+
+`compliance/evidence/` records runtime file hashes, the embedded Alpine package
+database, Windows DLL provenance, and application/guest dependencies. Large
+archives live outside Git in `build/compliance/bundle/`. `compliance/release.json`
+ties those archives to input hashes and records unresolved items. See
+[current release record](../compliance/release.json).
+
+The inventory reads the repository's immutable appliance base through a temporary
+sparse raw file. It removes that scratch file afterwards. It does not boot the
+appliance, inspect user container disks or change running environments.
+
+From the repository root, with Python 3.12+, Git, GitHub CLI and 7-Zip available:
+
+The OCI collector uses the retained upstream release log and build-base
+attestations. Keep `oci-build-provenance.tar.gz` from the matching source bundle
+in `build/compliance/bundle/`, with its source index and checksums. Restore those
+public evidence files before running the collectors; do not substitute evidence
+from a different release if an upstream log has expired.
+
+```powershell
+python -c "import tarfile; tarfile.open('build/compliance/bundle/oci-build-provenance.tar.gz').extractall('build/compliance', filter='data')"
+python scripts/collect-compliance.py inventory
+python scripts/collect-compliance.py alpine
+python scripts/collect-compliance.py local
+python scripts/collect-compliance.py msys
+python scripts/collect-compliance.py go
+python scripts/compliance-oci-sources.py
+python scripts/collect-compliance.py notices
+python scripts/compliance-qemu-notices.py
+python scripts/compliance-runtime-notices.py
+node scripts/compliance-inspect-runtime.mjs
+python scripts/collect-compliance.py report
+npm run compliance:archives
+```
+
+Collectors do not execute downloaded APKBUILD or PKGBUILD scripts. Alpine recipes
+are selected by the exact revision in the shipped package database, and distfiles
+must match their SHA-512 checksums. MSYS recipes must match the PKGBUILD SHA-256
+in the matching binary package's BUILDINFO. Guest Go dependency ZIPs must match
+the `h1:` sums embedded in shipped binaries. Unverified entries remain blocked.
+Never substitute a nearby version or silently accept a changed upstream patch.
+
+QEMU/firmware archives contain committed upstream trees, with initialized
+submodules and QEMU subprojects archived separately. The local build-material
+archive contains the project's patches and build scripts. Preserve revisions and
+restore submodules at the recorded paths. These are source inputs, not a claim of
+reproducible builds or complete release coverage.
+
+`npm run compliance:check` verifies evidence without approving distribution.
+Dependency checks need Python 3.11 or newer for TOML parsing; CI pins Python 3.12.
+It discovers every Git-visible Cargo lockfile, including the standalone engine
+and vendored builds, and verifies dependency notice coverage against their exact
+checksums. It also compares the complete tracked application source manifest on
+ordinary checks, so backend-only changes cannot escape through frontend coverage.
+It also inventories frontend source, images, fonts and build configuration,
+requires explicit provenance for copied UI files, and checks notices for packages
+imported by production code/CSS even when marked as development dependencies.
+List additional packages that contribute generated assets indirectly in
+`compliance/frontend.json`. New or removed source/assets and missing license
+texts require a fresh inventory and review. These checks detect changes and
+missing recorded notices; determining the origin of newly copied code still
+requires a source review.
+Text input hashes normalize line endings; runtime and archive hashes cover the
+original bytes. This lets the same source review survive ordinary Git newline
+conversion without accepting changes to runtime binaries.
+`npm run compliance:archives` also verifies every local source archive.
+It checks that `SOURCE_INDEX.json` and `SHA256SUMS` match the current release
+inventory. Previous publication verification cannot approve a changed index.
+
+For source-only notice/build-script changes with unchanged upstream archives,
+refresh notices and QEMU annotation evidence as above, then run:
+
+```powershell
+python scripts/collect-compliance.py material
+python scripts/collect-compliance.py report
+npm run test:compliance
+npm run compliance:archives
+python scripts/package-compliance.py
+```
+
+Regeneration clears the publication status. Publish and verify the resulting
+matching source bundle before distributing a new release.
+
+The Linux workflow can seed its cache from the pinned prior source ZIP, then
+run `python3 scripts/collect-compliance.py cache` (Python 3.10+ for this action).
+This recreates only the project's local source/build-material archive with
+canonical line endings and permissions. Every upstream archive must still match
+the current checked-in inventory. It fails if any required upstream input is
+missing or changed. A cache seed is not publication of the new source bundle.
+`npm run release:package` rejects unresolved findings, changed inputs, missing
+archives and absent engineering-review records. Installer builds run this local
+check, including preview packaging. `npm run release:distribution` additionally
+requires verified public source access. This allows a concrete installer and
+source bundle to be prepared before publication. Development and ordinary tests
+remain available.
+
+The generated `reviewFingerprint` binds the review to all application source,
+runtime bytes and component archives. An approved engineering review must record
+the matching `sourceFingerprint`. Regenerating evidence after source changes
+invalidates the old approval rather than inheriting it for a different candidate.
+
+See [rebuild instructions](rebuilding-third-party.txt) for using the exported
+source trees without Git metadata, replacing libraries and relinking static
+components.
+
+## Publication and older copies
+
+The release ZIP includes `bundle/yougori-application-source.tar.gz`, containing
+the tracked frontend, Rust backend, CLI, CUDA code, assets, manifests, lockfiles,
+configuration and build scripts. Its `YOUGORI_SOURCE_MANIFEST.json` lists every
+included file and checksum. Runtime payload binaries are excluded from that tar;
+their corresponding sources are the other indexed archives in the same ZIP.
+The generated release report and application manifest are supplied separately
+to avoid a self-referential archive checksum.
+
+The application source checker compares the complete tracked file set against
+the manifest, then opens the tar and verifies its members and contents. Missing
+backend/CLI files, newly added source, changed bytes, and omissions hidden by
+updating an archive checksum are rejected. Run the `material` collector after
+staging source changes, then regenerate the report and source package. The cache
+workflow rebuilds this archive from the checkout and requires the reviewed hash.
+
+Each future installer download must link beside it to the matching complete
+source ZIP and exact application commit. Keep their checksums together in the
+release record. A link to a moving branch is not the version-specific source
+delivery record. Source-only prereleases do not approve an installer build.
+
+`npm run release:manifest` runs the distribution gate and includes a `source`
+entry beside the binary assets in `latest.json`. The verified publication record
+must include `bundleUrl` and `bundleSha256`. The generator requires a clean
+committed checkout and uses its current commit for the public source revision.
+The collector's `sourceCommit` is the base revision at collection time; its file
+manifest identifies the exact candidate contents until they are committed.
+This covers standalone CLI/engine downloads as well as the desktop app.
+Show the source link alongside download links on the website.
+
+All platform configurations include `LICENSE`, `COPYING`, `NOTICE`, the commercial
+licensing document and component notices. `COPYING` is the installer's full
+license display file. After building, extract or install each artifact and run
+`node scripts/check-installed-licenses.mjs PLATFORM RESOURCE_DIRECTORY` against
+its actual resource directory (`windows`, `linux` or `macos`). This compares the
+packaged license and notice contents, including nested component licenses, with
+the reviewed checkout. Record the installer SHA-256 and inspection result before
+publishing it. Configuration checks alone do not verify a built installer.
+
+The intended source-delivery method is downloadable matching source archives
+alongside the installers, with a source index and checksums. Upstream links,
+private caches or an inventory alone do not give recipients that access. Do not
+advertise a written source offer without a real fulfillment process.
+
+Retain materials for each distributed installer and check applicable retention
+obligations. New releases do not resolve missing materials for older copies.
+Review the actual combined binaries, LGPL replacement/relinking requirements,
+installation information where applicable and source completeness before recording
+readiness. Automated checks do not establish a legal conclusion.
+
+If actual incorporation or linking requires a different license for original
+Yougori code, review the compatible GPL version before changing it. Merely
+choosing GPL for the application does not supply missing corresponding source,
+relicense third-party GPL-2.0-only code, or cure incompatible library combinations.
+
+References: [AGPL-3.0](https://www.gnu.org/licenses/agpl-3.0.html),
+[Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0),
+[GPLv2](https://opensource.org/license/gpl-2.0),
+[GNU license FAQ](https://www.gnu.org/licenses/gpl-faq.en.html),
+[Mozilla MPL FAQ](https://www.mozilla.org/en-US/MPL/2.0/FAQ/).

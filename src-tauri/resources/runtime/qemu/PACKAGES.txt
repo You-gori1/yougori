@@ -1,0 +1,528 @@
+Name            : mingw-w64-ucrt-x86_64-brotli
+Version         : 1.2.0-1
+Description     : Brotli compression library (mingw-w64)
+Architecture    : any
+URL             : https://github.com/google/brotli
+Licenses        : spdx:MIT
+Groups          : None
+Provides        : None
+Depends On      : None
+Optional Deps   : None
+Required By     : mingw-w64-ucrt-x86_64-gnutls
+Optional For    : None
+Conflicts With  : None
+Replaces        : None
+Installed Size  : 2.10 MiB
+Packager        : CI (msys2/msys2-autobuild/db1199d2/19124245426)
+Build Date      : Thu Nov  6 04:56:56 2025
+Install Date    : Sun Sep  6 22:42:20 2026
+Install Reason  : Installed as a dependency for another package
+Install Script  : No
+Validated By    : SHA-256 Sum  Signature
+
+Name            : mingw-w64-ucrt-x86_64-bzip2
+Version         : 1.0.8-4
+Description     : A high-quality data compression program (mingw-w64)
+Architecture    : any
+URL             : https://sourceware.org/bzip2/
+Licenses        : custom
+Groups          : None
+Provides        : None
+Depends On      : None
+Optional Deps   : None
+Required By     : mingw-w64-ucrt-x86_64-pcre2  mingw-w64-ucrt-x86_64-python
+Optional For    : None
+Conflicts With  : None
+Replaces        : None
+Installed Size  : 498.52 KiB
+Packager        : CI (https://github.com/msys2/msys2-autobuild/actions/runs/31805212222/job/94782383612)
+Build Date      : Fri Aug 14 15:34:12 2026
+Install Date    : Sun Sep  6 22:41:43 2026
+Install Reason  : Installed as a dependency for another package
+Install Script  : No
+Validated By    : SHA-256 Sum  Signature
+
+Name            : mingw-w64-ucrt-x86_64-gcc-libs
+Version         : 16.2.0-3
+Description     : GNU Compiler Collection (libraries) for MinGW-w64
+Architecture    : any
+URL             : https://gcc.gnu.org
+Licenses        : spdx:GPL-3.0-or-later WITH GCC-exception-3.1 AND LGPL-2.1-or-later
+Groups          : None
+Provides        : mingw-w64-ucrt-x86_64-omp  mingw-w64-ucrt-x86_64-cc-libs
+Depends On      : mingw-w64-ucrt-x86_64-libwinpthread  mingw-w64-ucrt-x86_64-tzdata
+Optional Deps   : None
+Required By     : mingw-w64-ucrt-x86_64-gcc  mingw-w64-ucrt-x86_64-gettext-runtime  mingw-w64-ucrt-x86_64-gnutls  mingw-w64-ucrt-x86_64-jsoncpp  mingw-w64-ucrt-x86_64-libb2  mingw-w64-ucrt-x86_64-libepoxy  mingw-w64-ucrt-x86_64-libjpeg-turbo  mingw-w64-ucrt-x86_64-libpng  mingw-w64-ucrt-x86_64-libtasn1  mingw-w64-ucrt-x86_64-mpdecimal  mingw-w64-ucrt-x86_64-mpfr  mingw-w64-ucrt-x86_64-ncurses  mingw-w64-ucrt-x86_64-nettle  mingw-w64-ucrt-x86_64-ninja  mingw-w64-ucrt-x86_64-pixman  mingw-w64-ucrt-x86_64-python  mingw-w64-ucrt-x86_64-virglrenderer  mingw-w64-ucrt-x86_64-zstd
+Optional For    : None
+Conflicts With  : None
+Replaces        : None
+Installed Size  : 3.49 MiB
+Packager        : CI (https://github.com/msys2/msys2-autobuild/actions/runs/31300124490/job/93211454519)
+Build Date      : Sun Aug  9 09:44:55 2026
+Install Date    : Sun Sep  6 22:41:37 2026
+Install Reason  : Installed as a dependency for another package
+Install Script  : No
+Validated By    : SHA-256 Sum  Signature
+
+Name            : mingw-w64-ucrt-x86_64-gettext-runtime
+Version         : 1.0-1
+Description     : GNU internationalization runtime library (mingw-w64)
+Architecture    : any
+URL             : https://www.gnu.org/software/gettext/
+Licenses        : spdx:GPL-3.0-or-later AND LGPL-2.1-or-later
+Groups          : None
+Provides        : None
+Depends On      : mingw-w64-ucrt-x86_64-cc-libs  mingw-w64-ucrt-x86_64-libiconv
+Optional Deps   : None
+Required By     : mingw-w64-ucrt-x86_64-binutils  mingw-w64-ucrt-x86_64-glib2  mingw-w64-ucrt-x86_64-gnutls  mingw-w64-ucrt-x86_64-libidn2  mingw-w64-ucrt-x86_64-libtre  mingw-w64-ucrt-x86_64-p11-kit  mingw-w64-ucrt-x86_64-xz
+Optional For    : None
+Conflicts With  : mingw-w64-ucrt-x86_64-gettext<=0.22.4-3
+Replaces        : None
+Installed Size  : 2.69 MiB
+Packager        : CI (msys2/msys2-autobuild/59a03c95/21544284235)
+Build Date      : Sat Jan 31 13:17:21 2026
+Install Date    : Sun Sep  6 22:41:37 2026
+Install Reason  : Installed as a dependency for another package
+Install Script  : No
+Validated By    : SHA-256 Sum  Signature
+
+Name            : mingw-w64-ucrt-x86_64-glib2
+Version         : 2.88.3-1
+Description     : Common C routines used by GTK+ 3 and other libs (mingw-w64)
+Architecture    : any
+URL             : https://gitlab.gnome.org/GNOME/glib
+Licenses        : spdx:LGPL-2.1-or-later
+Groups          : None
+Provides        : None
+Depends On      : mingw-w64-ucrt-x86_64-gettext-runtime  mingw-w64-ucrt-x86_64-libffi  mingw-w64-ucrt-x86_64-pcre2  mingw-w64-ucrt-x86_64-python  mingw-w64-ucrt-x86_64-python-packaging  mingw-w64-ucrt-x86_64-zlib
+Optional Deps   : None
+Required By     : mingw-w64-ucrt-x86_64-libslirp
+Optional For    : None
+Conflicts With  : None
+Replaces        : None
+Installed Size  : 39.83 MiB
+Packager        : CI (https://github.com/msys2/msys2-autobuild/actions/runs/30521106257/job/90801477810)
+Build Date      : Thu Jul 30 08:55:54 2026
+Install Date    : Sun Sep  6 22:42:20 2026
+Install Reason  : Explicitly installed
+Install Script  : No
+Validated By    : SHA-256 Sum  Signature
+
+Name            : mingw-w64-ucrt-x86_64-gmp
+Version         : 6.3.0-2
+Description     : A free library for arbitrary precision arithmetic (mingw-w64)
+Architecture    : any
+URL             : https://gmplib.org/
+Licenses        : LGPL3  GPL
+Groups          : None
+Provides        : None
+Depends On      : None
+Optional Deps   : None
+Required By     : mingw-w64-ucrt-x86_64-gcc  mingw-w64-ucrt-x86_64-gnutls  mingw-w64-ucrt-x86_64-isl  mingw-w64-ucrt-x86_64-mpc  mingw-w64-ucrt-x86_64-mpfr  mingw-w64-ucrt-x86_64-nettle
+Optional For    : None
+Conflicts With  : None
+Replaces        : None
+Installed Size  : 2.98 MiB
+Packager        : CI (msys2/msys2-autobuild/0852421d/6195286796)
+Build Date      : Fri Sep 15 09:41:38 2023
+Install Date    : Sun Sep  6 22:41:41 2026
+Install Reason  : Installed as a dependency for another package
+Install Script  : No
+Validated By    : SHA-256 Sum  Signature
+
+Name            : mingw-w64-ucrt-x86_64-gnutls
+Version         : 3.8.13-3
+Description     : A library which provides a secure layer over a reliable transport layer (mingw-w64)
+Architecture    : any
+URL             : https://www.gnutls.org/
+Licenses        : spdx:GPL-3.0-or-later  spdx:LGPL-2.1-or-later
+Groups          : None
+Provides        : None
+Depends On      : mingw-w64-ucrt-x86_64-cc-libs  mingw-w64-ucrt-x86_64-brotli  mingw-w64-ucrt-x86_64-gettext-runtime  mingw-w64-ucrt-x86_64-gmp  mingw-w64-ucrt-x86_64-libidn2  mingw-w64-ucrt-x86_64-libtasn1  mingw-w64-ucrt-x86_64-libunistring  mingw-w64-ucrt-x86_64-libwinpthread  mingw-w64-ucrt-x86_64-nettle  mingw-w64-ucrt-x86_64-p11-kit  mingw-w64-ucrt-x86_64-zlib  mingw-w64-ucrt-x86_64-zstd
+Optional Deps   : None
+Required By     : None
+Optional For    : None
+Conflicts With  : None
+Replaces        : None
+Installed Size  : 14.26 MiB
+Packager        : CI (https://github.com/msys2/msys2-autobuild/actions/runs/28774032409/job/85313814994)
+Build Date      : Mon Jul  6 11:44:36 2026
+Install Date    : Sun Sep  6 22:42:23 2026
+Install Reason  : Explicitly installed
+Install Script  : No
+Validated By    : SHA-256 Sum  Signature
+
+Name            : mingw-w64-ucrt-x86_64-libepoxy
+Version         : 1.5.10-7
+Description     : A library for handling OpenGL function pointer management for you (mingw-w64)
+Architecture    : any
+URL             : https://github.com/anholt/libepoxy
+Licenses        : spdx:MIT
+Groups          : None
+Provides        : None
+Depends On      : mingw-w64-ucrt-x86_64-cc-libs  mingw-w64-ucrt-x86_64-egl-headers  mingw-w64-ucrt-x86_64-gles-headers
+Optional Deps   : None
+Required By     : mingw-w64-ucrt-x86_64-virglrenderer
+Optional For    : None
+Conflicts With  : None
+Replaces        : None
+Installed Size  : 8.95 MiB
+Packager        : CI (msys2/msys2-autobuild/54197e6a/15942439222)
+Build Date      : Sat Jun 28 11:01:15 2025
+Install Date    : Sun Sep  6 22:42:23 2026
+Install Reason  : Installed as a dependency for another package
+Install Script  : No
+Validated By    : SHA-256 Sum  Signature
+
+Name            : mingw-w64-ucrt-x86_64-libffi
+Version         : 3.8.0-1
+Description     : A portable, high level programming interface to various calling conventions (mingw-w64)
+Architecture    : any
+URL             : https://sourceware.org/libffi
+Licenses        : spdx:MIT
+Groups          : None
+Provides        : None
+Depends On      : None
+Optional Deps   : None
+Required By     : mingw-w64-ucrt-x86_64-glib2  mingw-w64-ucrt-x86_64-p11-kit  mingw-w64-ucrt-x86_64-python
+Optional For    : None
+Conflicts With  : None
+Replaces        : None
+Installed Size  : 162.48 KiB
+Packager        : CI (https://github.com/msys2/msys2-autobuild/actions/runs/31526379481/job/93895626084)
+Build Date      : Tue Aug 11 21:10:18 2026
+Install Date    : Sun Sep  6 22:41:43 2026
+Install Reason  : Installed as a dependency for another package
+Install Script  : No
+Validated By    : SHA-256 Sum  Signature
+
+Name            : mingw-w64-ucrt-x86_64-libiconv
+Version         : 1.19-1
+Description     : Character encoding conversion library (mingw-w64)
+Architecture    : any
+URL             : https://www.gnu.org/software/libiconv/
+Licenses        : spdx:LGPL-2.1-or-later  documentation:spdx:GPL-3.0-or-later
+Groups          : None
+Provides        : None
+Depends On      : None
+Optional Deps   : None
+Required By     : mingw-w64-ucrt-x86_64-gettext-runtime  mingw-w64-ucrt-x86_64-libidn2  mingw-w64-ucrt-x86_64-libunistring
+Optional For    : None
+Conflicts With  : None
+Replaces        : None
+Installed Size  : 2.44 MiB
+Packager        : CI (msys2/msys2-autobuild/5e407709/23084514348)
+Build Date      : Sat Mar 14 09:45:32 2026
+Install Date    : Sun Sep  6 22:41:37 2026
+Install Reason  : Installed as a dependency for another package
+Install Script  : No
+Validated By    : SHA-256 Sum  Signature
+
+Name            : mingw-w64-ucrt-x86_64-libidn2
+Version         : 2.3.8-4
+Description     : Implementation of the Stringprep, Punycode and IDNA specifications (mingw-w64)
+Architecture    : any
+URL             : https://www.gnu.org/software/libidn/#libidn2
+Licenses        : spdx:GPL-2.0-or-later  spdx:LGPL-3.0-or-later
+Groups          : None
+Provides        : None
+Depends On      : mingw-w64-ucrt-x86_64-gettext-runtime  mingw-w64-ucrt-x86_64-libiconv  mingw-w64-ucrt-x86_64-libunistring
+Optional Deps   : None
+Required By     : mingw-w64-ucrt-x86_64-gnutls
+Optional For    : None
+Conflicts With  : None
+Replaces        : None
+Installed Size  : 755.87 KiB
+Packager        : CI (msys2/msys2-autobuild/c6213b4d/18246305820)
+Build Date      : Sat Oct  4 18:56:51 2025
+Install Date    : Sun Sep  6 22:42:20 2026
+Install Reason  : Installed as a dependency for another package
+Install Script  : No
+Validated By    : SHA-256 Sum  Signature
+
+Name            : mingw-w64-ucrt-x86_64-libjpeg-turbo
+Version         : 3.2.0-1
+Description     : JPEG image codec with accelerated baseline compression and decompression (mingw-w64)
+Architecture    : any
+URL             : https://libjpeg-turbo.virtualgl.org/
+Licenses        : custom:BSD-like
+Groups          : None
+Provides        : mingw-w64-ucrt-x86_64-libjpeg
+Depends On      : mingw-w64-ucrt-x86_64-cc-libs
+Optional Deps   : None
+Required By     : mingw-w64-ucrt-x86_64-angleproject
+Optional For    : None
+Conflicts With  : mingw-w64-ucrt-x86_64-libjpeg
+Replaces        : mingw-w64-ucrt-x86_64-libjpeg
+Installed Size  : 6.78 MiB
+Packager        : CI (https://github.com/msys2/msys2-autobuild/actions/runs/28514970812/job/84524349267)
+Build Date      : Wed Jul  1 13:58:24 2026
+Install Date    : Sun Sep  6 22:42:23 2026
+Install Reason  : Installed as a dependency for another package
+Install Script  : No
+Validated By    : SHA-256 Sum  Signature
+
+Name            : mingw-w64-ucrt-x86_64-libpng
+Version         : 1.6.58-1
+Description     : A collection of routines used to create PNG format graphics (mingw-w64)
+Architecture    : any
+URL             : http://www.libpng.org/pub/png/libpng.html
+Licenses        : custom
+Groups          : None
+Provides        : None
+Depends On      : mingw-w64-ucrt-x86_64-cc-libs  mingw-w64-ucrt-x86_64-zlib
+Optional Deps   : None
+Required By     : mingw-w64-ucrt-x86_64-angleproject
+Optional For    : None
+Conflicts With  : None
+Replaces        : None
+Installed Size  : 2.53 MiB
+Packager        : CI (msys2/msys2-autobuild/3e3ad5a1/24570439897)
+Build Date      : Fri Apr 17 16:41:19 2026
+Install Date    : Sun Sep  6 22:42:23 2026
+Install Reason  : Installed as a dependency for another package
+Install Script  : No
+Validated By    : SHA-256 Sum  Signature
+
+Name            : mingw-w64-ucrt-x86_64-libslirp
+Version         : 4.9.3-1
+Description     : General purpose TCP-IP emulator (mingw-w64)
+Architecture    : any
+URL             : https://gitlab.freedesktop.org/slirp/libslirp
+Licenses        : spdx:BSD-3-Clause
+Groups          : None
+Provides        : None
+Depends On      : mingw-w64-ucrt-x86_64-glib2
+Optional Deps   : None
+Required By     : None
+Optional For    : None
+Conflicts With  : None
+Replaces        : None
+Installed Size  : 471.67 KiB
+Packager        : CI (https://github.com/msys2/msys2-autobuild/actions/runs/28735458327/job/85208695180)
+Build Date      : Sun Jul  5 10:57:30 2026
+Install Date    : Sun Sep  6 22:42:20 2026
+Install Reason  : Explicitly installed
+Install Script  : No
+Validated By    : SHA-256 Sum  Signature
+
+Name            : mingw-w64-ucrt-x86_64-libtasn1
+Version         : 4.21.0-1
+Description     : A library for Abstract Syntax Notation One (ASN.1) and Distinguish Encoding Rules (DER) manipulation (mingw-w64)
+Architecture    : any
+URL             : https://www.gnu.org/software/libtasn1/
+Licenses        : GPL3, LGPL
+Groups          : None
+Provides        : None
+Depends On      : mingw-w64-ucrt-x86_64-cc-libs
+Optional Deps   : None
+Required By     : mingw-w64-ucrt-x86_64-gnutls  mingw-w64-ucrt-x86_64-p11-kit
+Optional For    : None
+Conflicts With  : None
+Replaces        : None
+Installed Size  : 622.22 KiB
+Packager        : CI (msys2/msys2-autobuild/a72b8c90/20896962743)
+Build Date      : Sun Jan 11 15:49:50 2026
+Install Date    : Sun Sep  6 22:42:21 2026
+Install Reason  : Installed as a dependency for another package
+Install Script  : No
+Validated By    : SHA-256 Sum  Signature
+
+Name            : mingw-w64-ucrt-x86_64-libunistring
+Version         : 1.4.2-1
+Description     : Library for manipulating Unicode strings and C strings. (mingw-w64)
+Architecture    : any
+URL             : https://www.gnu.org/software/libunistring
+Licenses        : spdx:LGPL-3.0-or-later OR GPL-3.0-or-later
+Groups          : None
+Provides        : None
+Depends On      : mingw-w64-ucrt-x86_64-libiconv
+Optional Deps   : None
+Required By     : mingw-w64-ucrt-x86_64-gnutls  mingw-w64-ucrt-x86_64-libidn2
+Optional For    : None
+Conflicts With  : None
+Replaces        : None
+Installed Size  : 6.34 MiB
+Packager        : CI (msys2/msys2-autobuild/actions/runs/24636365904/job/72032462330)
+Build Date      : Sun Apr 19 20:45:11 2026
+Install Date    : Sun Sep  6 22:42:20 2026
+Install Reason  : Installed as a dependency for another package
+Install Script  : No
+Validated By    : SHA-256 Sum  Signature
+
+Name            : mingw-w64-ucrt-x86_64-libwinpthread
+Version         : 14.0.0.r353.g6df76fa52-2
+Description     : MinGW-w64 winpthreads library (mingw-w64)
+Architecture    : any
+URL             : https://www.mingw-w64.org/
+Licenses        : spdx:MIT AND BSD-3-Clause-Clear
+Groups          : mingw-w64-ucrt-x86_64-toolchain
+Provides        : mingw-w64-ucrt-x86_64-libwinpthread-git
+Depends On      : None
+Optional Deps   : None
+Required By     : mingw-w64-ucrt-x86_64-binutils  mingw-w64-ucrt-x86_64-gcc-libs  mingw-w64-ucrt-x86_64-gnutls  mingw-w64-ucrt-x86_64-virglrenderer  mingw-w64-ucrt-x86_64-winpthreads
+Optional For    : None
+Conflicts With  : mingw-w64-ucrt-x86_64-libwinpthread-git
+Replaces        : mingw-w64-ucrt-x86_64-libwinpthread-git
+Installed Size  : 64.44 KiB
+Packager        : CI (https://github.com/msys2/msys2-autobuild/actions/runs/33656119631/job/100334982676)
+Build Date      : Wed Sep  2 18:51:31 2026
+Install Date    : Sun Sep  6 22:41:35 2026
+Install Reason  : Installed as a dependency for another package
+Install Script  : No
+Validated By    : SHA-256 Sum  Signature
+
+Name            : mingw-w64-ucrt-x86_64-nettle
+Version         : 4.0-1
+Description     : A low-level cryptographic library (mingw-w64)
+Architecture    : any
+URL             : https://www.lysator.liu.se/~nisse/nettle
+Licenses        : spdx:GPL-2.0-or-later  spdx:LGPL-3.0-or-later
+Groups          : None
+Provides        : None
+Depends On      : mingw-w64-ucrt-x86_64-cc-libs  mingw-w64-ucrt-x86_64-gmp
+Optional Deps   : None
+Required By     : mingw-w64-ucrt-x86_64-gnutls
+Optional For    : None
+Conflicts With  : None
+Replaces        : None
+Installed Size  : 2.79 MiB
+Packager        : CI (https://github.com/msys2/msys2-autobuild/actions/runs/28774032409/job/85313814994)
+Build Date      : Mon Jul  6 11:38:40 2026
+Install Date    : Sun Sep  6 22:42:21 2026
+Install Reason  : Installed as a dependency for another package
+Install Script  : No
+Validated By    : SHA-256 Sum  Signature
+
+Name            : mingw-w64-ucrt-x86_64-p11-kit
+Version         : 0.26.5-1
+Description     : Library to work with PKCS#11 modules (mingw-w64)
+Architecture    : any
+URL             : https://p11-glue.freedesktop.org/p11-kit.html
+Licenses        : spdx:BSD-3-Clause
+Groups          : None
+Provides        : None
+Depends On      : mingw-w64-ucrt-x86_64-libtasn1  mingw-w64-ucrt-x86_64-libffi  mingw-w64-ucrt-x86_64-gettext-runtime
+Optional Deps   : None
+Required By     : mingw-w64-ucrt-x86_64-gnutls
+Optional For    : None
+Conflicts With  : None
+Replaces        : None
+Installed Size  : 3.84 MiB
+Packager        : CI (https://github.com/msys2/msys2-autobuild/actions/runs/31195230530/job/92921707433)
+Build Date      : Fri Aug  7 17:59:39 2026
+Install Date    : Sun Sep  6 22:42:21 2026
+Install Reason  : Installed as a dependency for another package
+Install Script  : No
+Validated By    : SHA-256 Sum  Signature
+
+Name            : mingw-w64-ucrt-x86_64-pcre2
+Version         : 10.48-3
+Description     : A library that implements Perl 5-style regular expressions (mingw-w64)
+Architecture    : any
+URL             : https://pcre.org/
+Licenses        : spdx:BSD-3-Clause
+Groups          : None
+Provides        : None
+Depends On      : mingw-w64-ucrt-x86_64-bzip2  mingw-w64-ucrt-x86_64-wineditline  mingw-w64-ucrt-x86_64-zlib
+Optional Deps   : None
+Required By     : mingw-w64-ucrt-x86_64-glib2  mingw-w64-ucrt-x86_64-ncurses
+Optional For    : None
+Conflicts With  : None
+Replaces        : None
+Installed Size  : 7.11 MiB
+Packager        : CI (https://github.com/msys2/msys2-autobuild/actions/runs/33657832114/job/100340723201)
+Build Date      : Wed Sep  2 18:56:43 2026
+Install Date    : Sun Sep  6 22:41:44 2026
+Install Reason  : Installed as a dependency for another package
+Install Script  : No
+Validated By    : SHA-256 Sum  Signature
+
+Name            : mingw-w64-ucrt-x86_64-pixman
+Version         : 0.46.4-3
+Description     : The pixel-manipulation library for X and cairo (mingw-w64)
+Architecture    : any
+URL             : https://gitlab.freedesktop.org/pixman/pixman
+Licenses        : spdx:MIT
+Groups          : None
+Provides        : None
+Depends On      : mingw-w64-ucrt-x86_64-cc-libs
+Optional Deps   : None
+Required By     : None
+Optional For    : None
+Conflicts With  : None
+Replaces        : None
+Installed Size  : 1795.04 KiB
+Packager        : CI (msys2/msys2-autobuild/actions/runs/25608534894/job/75174541227)
+Build Date      : Sat May  9 23:19:00 2026
+Install Date    : Sun Sep  6 22:42:20 2026
+Install Reason  : Explicitly installed
+Install Script  : No
+Validated By    : SHA-256 Sum  Signature
+
+Name            : mingw-w64-ucrt-x86_64-virglrenderer
+Version         : 1.3.0-1
+Description     : A virtual 3D GPU library, that allows the guest operating system to use the host GPU to accelerate 3D rendering (mingw-w64)
+Architecture    : any
+URL             : https://docs.mesa3d.org/drivers/virgl/
+Licenses        : spdx:MIT
+Groups          : None
+Provides        : None
+Depends On      : mingw-w64-ucrt-x86_64-cc-libs  mingw-w64-ucrt-x86_64-libepoxy  mingw-w64-ucrt-x86_64-libwinpthread
+Optional Deps   : None
+Required By     : None
+Optional For    : None
+Conflicts With  : None
+Replaces        : None
+Installed Size  : 3.65 MiB
+Packager        : CI (msys2/msys2-autobuild/actions/runs/24937584875/job/73025715704)
+Build Date      : Sat Apr 25 20:28:36 2026
+Install Date    : Sun Sep  6 22:42:23 2026
+Install Reason  : Explicitly installed
+Install Script  : No
+Validated By    : SHA-256 Sum  Signature
+
+Name            : mingw-w64-ucrt-x86_64-zlib
+Version         : 1.3.2-2
+Description     : Compression library implementing the deflate compression method found in gzip and PKZIP (mingw-w64)
+Architecture    : any
+URL             : https://www.zlib.net/
+Licenses        : spdx:Zlib
+Groups          : None
+Provides        : None
+Depends On      : None
+Optional Deps   : None
+Required By     : mingw-w64-ucrt-x86_64-angleproject  mingw-w64-ucrt-x86_64-binutils  mingw-w64-ucrt-x86_64-gcc  mingw-w64-ucrt-x86_64-glib2  mingw-w64-ucrt-x86_64-gnutls  mingw-w64-ucrt-x86_64-libpng  mingw-w64-ucrt-x86_64-pcre2  mingw-w64-ucrt-x86_64-python  mingw-w64-ucrt-x86_64-sqlite3  mingw-w64-ucrt-x86_64-tcl
+Optional For    : None
+Conflicts With  : None
+Replaces        : None
+Installed Size  : 427.78 KiB
+Packager        : CI (msys2/msys2-autobuild/ad23bc5d/22706207431)
+Build Date      : Thu Mar  5 09:24:20 2026
+Install Date    : Sun Sep  6 22:41:37 2026
+Install Reason  : Installed as a dependency for another package
+Install Script  : No
+Validated By    : SHA-256 Sum  Signature
+
+Name            : mingw-w64-ucrt-x86_64-zstd
+Version         : 1.5.7-2
+Description     : Zstandard - Fast real-time compression algorithm (mingw-w64)
+Architecture    : any
+URL             : https://facebook.github.io/zstd/
+Licenses        : spdx:BSD-3-Clause OR GPL-2.0-or-later
+Groups          : None
+Provides        : None
+Depends On      : mingw-w64-ucrt-x86_64-cc-libs
+Optional Deps   : None
+Required By     : mingw-w64-ucrt-x86_64-binutils  mingw-w64-ucrt-x86_64-gcc  mingw-w64-ucrt-x86_64-gnutls
+Optional For    : None
+Conflicts With  : None
+Replaces        : None
+Installed Size  : 3.56 MiB
+Packager        : CI (msys2/msys2-autobuild/actions/runs/25228967898/job/73979493982)
+Build Date      : Fri May  1 21:15:42 2026
+Install Date    : Sun Sep  6 22:41:37 2026
+Install Reason  : Explicitly installed
+Install Script  : No
+Validated By    : SHA-256 Sum  Signature
+

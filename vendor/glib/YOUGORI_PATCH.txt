@@ -1,0 +1,14 @@
+glib 0.18.5: RUSTSEC-2024-0429 backport
+
+Original source: https://crates.io/crates/glib/0.18.5
+Upstream fix: https://github.com/gtk-rs/gtk-rs-core/pull/1343
+Advisory: https://rustsec.org/advisories/RUSTSEC-2024-0429.html
+
+Yougori modification, 2026-09-22: src/variant_iter.rs, impl_get only.
+Make the output pointer mutable and pass &mut p to g_variant_get_child.
+The function writes through its variadic output parameter; using &p was
+undefined behavior and could produce a null pointer under optimization.
+No API or dependency versions changed. The upstream MIT license is retained.
+This local source must be included in corresponding-source archives.
+The version is intentionally unchanged; scanners need this patch provenance.
+Run optimized iterator regression tests on Linux, not only cargo check.

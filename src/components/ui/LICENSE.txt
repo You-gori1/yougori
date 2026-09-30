@@ -1,0 +1,40 @@
+Coss UI attribution and MIT license
+
+The upstream portions of the files listed in compliance/frontend.json derive
+from Coss UI, by coss.com and the Coss UI contributors.
+Source: https://github.com/cosscom/coss/tree/e937becd2d5ffb5c621eed6f8b1f223cbb6051e7/apps/ui
+Registry: https://coss.com/ui/r/{name}.json
+
+The upstream apps/ui package explicitly declares MIT. Its repository-level
+LICENSING.md identifies apps/ui as an MIT exception to the repository default.
+The reviewed UI files contain no individual copyright notice. This attribution
+preserves the project identity without inventing a copyright owner or year.
+The declarations and reviewed revision are retained in
+compliance/notices/coss-ui-declaration.txt. The revision identifies the source
+review; it is not a claim that every component was first imported on that date.
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Original Yougori modifications in this version are offered under AGPL-3.0-only,
+with a separate commercial option where Yougori LLC has the necessary rights.
+Neither option replaces the MIT terms
+for the upstream portions of these files. See the root LICENSE and
+COMMERCIAL_LICENSE.txt.

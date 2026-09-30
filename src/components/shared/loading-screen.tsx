@@ -1,0 +1,30 @@
+import { WindowControls } from "./window-controls"
+
+export function LoadingScreen({ error, onRetry, onContinue, message = "Starting your workspace…" }: { error?: string | null; onRetry?: () => void; onContinue?: () => void; message?: string }) {
+  return (
+    <main className="startup-screen" aria-label={error ? "Yougori startup error" : "Loading Yougori"} aria-busy={!error}>
+      <div data-tauri-drag-region className="fixed inset-x-0 top-0 z-50 flex h-14 items-center justify-end px-4"><WindowControls /></div>
+      <div className="startup-content">
+        <p className="startup-brand">Yougori</p>
+        {error ? (
+          <>
+            <div role="alert">
+              <p className="startup-title">{onContinue ? "Personal Vault needs attention" : "Yougori couldn’t start"}</p>
+              <p className="startup-message">{onContinue ? error.includes("Container disk needs recovery") ? "Your vault container disk needs recovery. Its data was left in place. You can open Yougori and retry from Personal Vault MCP." : "Your Personal Vault could not start. You can open Yougori and retry from Personal Vault MCP." : error}</p>
+            </div>
+            <div className="flex flex-wrap justify-center gap-3">
+              {onRetry ? <button className="startup-retry" onClick={onRetry} type="button">Try again</button> : null}
+              {onContinue ? <button className="startup-retry" onClick={onContinue} type="button">Open Yougori</button> : null}
+            </div>
+            {onContinue ? <details className="mx-auto mt-5 max-w-xl px-4 text-left text-xs"><summary className="cursor-pointer">Technical details</summary><pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words">{error}</pre></details> : null}
+          </>
+        ) : (
+          <>
+            <div className="startup-track" aria-hidden="true"><span /></div>
+            <p className="startup-message" role="status">{message}</p>
+          </>
+        )}
+      </div>
+    </main>
+  )
+}

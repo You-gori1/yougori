@@ -1,0 +1,23 @@
+#!/sbin/openrc-run
+
+name="containerd"
+description="Yougori internal OCI runtime"
+command="/usr/local/bin/containerd"
+command_args="--config /etc/containerd/config.toml"
+command_background="yes"
+pidfile="/run/containerd.pid"
+output_log="/var/log/containerd.log"
+error_log="/var/log/containerd.log"
+
+start_pre() {
+  /usr/local/sbin/opendock-agent --prepare-container-storage || return 1
+  if [ -f "$output_log" ] && [ "$(wc -c < "$output_log")" -gt 1048576 ]; then
+    tail -c 262144 "$output_log" > "$output_log.trimmed"
+    mv -f "$output_log.trimmed" "$output_log"
+  fi
+}
+
+depend() {
+  need localmount
+  after networking
+}
