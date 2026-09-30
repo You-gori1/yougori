@@ -78,7 +78,7 @@ replace the backing appliance of a running development environment.
   native macOS, signing, engineering review and
   account-backed acceptance are still required.
 - Exact Windows and Linux candidate source ZIPs are now published and verified
-  on the public `You-gori1/yougori` repository. This completes public source
+  on the public `you-gori/yougori` repository. This completes public source
   delivery for those recorded candidate hashes; it does not approve later source
   edits or establish trusted signatures or clean-machine acceptance.
 
