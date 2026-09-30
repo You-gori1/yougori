@@ -60,7 +60,7 @@ export function pinPublisher(script, subject) {
 }
 
 export function windowsSigner(path) {
-  const script = "$ErrorActionPreference = 'Stop'; Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Security/Microsoft.PowerShell.Security.psd1'); $s = Get-AuthenticodeSignature -LiteralPath $env:YOUGORI_RELEASE_SIGNED_FILE; if ($s.Status -ne 'Valid' -or -not $s.TimeStamperCertificate) { exit 3 }; $s.SignerCertificate.Subject"
+  const script = "$ErrorActionPreference = 'Stop'; [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false); Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Security/Microsoft.PowerShell.Security.psd1'); $s = Get-AuthenticodeSignature -LiteralPath $env:YOUGORI_RELEASE_SIGNED_FILE; if ($s.Status -ne 'Valid' -or -not $s.TimeStamperCertificate) { exit 3 }; $s.SignerCertificate.Subject"
   const result = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
     env: { ...process.env, YOUGORI_RELEASE_SIGNED_FILE: resolve(path) }, encoding: "utf8", windowsHide: true,
   })
