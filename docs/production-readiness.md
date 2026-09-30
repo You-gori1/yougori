@@ -20,6 +20,13 @@ can be advertised. Linux ARM64 and Apple Silicon run the x86-64 guest appliance
 through software emulation; use amd64 guest images. ARM-native guests and GPU/CUDA
 are unavailable. Physical Raspberry Pi runtime acceptance remains required.
 
+ARM64 guests have a ten-minute maximum boot window because the emulated x86
+appliance can take several minutes to start on a Raspberry Pi. Readiness probes
+finish the wait immediately when the guest is healthy; QEMU exits still fail
+immediately. This does not improve emulation speed. A physical Pi has reported
+reaching OpenRC startup before the previous three-minute deadline, but successful
+container startup with the extended deadline still needs hardware validation.
+
 The Linux ARM64 CLI and engine can be cross-built on Linux with an ARM64 GCC
 linker and an ARM64 GTK3 development sysroot. Select both the payload architecture
 and Cargo target explicitly, then verify the extracted binaries on ARM64:

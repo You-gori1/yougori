@@ -840,7 +840,8 @@ let result:serde_json::Value=self.agent_post("/v1/containers/logs",&serde_json::
             if !gpu_enabled && gpu_launch.explicit() { break; }
             for accelerator in accelerators {
                 let mut child = self.spawn_appliance(&endpoint, accelerator, gpu_enabled, &gpu_launch, capacity, max_memory_mib, qmp_port)?;
-                let deadline = Instant::now() + super::host_platform::guest_boot_timeout();
+                let boot_timeout = super::host_platform::guest_boot_timeout();
+                let deadline = Instant::now() + boot_timeout;
                 let storage_deadline = Instant::now() + Duration::from_secs(31 * 60);
                 loop {
                     if let Some(status) = child
@@ -874,7 +875,9 @@ let result:serde_json::Value=self.agent_post("/v1/containers/logs",&serde_json::
                     }
                     if Instant::now() >= deadline && !(Instant::now() < storage_deadline && storage_preparation_in_progress(&self.appliance_log_tail())) {
                         last_error = format!(
-                            "Yougori appliance did not become ready: {}",
+                            "Yougori appliance did not become ready within {} seconds. {}Boot log: {}",
+                            boot_timeout.as_secs(),
+                            if cfg!(target_arch = "aarch64") { "This ARM64 host runs the x86-64 appliance through software emulation. " } else { "" },
                             self.appliance_log_tail()
                         );
                         break;
