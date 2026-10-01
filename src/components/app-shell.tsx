@@ -5,6 +5,7 @@ import { startFirstLaunchInstructions } from "@/lib/instructions-tour"
 import "@/components/dashboard-actions.css"
 import { PreferencesDialog } from "@/components/dialogs/preferences-dialog"
 import { ReleaseUpdateNotice } from "@/components/release-update"
+import { EnvironmentDownloadStatus } from "@/components/environment-download-status"
 import { PersonalVault } from "@/components/personal-vault"
 import { ModelWorkspace } from "@/components/model-workspace"
 import yougoriLogo from "../../Yoo-app.png"
@@ -37,6 +38,7 @@ export function AppShell({ onCreate, children, vaultError }: {
           <div data-tauri-drag-region className="min-w-0 flex-1 self-stretch" aria-hidden="true" />
           <div className="dashboard-actions ml-auto flex flex-wrap items-center justify-end gap-2" role="group" aria-label="Dashboard actions">
             <RemoteAccessStatus />
+            <EnvironmentDownloadStatus />
             <div className="dashboard-action-group">
               <PersonalVault startupError={vaultError} />
               <ModelWorkspace />

@@ -97,11 +97,17 @@ export function PodWorkbench(props: PodProps) {
   useEffect(() => {
     const term = search.trim()
     if (!term) { setFound(null); return }
-    const timer = window.setTimeout(() => { void runpodApi.searchTemplates(term).then(setFound).catch(() => setFound([])) }, 350)
-    return () => window.clearTimeout(timer)
+    let alive = true
+    const timer = window.setTimeout(() => {
+      void runpodApi.searchTemplates(term)
+        .then(result => { if (alive) setFound(result) })
+        .catch(() => { if (alive) setFound([]) })
+    }, 350)
+    return () => { alive = false; window.clearTimeout(timer) }
   }, [search])
   useEffect(() => {
-    if (!template) { setDetails(null); return }
+    setDetails(null)
+    if (!template) return
     setContainerDisk(template.containerDiskGb || 20)
     setVolumeGb(template.volumeGb || (compute === "gpu" ? 20 : 0))
     if (!template.volumeGb && compute === "cpu") setStorage("none")

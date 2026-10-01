@@ -33,6 +33,24 @@ export function ModelChat({ environmentId }: { environmentId: string }) {
   const settled = historyLoad !== "loading"
   const savedJson = useRef("")
   const pendingSave = useRef<string | null>(null)
+  const saveTask = useRef<Promise<void> | null>(null)
+  const [saveError, setSaveError] = useState("")
+  const [saveRetry, setSaveRetry] = useState(0)
+  const persistHistory = useCallback((json: string) => {
+    const save = async () => {
+      if (json !== savedJson.current) {
+        await modelsApi.saveHistory(environmentId, JSON.parse(json))
+        savedJson.current = json
+      }
+      if (pendingSave.current === json) pendingSave.current = null
+    }
+    // Older saves must finish before newer ones, even after a transient failure.
+    const task = saveTask.current ? saveTask.current.catch(() => undefined).then(save) : save()
+    saveTask.current = task
+    const finished = () => { if (saveTask.current === task) saveTask.current = null }
+    void task.then(finished, finished)
+    return task
+  }, [environmentId])
   const streamingRef = useRef(false)
   const [draft, setDraft] = useState("")
   const [streaming, setStreaming] = useState<string | null>(null)
@@ -75,7 +93,7 @@ export function ModelChat({ environmentId }: { environmentId: string }) {
         if (legacy) { value = serializeChats(legacy); await modelsApi.saveHistory(environmentId, value); localStorage.removeItem(legacyChatKey(environmentId)) }
         const next = parseChats(value)
         const json = JSON.stringify(serializeChats(next))
-        if (!alive || (!initial && (json === savedJson.current || streamingRef.current))) return
+        if (!alive || (!initial && (json === savedJson.current || streamingRef.current || pendingSave.current !== null))) return
         savedJson.current = json
         setStore(next)
         if (initial) setHistoryLoad("saved")
@@ -92,13 +110,18 @@ export function ModelChat({ environmentId }: { environmentId: string }) {
   useEffect(() => {
     if (!loaded || streaming) return
     const json = JSON.stringify(serializeChats(store))
-    if (json === savedJson.current) return
+    if (json === savedJson.current && !saveTask.current) { pendingSave.current = null; return }
     pendingSave.current = json
-    const timer = window.setTimeout(() => { pendingSave.current = null; savedJson.current = json; modelsApi.saveHistory(environmentId, JSON.parse(json)).catch(() => undefined) }, 400)
-    return () => window.clearTimeout(timer)
-  }, [environmentId, store, streaming, loaded])
+    let alive = true
+    const timer = window.setTimeout(() => {
+      void persistHistory(json)
+        .then(() => { if (alive) setSaveError("") })
+        .catch(() => { if (alive) setSaveError("Chat history couldn't be saved. Keep this window open and retry.") })
+    }, 400)
+    return () => { alive = false; window.clearTimeout(timer) }
+  }, [store, streaming, loaded, saveRetry, persistHistory])
   // Closing the chat right after a reply still saves it.
-  useEffect(() => () => { if (pendingSave.current) void modelsApi.saveHistory(environmentId, JSON.parse(pendingSave.current)).catch(() => undefined) }, [environmentId])
+  useEffect(() => () => { if (pendingSave.current) void persistHistory(pendingSave.current).catch(() => undefined) }, [persistHistory])
   useLayoutEffect(() => { if (stick.current && log.current) log.current.scrollTop = log.current.scrollHeight }, [messages])
   // Keep the open conversation visible in the sidebar, including new chats that appear at the top.
   useLayoutEffect(() => {
@@ -267,6 +290,7 @@ export function ModelChat({ environmentId }: { environmentId: string }) {
       {environment?.lastError ? <p role="alert" className="model-error">{environment.lastError}</p> : null}
       {environmentStatus === "stopped" || environmentStatus === "error" ? <Button disabled={Boolean(environmentActions[environmentId])} onClick={() => void setEnvironmentStatus(environmentId, "running").catch(() => undefined)}>Start model</Button> : null}
       {error ? <p role="alert" className="model-error">{error}</p> : null}
+      {saveError ? <div role="alert" className="model-error"><p>{saveError}</p><Button size="xs" variant="outline" onClick={() => { setSaveError(""); setSaveRetry(value => value + 1) }}>Retry saving</Button></div> : null}
 
       <form className="model-composer" onSubmit={event => { event.preventDefault(); send() }}>
         <textarea ref={composer} aria-label="Message your model" placeholder={ready ? `Message ${modelName}…` : "Waiting for the model…"} rows={1} value={draft} maxLength={16000}

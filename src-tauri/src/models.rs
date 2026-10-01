@@ -486,6 +486,9 @@ pub struct SavedEnvironmentService {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlatformState {
+    /// Completed environment-copy downloads across every temporary link.
+    #[serde(default)]
+    pub environment_downloads: std::collections::BTreeMap<String, u64>,
     #[serde(default)]
     pub cloud_copy_sources: std::collections::BTreeMap<String, crate::duplication::VerifiedSource>,
     #[serde(default)]

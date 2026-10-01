@@ -12,6 +12,45 @@ const boundary = script.indexOf("Write-Host 'Finding the latest Yougori release.
 assert.ok(boundary > 0)
 const selection = script.slice(0, boundary) + '\nWrite-Output $platform\n'
 
+for (const mode of ['offline', 'stops', 'refuses', 'timeout']) test(`Windows reinstall handles an engine that ${mode}`, { skip: process.platform !== "win32" }, t => {
+  const root = mkdtempSync(join(tmpdir(), 'yougori reinstall '))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  const cli = join(root, 'engine.cmd')
+  const log = join(root, 'arguments.txt')
+  const stopped = join(root, 'stopped.txt')
+  writeFileSync(cli, `@echo off\n@echo %*>>"%FIXTURE_CLI_LOG%"\n@if "%2"=="quit" goto quit\n@if "%FIXTURE_MODE%"=="offline" goto offline\n@if exist "%FIXTURE_STOPPED%" goto offline\n@exit /b 0\n:quit\n@if "%FIXTURE_MODE%"=="refuses" exit /b 4\n@if "%FIXTURE_MODE%"=="stops" echo stopped>"%FIXTURE_STOPPED%"\n@exit /b 0\n:offline\n@echo engine offline 1>&2\n@exit /b 1\n`)
+  const start = script.indexOf('function Stop-InstalledEngine')
+  const fragment = script.slice(start, script.indexOf('function Start-InstalledEngine', start))
+  const fixture = `$ErrorActionPreference='Stop'; function Fail($message) { throw $message }; function Start-Sleep { param($Seconds) };\n${fragment}\ntry { Stop-InstalledEngine $env:FIXTURE_CLI; Write-Output 'COPY_MAY_CONTINUE' } catch { Write-Output $_.Exception.Message; exit 7 }`
+  const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(fixture, 'utf16le').toString('base64')], {
+    encoding: 'utf8', windowsHide: true, timeout: 15000,
+    env: { ...process.env, FIXTURE_MODE: mode, FIXTURE_CLI: cli, FIXTURE_CLI_LOG: log, FIXTURE_STOPPED: stopped },
+  })
+  assert.equal(result.status, ['refuses', 'timeout'].includes(mode) ? 7 : 0, result.stderr)
+  const calls = readFileSync(log, 'utf8').trim().split(/\r?\n/)
+  if (mode === 'offline') assert.deepEqual(calls, ['app status'])
+  if (mode === 'stops') assert.deepEqual(calls, ['app status', 'app quit --yes', 'app status'])
+  assert.match(result.stdout, ['refuses', 'timeout'].includes(mode) ? /Existing files were left untouched/ : /COPY_MAY_CONTINUE/)
+})
+
+for (const exit of [0, 1]) test(`Windows installer starts the installed engine and reports startup failure (exit ${exit})`, { skip: process.platform !== "win32" }, t => {
+  const root = mkdtempSync(join(tmpdir(), 'yougori startup '))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  const cli = join(root, 'engine.cmd')
+  const log = join(root, 'arguments.txt')
+  writeFileSync(cli, `@echo off\n@echo %*>>"%FIXTURE_CLI_LOG%"\n@if "%2"=="start" exit /b ${exit}\n@exit /b 0\n`)
+  const start = script.indexOf('function Start-InstalledEngine')
+  const fixture = `$ErrorActionPreference='Stop';\n${script.slice(start, boundary)}\nStart-InstalledEngine $env:FIXTURE_CLI; Write-Output 'INSTALL_COMPLETED'`
+  const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(fixture, 'utf16le').toString('base64')], {
+    encoding: 'utf8', windowsHide: true, timeout: 15000,
+    env: { ...process.env, FIXTURE_CLI: cli, FIXTURE_CLI_LOG: log },
+  })
+  assert.equal(result.status, 0, result.stderr)
+  assert.deepEqual(readFileSync(log, 'utf8').trim().split(/\r?\n/), exit === 0 ? ['app start', 'doctor --format table'] : ['app start'])
+  assert.match(result.stdout, /INSTALL_COMPLETED/)
+  if (exit) assert.match(result.stdout + result.stderr, /files are installed, but engine startup failed/)
+})
+
 for (const exit of [0, 1]) test(`Windows skill setup uses the installed CLI and tolerates a conflict (exit ${exit})`, { skip: process.platform !== "win32" }, t => {
   const root = mkdtempSync(join(tmpdir(), "yougori skill setup "))
   t.after(() => rmSync(root, { recursive: true, force: true }))

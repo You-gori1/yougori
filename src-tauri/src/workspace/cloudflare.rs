@@ -176,6 +176,7 @@ fn token_id(value: &str) -> Result<String, String> {
 }
 
 impl Account {
+    pub(crate) fn host_port(&self) -> u16 { self.credentials.host_port }
     pub(crate) fn resolve(
         environment_id: &str,
         port: u16,

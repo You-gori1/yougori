@@ -32,7 +32,12 @@ def load_usage():
     try:
         with open(USAGE_PATH, encoding="utf-8") as file:
             value = json.load(file)
-        if value.get("version") == 1 and all(isinstance(value.get(k), t) for k, t in (("totals", dict), ("sources", dict), ("hours", dict), ("recent", list))):
+        def counters_valid(counters):
+            return isinstance(counters, dict) and all(type(count) is int and count >= 0 for count in counters.values())
+        if (value.get("version") == 1
+                and counters_valid(value.get("totals")) and counters_valid(value.get("sources"))
+                and isinstance(value.get("hours"), dict) and all(counters_valid(bucket) for bucket in value["hours"].values())
+                and isinstance(value.get("recent"), list)):
             return value
     except (OSError, ValueError, AttributeError):
         pass
@@ -337,7 +342,10 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def authorized(self):
-        return secrets.compare_digest(self.headers.get("Authorization", ""), "Bearer " + TOKEN)
+        value = self.headers.get("Authorization", "")
+        # HTTP header values may contain Latin-1 bytes. compare_digest rejects
+        # non-ASCII strings, so malformed keys must fail authentication first.
+        return value.isascii() and secrets.compare_digest(value, "Bearer " + TOKEN)
 
     def do_GET(self):
         if not self.authorized():
@@ -348,7 +356,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(200, {"object": "list", "data": [{"id": MODEL, "object": "model", "owned_by": "local"}]})
         if self.path == "/v1/usage":
             with USAGE_LOCK:
-                return self.reply(200, json.loads(json.dumps(USAGE)))
+                usage = json.loads(json.dumps(USAGE))
+            return self.reply(200, usage)
         self.reply(404, {"error": {"message": "Endpoint not found"}})
 
     def do_POST(self):

@@ -14,6 +14,7 @@ vi.mock("@/components/ui/menu", () => ({
 }))
 
 const { remove } = vi.hoisted(() => ({ remove: vi.fn() }))
+vi.mock("@/components/dialogs/environment-download-dialog", () => ({ EnvironmentDownloadDialog: ({ environment }: { environment: Environment }) => <div role="dialog">Download {environment.name}</div> }))
 vi.mock("@/context/platform-context", () => ({ usePlatform: () => ({ deleteEnvironment: remove, environmentActions: {} }) }))
 afterEach(() => { cleanup(); vi.clearAllMocks(); vi.restoreAllMocks(); vi.unstubAllGlobals(); delete document.documentElement.dataset.yougoriNodeContext })
 const environment = { id: "node-one", name: "My database", kind: "container", status: "stopped" } as Environment
@@ -67,4 +68,19 @@ it("preserves the Windows native context menu and confirms only its selected nod
   fireEvent(window, new CustomEvent("yougori-delete-node", { detail: "node-one" }))
   expect(await screen.findByRole("alertdialog")).toHaveTextContent("Delete My database?")
   expect(remove).not.toHaveBeenCalled()
+})
+it("offers a download link from the node context menu", async () => {
+  render(<EnvironmentNodeMenu environment={environment}><div>Node surface</div></EnvironmentNodeMenu>);
+  fireEvent.contextMenu(screen.getByText("Node surface"));
+  fireEvent.click(screen.getByRole("button", { name: "Create a download link" }));
+  expect(await screen.findByRole("dialog")).toHaveTextContent("Download My database");
+  expect(remove).not.toHaveBeenCalled();
+})
+it("opens only the native menu's selected download node", async () => {
+  render(<EnvironmentNodeMenu environment={environment}><div>Node surface</div></EnvironmentNodeMenu>);
+  fireEvent(window, new CustomEvent("yougori-download-node", { detail: "other-node" }));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  fireEvent(window, new CustomEvent("yougori-download-node", { detail: "node-one" }));
+  expect(await screen.findByRole("dialog")).toHaveTextContent("Download My database");
+  expect(remove).not.toHaveBeenCalled();
 })

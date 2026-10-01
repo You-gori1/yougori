@@ -1,5 +1,6 @@
 //! Portable local backups: a small manifest and a streamed, checksummed disk artifact.
-//! No archive extraction and no paths from the manifest are used as host destinations.
+//! Download archives accept only two fixed regular-file entries. No paths from
+//! the manifest are used as host destinations.
 use crate::{
     backup::{BackupManager, BackupRestore},
     models::*,
@@ -281,6 +282,92 @@ fn write_backup(parent: &Path, manifest: &Manifest, artifact: &Path) -> Result<P
 }
 
 fn read_backup(path: &Path, staging: &Path) -> Result<BackupRestore, String> {
+    use std::io::{Seek, SeekFrom};
+    let mut source = regular_file(path)?;
+    let mut prefix = [0u8; 512];
+    let count = source.read(&mut prefix).map_err(|e| e.to_string())?;
+    source.seek(SeekFrom::Start(0)).map_err(|e| e.to_string())?;
+    // Single-file downloads are a strict two-entry tar, never a general archive
+    // extraction. Existing JSON backup manifests keep their original format.
+    if count == 512 && &prefix[257..262] == b"ustar" {
+        let temporary = tempfile::tempdir_in(staging).map_err(|e| e.to_string())?;
+        unpack_download(source, temporary.path())?;
+        return read_backup_manifest(&temporary.path().join(MANIFEST), staging);
+    }
+    read_backup_manifest(path, staging)
+}
+
+pub(crate) fn pack_download(manifest: &Path, destination: &Path) -> Result<u64, String> {
+    let payload_size = regular_file(&manifest.parent().ok_or("Missing backup folder")?.join(PAYLOAD))?.metadata().map_err(|e| e.to_string())?.len();
+    let disks = sysinfo::Disks::new_with_refreshed_list();
+    let disk = crate::runtime::storage::runtime_disk(&disks, destination.parent().ok_or("Missing download folder")?).ok_or("Cannot determine available download storage")?;
+    if disk.available_space() < payload_size.saturating_add(2 * 1024 * 1024 * 1024) { return Err("Not enough free space to prepare this download. Yougori keeps 2 GB available for your computer.".into()); }
+    let output = OpenOptions::new().write(true).create_new(true).open(destination).map_err(|e| e.to_string())?;
+    let result = (|| {
+        let mut archive = tar::Builder::new(output);
+        for name in [MANIFEST, PAYLOAD] {
+            let mut input = regular_file(&manifest.parent().ok_or("Missing backup folder")?.join(name))?;
+            let size = input.metadata().map_err(|e| e.to_string())?.len();
+            if name == MANIFEST && size > MAX_MANIFEST { return Err("Backup manifest is too large".into()); }
+            let mut header = tar::Header::new_ustar();
+            header.set_size(size);
+            header.set_mode(0o600);
+            header.set_cksum();
+            archive.append_data(&mut header, name, &mut input).map_err(|e| e.to_string())?;
+        }
+        let output = archive.into_inner().map_err(|e| e.to_string())?;
+        output.sync_all().map_err(|e| e.to_string())?;
+        output.metadata().map(|m| m.len()).map_err(|e| e.to_string())
+    })();
+    if result.is_err() { let _ = fs::remove_file(destination); }
+    result
+}
+
+fn unpack_download(source: File, destination: &Path) -> Result<(), String> {
+    let mut archive = tar::Archive::new(source);
+    let mut seen = std::collections::HashSet::new();
+    let mut expected_payload = None;
+    for entry in archive.entries().map_err(|e| e.to_string())? {
+        let mut entry = entry.map_err(|e| e.to_string())?;
+        let name = entry.path().map_err(|e| e.to_string())?.to_str().ok_or("Invalid download archive path")?.to_owned();
+        if ![MANIFEST, PAYLOAD].contains(&name.as_str()) || !entry.header().entry_type().is_file() || !seen.insert(name.clone()) {
+            return Err("A Yougori download must contain exactly backup.yougori and disk.data, without links or other paths".into());
+        }
+        let limit = if name == MANIFEST { MAX_MANIFEST } else { 2 * 1024 * 1024 * 1024 * 1024 };
+        if entry.size() == 0 || entry.size() > limit { return Err("Invalid download archive size".into()); }
+        if name == MANIFEST {
+            if seen.len() != 1 { return Err("The backup manifest must be the first download entry".into()); }
+            let mut bytes = Vec::new(); entry.read_to_end(&mut bytes).map_err(|e| e.to_string())?;
+            let manifest: Manifest = serde_json::from_slice(&bytes).map_err(|e| format!("Invalid download manifest: {e}"))?;
+            supported(&manifest.environment)?;
+            if !matches!(manifest.version, 1 | 2) || manifest.size == 0 || manifest.size > 2 * 1024 * 1024 * 1024 * 1024
+                || manifest.sha256.len() != 64 || !manifest.sha256.bytes().all(|b| b.is_ascii_hexdigit()) { return Err("Invalid download manifest".into()); }
+            expected_payload = Some(manifest.size);
+            fs::write(destination.join(MANIFEST), bytes).map_err(|e| e.to_string())?;
+            continue;
+        }
+        if expected_payload != Some(entry.size()) { return Err("Download payload size does not match its manifest".into()); }
+        let mut output = OpenOptions::new().write(true).create_new(true).open(destination.join(name)).map_err(|e| e.to_string())?;
+        let mut bytes = vec![0; 256 * 1024]; let mut since_check = 64 * 1024 * 1024;
+        loop {
+            if since_check >= 64 * 1024 * 1024 {
+                let disks = sysinfo::Disks::new_with_refreshed_list();
+                let disk = crate::runtime::storage::runtime_disk(&disks, destination).ok_or("Cannot determine available download storage")?;
+                if disk.available_space() < 2 * 1024 * 1024 * 1024 { return Err("Not enough free space to import this environment. Yougori keeps 2 GB available for your computer.".into()); }
+                since_check = 0;
+            }
+            let count = entry.read(&mut bytes).map_err(|e| format!("Incomplete download: {e}"))?;
+            if count == 0 { break; }
+            output.write_all(&bytes[..count]).map_err(|e| e.to_string())?;
+            since_check += count;
+        }
+        output.sync_all().map_err(|e| e.to_string())?;
+    }
+    if seen.len() != 2 { return Err("The environment download is incomplete".into()); }
+    Ok(())
+}
+
+fn read_backup_manifest(path: &Path, staging: &Path) -> Result<BackupRestore, String> {
     let mut bytes = Vec::new();
     regular_file(path)?
         .take(MAX_MANIFEST + 1)
@@ -719,6 +806,14 @@ mod tests {
         let legacy_restored = read_backup(&legacy, temp.path()).unwrap();
         assert_eq!(legacy_restored.environment.runtime, manifest.environment.runtime);
         let restored = read_backup(&path, temp.path()).unwrap();
+        let download = temp.path().join("complete-environment.yougori");
+        let size = pack_download(&path, &download).unwrap();
+        assert_eq!(size, fs::metadata(&download).unwrap().len());
+        let downloaded_copy = read_backup(&download, temp.path()).unwrap();
+        assert_ne!(downloaded_copy.environment.id, restored.environment.id);
+        assert_eq!(downloaded_copy.environment.runtime, restored.environment.runtime);
+        assert_eq!(downloaded_copy.environment.status, EnvironmentStatus::Stopped);
+        assert!(downloaded_copy.connections.is_empty());
         assert_ne!(restored.environment.id, manifest.environment.id);
         assert_ne!(restored.snapshot.id, manifest.snapshot.id);
         assert_eq!(restored.environment.status, EnvironmentStatus::Stopped);
@@ -751,6 +846,30 @@ mod tests {
         assert_eq!(layer, "disk");
         // Export again creates a separate folder, never replaces an existing backup.
         assert_ne!(write_backup(temp.path(), &manifest, &source).unwrap(), path);
+    }
+    #[test]
+    fn download_archives_reject_links_duplicates_extra_paths_and_missing_payloads() {
+        for mode in ["link", "duplicate", "extra", "missing", "bad-size"] {
+            let directory = tempfile::tempdir().unwrap();
+            let archive_path = directory.path().join("environment.yougori");
+            let mut writer = tar::Builder::new(File::create(&archive_path).unwrap());
+            let metadata = serde_json::to_vec(&fixture()).unwrap();
+            let mut append = |name: &str, data: &[u8], link: bool| {
+                let mut header = tar::Header::new_ustar(); header.set_mode(0o600);
+                header.set_entry_type(if link { tar::EntryType::Symlink } else { tar::EntryType::Regular });
+                if link { header.set_link_name("/private/secret").unwrap(); }
+                header.set_size(data.len() as u64); header.set_cksum();
+                writer.append_data(&mut header, name, data).unwrap();
+            };
+            append(MANIFEST, &metadata, false);
+            if mode != "missing" { append(PAYLOAD, if mode == "bad-size" { b"bad" } else { b"disk" }, mode == "link"); }
+            if mode == "duplicate" { append(MANIFEST, &metadata, false); }
+            if mode == "extra" { append("untrusted-file", b"must not extract", false); }
+            drop(append); writer.finish().unwrap(); drop(writer);
+            assert!(read_backup(&archive_path, directory.path()).is_err(), "{mode}");
+            assert!(!directory.path().join("untrusted-file").exists());
+            assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 1, "partial files were kept: {mode}");
+        }
     }
     #[test]
     fn rejects_corruption_unknown_versions_and_unsupported_runtimes() {

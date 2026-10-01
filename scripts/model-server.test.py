@@ -1,4 +1,5 @@
 import importlib.util
+import http.client
 import json
 import os
 from pathlib import Path
@@ -16,6 +17,79 @@ server = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(server)
 
 class ModelServerTests(unittest.TestCase):
+    def test_malformed_saved_usage_cannot_break_request_accounting(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as folder, \
+             patch.object(server, "USAGE_PATH", os.path.join(folder, "usage.json")):
+            for change in ({"totals": {"requests": "broken"}},
+                           {"sources": {"api": None}},
+                           {"hours": {str(int(server.time.time() // 3600)): []}}):
+                with self.subTest(change=change):
+                    value = server.empty_usage()
+                    value.update(change)
+                    Path(server.USAGE_PATH).write_text(json.dumps(value))
+                    with patch.object(server, "USAGE", server.load_usage()):
+                        server.record_usage("api", "ok", 2, 1)
+                        self.assertEqual(server.load_usage()["totals"]["requests"], 1)
+
+    def test_slow_usage_reader_does_not_block_recording_model_requests(self):
+        import tempfile
+        replying, release = threading.Event(), threading.Event()
+
+        class SlowReader(server.Handler):
+            def reply(self, status, value):
+                replying.set()
+                release.wait(3)
+                super().reply(status, value)
+
+        with tempfile.TemporaryDirectory() as folder, \
+             patch.object(server, "USAGE_PATH", os.path.join(folder, "usage.json")), \
+             patch.object(server, "USAGE", server.empty_usage()):
+            listener = server.Server(("127.0.0.1", 0), SlowReader)
+            worker = threading.Thread(target=listener.serve_forever, daemon=True)
+            worker.start()
+            client = http.client.HTTPConnection("127.0.0.1", listener.server_port, timeout=4)
+            recorded = threading.Event()
+            recorder = None
+            try:
+                client.request("GET", "/v1/usage", headers={"Authorization": "Bearer " + "a" * 64})
+                self.assertTrue(replying.wait(2))
+                def record():
+                    server.record_usage("api", "ok", 2, 1)
+                    recorded.set()
+                recorder = threading.Thread(target=record)
+                recorder.start()
+                self.assertTrue(recorded.wait(1), "A usage response held the lock while sending to its client")
+                release.set()
+                response = client.getresponse()
+                self.assertEqual(response.status, 200)
+                self.assertEqual(json.loads(response.read())["totals"]["requests"], 0)
+                self.assertEqual(server.load_usage()["totals"]["requests"], 1)
+            finally:
+                release.set()
+                if recorder:
+                    recorder.join(4)
+                client.close()
+                listener.shutdown()
+                listener.server_close()
+                worker.join()
+
+    def test_non_ascii_api_key_is_rejected_with_an_http_response(self):
+        listener = server.Server(("127.0.0.1", 0), server.Handler)
+        worker = threading.Thread(target=listener.serve_forever, daemon=True)
+        worker.start()
+        client = http.client.HTTPConnection("127.0.0.1", listener.server_port, timeout=2)
+        try:
+            client.request("GET", "/health", headers={"Authorization": "Bearer \u00e9"})
+            response = client.getresponse()
+            self.assertEqual(response.status, 401)
+            self.assertEqual(json.loads(response.read())["error"]["message"], "A model API token is required")
+        finally:
+            client.close()
+            listener.shutdown()
+            listener.server_close()
+            worker.join()
+
     def test_model_loading_uses_all_visible_gpus_when_more_than_one_is_attached(self):
         for count in [1, 2, 8]:
             with self.subTest(count=count):

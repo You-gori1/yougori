@@ -4,7 +4,7 @@
 # this user (no administrator rights), puts `yougori` on PATH and runs `yougori doctor`.
 # Environment overrides: YOUGORI_ENGINE_ONLY=0 (opt into the desktop bundle),
 # YOUGORI_RELEASES_URL (HTTPS manifest), YOUGORI_AUTOSTART=1 (start the engine in the background
-# at login), YOUGORI_ALLOW_UNSIGNED=1 (test builds only).
+# at login), YOUGORI_START_ENGINE=0 (skip startup), YOUGORI_ALLOW_UNSIGNED=1 (test builds only).
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
@@ -18,6 +18,8 @@ function Fail($message) { Write-Host "Yougori install failed: $message" -Foregro
 
 $engineOnly = $env:YOUGORI_ENGINE_ONLY -ne '0'
 $allowUnsigned = $env:YOUGORI_ALLOW_UNSIGNED -eq '1'
+$startEngine = if ($env:YOUGORI_START_ENGINE) { $env:YOUGORI_START_ENGINE } else { '1' }
+if ($startEngine -notin @('0', '1')) { Fail 'YOUGORI_START_ENGINE must be 0 or 1.' }
 if ($ExpectedPublisher -eq ('__YOUGORI_' + 'PUBLISHER__') -and -not $allowUnsigned) { Fail 'this copy of the installer was not prepared for a release (no publisher pin). Use the one from https://yougori.com/install.ps1.' }
 $manifestUrl = if ($env:YOUGORI_RELEASES_URL -and $env:YOUGORI_RELEASES_URL.StartsWith('https://')) { $env:YOUGORI_RELEASES_URL } else { 'https://yougori.com/releases/latest.json' }
 $platform = switch ($env:PROCESSOR_ARCHITECTURE) { 'ARM64' { 'windows-aarch64' } 'AMD64' { 'windows-x86_64' } default { Fail "unsupported processor $($env:PROCESSOR_ARCHITECTURE)" } }
@@ -30,6 +32,33 @@ function Assert-Signed($path) {
   if ($allowUnsigned) { Write-Host "Warning: $([IO.Path]::GetFileName($path)) is not signed by the Yougori publisher ($($signature.Status)); installing a test build." -ForegroundColor Yellow; return }
   Remove-Item -Recurse -Force $folder -ErrorAction SilentlyContinue
   Fail "$([IO.Path]::GetFileName($path)) is not signed by the Yougori publisher ($($signature.Status)). Nothing was installed."
+}
+
+function Stop-InstalledEngine($running) {
+  # An offline engine writes its status error to stderr. That is expected during
+  # reinstall, and Windows PowerShell otherwise turns it into a terminating error.
+  $ErrorActionPreference = 'Continue'
+  & $running app status 2>$null | Out-Null
+  if ($LASTEXITCODE -ne 0) { return }
+  & $running app quit --yes 2>$null | Out-Null
+  if ($LASTEXITCODE -ne 0) { Fail 'the running engine refused to stop. Existing files were left untouched.' }
+  for ($attempt = 0; $attempt -lt 60; $attempt++) {
+    & $running app status 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) { return }
+    Start-Sleep -Seconds 1
+  }
+  Fail 'the running engine did not stop. Existing files were left untouched.'
+}
+
+function Start-InstalledEngine($cliPath) {
+  $ErrorActionPreference = 'Continue'
+  Write-Host 'Starting the Yougori engine...'
+  & $cliPath app start
+  if ($LASTEXITCODE -ne 0) {
+    Write-Warning 'The files are installed, but engine startup failed. Check: yougori doctor --format table'
+    return
+  }
+  & $cliPath doctor --format table
 }
 
 Write-Host 'Finding the latest Yougori release...'
@@ -64,7 +93,7 @@ if ($engineOnly) {
   }
   $target = Join-Path $env:LOCALAPPDATA 'Yougori Engine'
   $running = Join-Path $target 'cli\yougori.exe'
-  if (Test-Path -LiteralPath $running) { & $running app quit --yes 2>$null | Out-Null; Start-Sleep -Seconds 5 }
+  if (Test-Path -LiteralPath $running) { Stop-InstalledEngine $running }
   Write-Host 'Installing...'
   New-Item -ItemType Directory -Force -Path $target | Out-Null
   Copy-Item -Path (Join-Path $staged '*') -Destination $target -Recurse -Force
@@ -76,7 +105,7 @@ if ($engineOnly) {
 } else {
   Assert-Signed $download
   Write-Host 'Installing (this takes a minute)...'
-  $process = Start-Process -FilePath $download -ArgumentList '/S' -Wait -PassThru
+  $process = Start-Process -FilePath $download -ArgumentList '/S' -WindowStyle Hidden -Wait -PassThru
   if ($process.ExitCode -ne 0) { Fail "the installer exited with code $($process.ExitCode)." }
 }
 Remove-Item -Recurse -Force $folder -ErrorAction SilentlyContinue
@@ -84,7 +113,7 @@ Remove-Item -Recurse -Force $folder -ErrorAction SilentlyContinue
 # The installer adds the CLI to the user PATH; make it available in this window too.
 $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
 $env:Path = "$userPath;$([Environment]::GetEnvironmentVariable('Path', 'Machine'))"
-$cli = Get-Command yougori -ErrorAction SilentlyContinue
+$cli = if ($engineOnly) { [PSCustomObject]@{ Source = (Join-Path $cliFolder 'yougori.exe') } } else { Get-Command yougori -ErrorAction SilentlyContinue }
 if (-not $cli) { Fail 'Yougori installed, but `yougori` is not on PATH. Open a new terminal, or add the Yougori cli folder to PATH.' }
 
 Write-Host 'Setting up the Yougori skill...'
@@ -100,8 +129,8 @@ try {
   Write-Warning "Yougori is installed. Skill setup could not finish: $($_.Exception.Message). Retry with: yougori skills install"
 }
 
-if ($env:YOUGORI_AUTOSTART -eq '1') { & yougori app autostart on | Out-Null }
-& yougori doctor --format table
+if ($env:YOUGORI_AUTOSTART -eq '1') { & $cli.Source app autostart on | Out-Null }
+if ($startEngine -eq '1') { Start-InstalledEngine $cli.Source } else { Write-Host 'Engine startup skipped. Start it with: yougori app start' }
 Write-Host ''
 Write-Host "Yougori $($manifest.version) is installed$(if ($engineOnly) { ' (engine only, no desktop app)' }). Try: yougori status" -ForegroundColor Green
 if ($env:YOUGORI_AUTOSTART -ne '1') { Write-Host 'Keep the engine ready at login with: yougori app autostart on' }

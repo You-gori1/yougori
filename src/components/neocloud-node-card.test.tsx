@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
 import { NeocloudNodeCard } from "./neocloud-node-card"
 import { runpodApi } from "@/api/runpod-api"
+import { terminalClipboard } from "@/lib/terminal-clipboard"
 
 const deployments = vi.hoisted(() => ({ value: {} as Record<string, unknown> }))
 vi.mock("@/api/runpod-api", async importOriginal => ({
@@ -12,6 +13,7 @@ vi.mock("@/api/runpod-api", async importOriginal => ({
 vi.mock("@/context/platform-context", () => ({ usePlatform: () => ({ state: { environments: [{ id: "env-1", name: "pod-1" }], neocloudDeployments: deployments.value }, refreshPlatform: async () => undefined }) }))
 vi.mock("@/api/workspace-api", () => ({ workspaceApi: { openUrl: vi.fn() } }))
 vi.mock("@/components/dialogs/cloud-environment-dialog", () => ({ CloudEnvironmentDialog: () => null }))
+vi.mock("@/lib/terminal-clipboard", () => ({ terminalClipboard: { writeText: vi.fn() } }))
 
 const base = { provider: "runpod", name: "pod-1", resourceId: "abc123", image: "runpod-torch-v280", offer: "", location: "US-KS-2", address: "1.2.3.4", sshHint: "", requestId: "r", lastError: null }
 
@@ -19,6 +21,7 @@ beforeEach(() => {
   vi.resetAllMocks()
   vi.mocked(runpodApi.action).mockResolvedValue({} as never)
   vi.mocked(runpodApi.links).mockResolvedValue({ links: [{ name: "Jupyter Notebook", port: 8888, url: "https://abc123-8888.proxy.runpod.net/lab?token=t" }], console: "https://console.runpod.io/pods?id=abc123" })
+  vi.mocked(terminalClipboard.writeText).mockResolvedValue()
 })
 afterEach(cleanup)
 
@@ -43,4 +46,18 @@ it("gives an endpoint its API addresses and a test request", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Send request" }))
   await screen.findByText(/"Hello"/)
   expect(runpodApi.runEndpoint).toHaveBeenCalledWith("env-1", expect.objectContaining({ prompt: "Write a haiku about GPUs" }))
+})
+
+it("reports a failed copy and lets the user retry with the native clipboard helper", async () => {
+  deployments.value = { "env-1": { ...base, product: "serverless", state: "Ready", extra: { kind: "endpoint", title: "vLLM", category: "language", urls: { run: "https://api.runpod.ai/v2/abc123/run", runsync: "https://api.runpod.ai/v2/abc123/runsync" } } } }
+  vi.mocked(terminalClipboard.writeText).mockRejectedValueOnce(new Error("Clipboard unavailable"))
+  render(<NeocloudNodeCard environmentId="env-1" />)
+  const copy = screen.getByRole("button", { name: "Copy Run and wait for the answer" })
+  fireEvent.click(copy)
+  await screen.findByRole("alert")
+  expect(copy.textContent).toBe("Copy")
+  fireEvent.click(copy)
+  await waitFor(() => expect(copy.textContent).toBe("Copied"))
+  expect(terminalClipboard.writeText).toHaveBeenLastCalledWith("https://api.runpod.ai/v2/abc123/runsync")
+  expect(screen.queryByRole("alert")).toBeNull()
 })

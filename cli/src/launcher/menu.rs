@@ -72,6 +72,7 @@ async fn execute(args: &[&str]) -> Result<(), String> {
                 | &"remote"
                 | &"lan"
                 | &"domain"
+                | &"download"
         )
     ) {
         let starting = ui::task("Connecting to Yougori engine");
@@ -421,6 +422,7 @@ async fn manage() -> Result<(), String> {
             "Delete environment",
             "CPU and memory",
             "Publish a service",
+            "Environment download link",
             "Back",
         ],
     )? {
@@ -555,8 +557,44 @@ async fn manage() -> Result<(), String> {
             }
             execute(&["ports", "list", env_id]).await
         }
+        15 => download_link(&env).await,
         _ => Ok(()),
     }
+}
+
+async fn download_link(env: &Value) -> Result<(), String> {
+    let env_id = id(env)?;
+    let links = call("list_environment_downloads", json!({})).await?;
+    let link = links.as_array().and_then(|items| items.iter().find(|item| item["environmentId"] == env_id));
+    let count = link.and_then(|item| item["downloads"].as_u64()).unwrap_or(0);
+    ui::info(&format!("Downloads (all time): {count}"));
+    if link.is_some_and(|item| item["active"] == true) {
+        ui::info(&format!("Download link: {}", link.unwrap()["url"].as_str().unwrap_or("")));
+        if menu("Environment download link", &["Turn off download link", "Back"])? == 0 {
+            execute(&["download", "off", env_id]).await?;
+        }
+        return Ok(());
+    }
+    let domains = super::domains::available(None, None).await?;
+    let mut choices = vec![ui::Choice::new("Quick public link", "Temporary address")];
+    choices.extend(domains.iter().map(|item| {
+        let host = item.domain["hostname"].as_str().unwrap_or("");
+        if links.as_array().is_some_and(|links| links.iter().any(|link| link["active"] == true && link["domain"] == host)) {
+            ui::Choice::new(host, "In use by another download link").disabled()
+        } else { item.choice() }
+    }));
+    choices.push(ui::Choice::new("Back", ""));
+    let choice = ui::select_required("Download link address", &[], &choices)?;
+    if choice == choices.len() - 1 { return Ok(()); }
+    confirm("Create a complete environment download?", "Anyone with the link can copy all files and credentials inside this environment. The link lasts while this CLI is open; Ctrl+C turns it off. The environment must be stopped for a consistent copy.")?;
+    if env["status"] != "stopped" {
+        if !matches!(env["status"].as_str(), Some("running" | "paused")) { return Err("Wait until this environment is ready before making a copy.".into()); }
+        confirm("Stop this environment to prepare its copy?", "Running work will be interrupted. It stays stopped after creating the link.")?;
+        execute(&["stop", env_id]).await?;
+    }
+    let mut args = vec!["download", "on", env_id, "--yes"];
+    if choice > 0 { args.extend(["--domain", domains[choice - 1].domain["hostname"].as_str().ok_or("Invalid saved domain")?]); }
+    execute(&args).await
 }
 
 async fn files(env: &str) -> Result<(), String> {

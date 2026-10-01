@@ -27,6 +27,8 @@ Public commands:
   yougori ps [-a] [--type container|gpu|model|microvm|vm|cloud|shared|app]
   yougori inspect ENV | logs ENV | exec ENV COMMAND...
   yougori terminal ENV            Open an interactive shell; exit leaves the workload running
+  yougori download on ENV [--domain HOST] --yes  Share a complete copy while this CLI stays open
+  yougori download list | off ID   Lifetime download counts / turn off a download link
   yougori cp PC_PATH... ENV        Copy PC files into a local or connected cloud environment
   yougori cp ENV:/path PC_FOLDER   Copy out of a supported environment (never overwrites)
   yougori cp ENV:/path OTHER_ENV   Copy between environments (OTHER_ENV:/folder picks the folder)

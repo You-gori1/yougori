@@ -43,6 +43,8 @@ pub const HELP: &str = r#"Yougori CLI — local runtime control
   env startup ENV --command "..."  Change a stopped container's startup command
   snapshot list|create|restore|delete
   backup list|destinations|add-destination|delete-destination|run|restore|export|import
+  download on ENV [--domain HOST] --yes  Temporary complete-copy link; keep this CLI open
+  download list | off ENV_ID        Lifetime download counts / revoke a link
   gpu status|setup|test            NVIDIA CUDA runtime / actual kernel check
   terminal create|read|write|resize|close|install
   microvm apps|open                Built-in guest application sessions
@@ -459,6 +461,8 @@ pub fn parse(
             select = Some(("shares".into(), None));
             "list_environment_services"
         }
+        ("download", "list") => "list_environment_downloads",
+        ("download", "off") => { positional = Some("environmentId"); "stop_environment_download" }
         ("share", "add") => {
             positional = Some("environmentId");
             params.entry("readOnly").or_insert(json!(true));

@@ -33,6 +33,19 @@ pub fn install(webview: &tauri::Webview) {
                         let id = serde_json::from_str::<String>(&json).unwrap_or_default();
                         if id.is_empty() || id.len() > 200 { return Ok(()) }
                         let items = args.MenuItems()?;
+                        let download = environment.CreateContextMenuItem(w!("Create a download link"), None, COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_COMMAND)?;
+                        let download_window = window.clone();
+                        let download_id = id.clone();
+                        let selected_download = CustomItemSelectedEventHandler::create(Box::new(move |_, _| {
+                            let detail = serde_json::to_string(&download_id).unwrap_or_default();
+                            let _ = download_window.eval(&format!("window.dispatchEvent(new CustomEvent('yougori-download-node', {{detail:{detail}}}))"));
+                            Ok(())
+                        }));
+                        let mut download_token = 0;
+                        download.add_CustomItemSelected(&selected_download, &mut download_token)?;
+                        let mut download_index = 0;
+                        items.Count(&mut download_index)?;
+                        items.InsertValueAtIndex(download_index, &download)?;
                         let item = environment.CreateContextMenuItem(w!("Delete node"), None, COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_COMMAND)?;
                         let selected = CustomItemSelectedEventHandler::create(Box::new(move |_, _| {
                             // Only opens the existing UI confirmation; no deletion in native menu code.

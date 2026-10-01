@@ -141,12 +141,19 @@ impl Control {
         if matches!(
             method.name,
             "get_platform_state" | "list_environment_windows" | "terminal_action"
+                | "list_environment_downloads" | "keep_environment_downloads_alive" | "stop_environment_download"
                 | "list_environment_services" | "list_saved_domains" | "model_status" | "model_api_status"
                 | "get_storage_allocation" | "vault_summary" | "model_chat_begin" | "model_chat_read"
         ) {
             return dispatch::dispatch(&app, method.name, &request.params).await;
         }
         let permit=self.operations.clone().try_acquire_owned().map_err(|_|"Eight CLI operations are already pending. Inspect jobs and wait before submitting more.")?;
+        let mut request = request;
+        if method.name == "start_environment_download" {
+            let id = request.params["request"]["environmentId"].as_str().ok_or("Invalid environment ID")?;
+            let generation = app.state::<crate::environment_download::Downloads>().queued_generation(id)?;
+            request.params["_downloadGeneration"] = generation.into();
+        }
         let id = format!("job-{}", uuid::Uuid::new_v4().simple());
         // Keep only the latest measurement; copy callbacks also run on blocking workers.
         let (progress, measurement) = tokio::sync::watch::channel(None);

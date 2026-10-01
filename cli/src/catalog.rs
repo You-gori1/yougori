@@ -29,6 +29,10 @@ pub fn methods() -> Vec<Method> {
         };
     }
     let env = json!({"environmentId":"env-ID"});
+    method!(start_environment_download, "Create a complete portable copy of a stopped local environment and publish a temporary download link. Expires when its owning app/CLI exits; counts persist across links. domain reuses a saved Cloudflare domain.", "request:object", json!({"request":{"environmentId":"env-ID","ownerId":"00000000-0000-4000-8000-000000000001","domain":null}}), true, Some("Anyone with the link can download all files and credentials stored inside this environment."));
+    method!(list_environment_downloads, "Read active environment-copy links and lifetime completed-download counts.", "", json!({}), false, None);
+    method!(keep_environment_downloads_alive, "Renew only this client's temporary download-link leases; cannot revive an expired link.", "ownerId:string", json!({"ownerId":"00000000-0000-4000-8000-000000000001"}), true, None);
+    method!(stop_environment_download, "Immediately revoke an environment's download link and cancel active transfers; lifetime count is kept.", "environmentId:string", env.clone(), true, None);
     method!(run_neocloud_model, "Run a Hugging Face model inside an existing RunPod pod over pinned SSH; no resource is created or powered on.", "model:string environmentId:string port?:port", json!({"model":"hf.co/HuggingFaceTB/SmolLM2-135M","environmentId":"env-ID"}), true, None);
     method!(start_model, "Start or reconnect to a saved local or Neocloud model.", "environmentId:string", env.clone(), true, None);
     method!(stop_model, "Stop the model process. A Neocloud pod stays running and billable.", "environmentId:string", env.clone(), true, None);

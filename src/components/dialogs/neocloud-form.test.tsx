@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { NeocloudForm } from "./neocloud-form"
 import { runpodApi, type RunpodCatalog } from "@/api/runpod-api"
@@ -120,5 +120,31 @@ describe("Neocloud", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create pod" }))
     await waitFor(() => expect(runpodApi.createPod).toHaveBeenCalledWith(expect.objectContaining({ compute: "cpu", templateId: "runpod-ubuntu-2404", volumeGb: 0 })))
     expect(vi.mocked(runpodApi.createPod).mock.calls[0]![0]).not.toHaveProperty("gpuId")
+  })
+
+  it("ignores a completed software search after the search was cleared", async () => {
+    let finishSearch!: (templates: RunpodCatalog["templates"]) => void
+    vi.mocked(runpodApi.searchTemplates).mockImplementation(() => new Promise(resolve => { finishSearch = resolve }))
+    render(<NeocloudForm onClose={vi.fn()} />)
+    fireEvent.click(await screen.findByRole("button", { name: "Create a GPU pod" }))
+    fireEvent.change(screen.getByLabelText("Search software"), { target: { value: "old search" } })
+    await waitFor(() => expect(runpodApi.searchTemplates).toHaveBeenCalledWith("old search"))
+    fireEvent.change(screen.getByLabelText("Search software"), { target: { value: "" } })
+    await act(async () => { finishSearch([{ ...catalog.templates[0]!, id: "old-result", name: "Old result" }]) })
+    expect(screen.getByRole("button", { name: "Start from PyTorch 2.8.0" })).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "Start from Old result" })).toBeNull()
+  })
+
+  it("clears the previous software details while the next template loads", async () => {
+    const nextTemplate = { ...catalog.templates[0]!, id: "next-template", name: "Next software" }
+    vi.mocked(runpodApi.catalog).mockResolvedValue({ ...catalog, templates: [...catalog.templates, nextTemplate] })
+    vi.mocked(runpodApi.template).mockResolvedValueOnce({ ...catalog.templates[0]!, readme: "Previous software instructions" }).mockImplementationOnce(() => new Promise(() => undefined))
+    render(<NeocloudForm onClose={vi.fn()} />)
+    fireEvent.click(await screen.findByRole("button", { name: "Create a GPU pod" }))
+    fireEvent.click(screen.getByRole("button", { name: "Start from PyTorch 2.8.0" }))
+    await screen.findByText("Previous software instructions")
+    fireEvent.click(screen.getByRole("button", { name: "Start from Next software" }))
+    await waitFor(() => expect(runpodApi.template).toHaveBeenLastCalledWith("next-template"))
+    expect(screen.queryByText("Previous software instructions")).toBeNull()
   })
 })

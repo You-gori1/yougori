@@ -933,6 +933,21 @@ func (s *server) restoreSnapshot(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	tag := snapshotTag(request.SnapshotID)
 	temporaryID := request.ID + "-restore-" + strconv.FormatInt(time.Now().Unix(), 10)
+	configuration, inspectErr := run(ctx, "nerdctl", "--namespace", namespace, "image", "inspect", "--format", "{{json .Config.Labels}}", tag)
+	var snapshotLabels map[string]string
+	if inspectErr != nil {
+		writeCommandError(w, inspectErr)
+		return
+	}
+	if json.Unmarshal([]byte(configuration.Stdout), &snapshotLabels) != nil {
+		writeError(w, 500, "Cannot read restored startup configuration")
+		return
+	}
+	startup, startupErr := snapshotStartupOptions(snapshotLabels, request.Command)
+	if startupErr != nil {
+		writeError(w, 500, startupErr.Error())
+		return
+	}
 	previousImage := retainedContainerImage(ctx, request.ID)
 	retainedTag := newRetainedImageTag(request.ID)
 	containerNetwork := "none"
@@ -953,9 +968,12 @@ func (s *server) restoreSnapshot(w http.ResponseWriter, r *http.Request) {
 	}
 	args := []string{"--namespace", namespace, "create", "--pull", "never", "--name", temporaryID, "--label", "opendock.managed=true", "--label", "opendock.retained-image=" + retainedTag, "--network", containerNetwork, "--volume", containerDisplayDirectory(request.ID) + ":" + containerDisplayMount}
 	args = append(args, gpuArgs...)
+	if snapshotLabels[snapshotStartupLabel] == "exact-v1" {
+		args = append(args, startup...)
+	}
 	args = append(args, retainedTag)
-	if strings.TrimSpace(request.Command) != "" {
-		args = append(args, "/bin/sh", "-lc", request.Command)
+	if snapshotLabels[snapshotStartupLabel] != "exact-v1" {
+		args = append(args, startup...)
 	}
 	if _, err := run(ctx, "nerdctl", args...); err != nil {
 		releaseRetainedImage(ctx, retainedTag)

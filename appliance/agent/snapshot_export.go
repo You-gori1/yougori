@@ -62,12 +62,19 @@ func (s *server) exportSnapshot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var container struct {
+		ID     string `json:"Id"`
 		Config json.RawMessage
 		Image  string
 		State  containerState
+		Mounts []snapshotVolume
 	}
 	if err = json.Unmarshal([]byte(output.Stdout), &container); err != nil || len(container.Config) == 0 || container.Image == "" {
 		writeError(w, 500, "Cannot read snapshot configuration")
+		return
+	}
+	volumes, err := privateSnapshotVolumes(container.Mounts)
+	if err != nil {
+		writeError(w, 500, "Cannot include private container volumes: "+err.Error())
 		return
 	}
 	output, err = run(ctx, "nerdctl", "--namespace", namespace, "image", "inspect", "--format", "{{json .}}", container.Image)
@@ -75,14 +82,22 @@ func (s *server) exportSnapshot(w http.ResponseWriter, r *http.Request) {
 		writeCommandError(w, err)
 		return
 	}
-	var platform struct{ Architecture, Os, Variant string }
+	var platform struct {
+		Architecture, Os, Variant string
+		Config                    json.RawMessage
+	}
 	if err = json.Unmarshal([]byte(output.Stdout), &platform); err != nil || platform.Architecture == "" || platform.Os == "" {
 		writeError(w, 500, "Cannot read snapshot platform")
 		return
 	}
+	configuration, err := snapshotConfiguration(ctx, container.ID, platform.Config, container.Config)
+	if err != nil {
+		writeError(w, 500, "Cannot preserve container startup configuration: "+err.Error())
+		return
+	}
 	metadata, err := json.Marshal(map[string]any{
 		"architecture": platform.Architecture, "os": platform.Os, "variant": platform.Variant,
-		"config": container.Config, "created": time.Now().UTC().Format(time.RFC3339Nano),
+		"config": configuration, "created": time.Now().UTC().Format(time.RFC3339Nano),
 	})
 	if err != nil || len(metadata) > 1024*1024 {
 		writeError(w, 500, "Snapshot configuration exceeds 1 MiB")
@@ -125,11 +140,24 @@ func (s *server) exportSnapshot(w http.ResponseWriter, r *http.Request) {
 	err = writeSnapshotStream(w, metadata, func(out io.Writer) error {
 		command := exec.CommandContext(ctx, "nerdctl", "--namespace", namespace, "export", request.ID)
 		command.Env = append(os.Environ(), "TMPDIR="+temporary)
-		command.Stdout = out
+		reader, err := command.StdoutPipe()
+		if err != nil {
+			return err
+		}
 		var tail logTail
 		command.Stderr = &tail
-		if err := command.Run(); err != nil {
+		if err := command.Start(); err != nil {
+			return err
+		}
+		merged := mergeSnapshotVolumes(out, reader, volumes)
+		if merged != nil {
+			_ = command.Process.Kill()
+		}
+		if err := command.Wait(); err != nil {
 			return fmt.Errorf("export container: %w: %s", err, strings.TrimSpace(string(tail.data)))
+		}
+		if merged != nil {
+			return merged
 		}
 		return resume()
 	})

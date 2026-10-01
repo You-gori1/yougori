@@ -51,6 +51,10 @@ fn merge_limits(policy: &mut ResourcePolicy, p: &Value) -> Result<(), String> {
 pub(super) fn validate(method: &str, p: &Value) -> Result<(), String> {
     // Validate nested native types even on dry runs, without touching runtime state.
     match method {
+        "start_environment_download" => {
+            let request: crate::environment_download::StartRequest = arg(p, "request")?;
+            crate::environment_download::validate(&request)?;
+        }
         "runpod_create_pod" => {
             let _: crate::neocloud::runpod::PodRequest = arg(p, "request")?;
         }
@@ -120,6 +124,10 @@ pub(super) fn dispatch_with_progress<'a>(app: &'a AppHandle, method: &'a str, p:
             .ok_or_else(|| "Guest window is closed or the label is invalid".to_string())
     };
     match method {
+        "start_environment_download" => encoded(app.state::<crate::environment_download::Downloads>().start_generated(a!("request"), p["_downloadGeneration"].as_u64(), app).await?),
+        "list_environment_downloads" => encoded(crate::environment_download::list_environment_downloads(app.state(), store).await?),
+        "keep_environment_downloads_alive" => encoded(crate::environment_download::keep_environment_downloads_alive(a!("ownerId"), app.state(), store).await?),
+        "stop_environment_download" => { crate::environment_download::stop_environment_download(a!("environmentId"), app.state()).await?; Ok(Value::Null) },
         "runpod_status" => crate::neocloud::runpod::runpod_status().await,
         "runpod_connect" => crate::neocloud::runpod::runpod_connect(a!("apiKey")).await,
         "runpod_catalog" => crate::neocloud::runpod::runpod_catalog().await,
@@ -768,8 +776,9 @@ mod tests {
                 continue;
             }
             // Desktop plumbing with no CLI meaning: token streaming over a webview channel,
-            // and the one-time move of saved domains out of browser storage.
-            if matches!(name, "model_chat_stream" | "model_chat_cancel" | "import_saved_domains") {
+            // the one-time move of saved domains out of browser storage, and update-dialog
+            // actions. The CLI performs its own release checks without backend automation.
+            if matches!(name, "model_chat_stream" | "model_chat_cancel" | "import_saved_domains" | "check_release_update" | "remind_release_update_later" | "open_release_downloads") {
                 assert!(yougori_cli::catalog::find(name).is_err());
                 continue;
             }

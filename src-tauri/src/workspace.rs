@@ -110,6 +110,26 @@ pub struct WorkspaceManager {
     local_ports_key: Mutex<String>,
 }
 impl WorkspaceManager {
+    pub(crate) async fn download_tunnel(&self, domain: Option<&str>, store: &PlatformStore) -> Result<(TcpListener, cloudflare::Started), String> {
+        let _serial = self.operations.lock().await;
+        let account = if let Some(domain) = domain {
+            let saved = cloudflare::find_domain(store, domain)?;
+            let (options, port) = cloudflare::domain_account(store, domain)?;
+            Some(cloudflare::Account::resolve(&saved.credential_environment_id, saved.port, Some(port), options)?)
+        } else { None };
+        if let Some(account) = &account {
+            if self.publications.lock().await.values().any(|p| p.tunnel_id.as_deref() == Some(account.tunnel_id.as_str())) {
+                return Err("This domain is serving another environment. Disconnect that publication or choose another domain.".into());
+            }
+            cloudflare::finish_setup(self, account).await?;
+        }
+        let listener = TcpListener::bind(("127.0.0.1", account.as_ref().map_or(0, cloudflare::Account::host_port))).await
+            .map_err(|_| "This domain’s local port is already in use. Turn off the other link or choose another domain.")?;
+        let port = listener.local_addr().map_err(|e| e.to_string())?.port();
+        let executable = cloudflared(&self.root).await?;
+        let started = cloudflare::start(&executable, &self.root, port, account.as_ref()).await?;
+        Ok((listener, started))
+    }
     pub async fn host_shares_for(&self, environment_id: &str) -> Vec<HostShare> {
         let mut shares = self
             .shares

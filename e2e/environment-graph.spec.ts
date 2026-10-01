@@ -904,6 +904,22 @@ test("deletion updates runtime drive storage and explains incomplete cleanup", a
   await expect(page.locator('[data-environment-id="Beta"]')).toBeAttached()
 })
 
+test("environment download links open from the node menu, survive closing their dialog and turn off", async ({ page }) => {
+  await openGraph(page, [{ ...fixture("Alpha"), provider: "yougoriOci", status: "stopped" }])
+  await page.locator('[data-id="Alpha"]').click({ button: "right" })
+  await page.getByRole("menuitem", { name: "Create a download link" }).click()
+  const dialog = page.getByRole("dialog", { name: "Environment download link" })
+  await expect(dialog.getByRole("button", { name: "Create download link" })).toBeDisabled()
+  await dialog.getByRole("checkbox").check()
+  await dialog.getByRole("button", { name: "Create download link" }).click()
+  await expect(dialog.getByRole("textbox", { name: "Download link" })).toHaveValue("https://download-preview.invalid/temporary")
+  await expect(dialog.getByText("Downloads (all time): 0")).toBeVisible()
+  await dialog.getByRole("button", { name: "Close", exact: true }).first().click()
+  await expect(page.getByText("1 download link on")).toBeVisible()
+  await page.getByRole("button", { name: "Turn off", exact: true }).click()
+  await expect(page.getByText("1 download link on")).not.toBeVisible()
+})
+
 test("local backups choose a folder, show errors and confirm a verified save", async ({ page }) => {
   await openGraph(page)
   await page.evaluate(async () => {

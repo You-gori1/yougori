@@ -1,6 +1,7 @@
 mod backup;
 mod automation;
 mod local_backup;
+mod environment_download;
 mod commands;
 mod instance_lock;
 mod host_files;
@@ -168,6 +169,7 @@ fn shutdown_engine(app_handle: &AppHandle) {
     app_handle.state::<host_terminal::HostTerminalManager>().shutdown();
     tauri::async_runtime::block_on(vault_setup::shutdown(app_handle));
     let runtime = app_handle.state::<runtime::RuntimeManager>();
+    tauri::async_runtime::block_on(app_handle.state::<environment_download::Downloads>().shutdown());
     tauri::async_runtime::block_on(app_handle.state::<workspace::WorkspaceManager>().shutdown(&runtime));
     tauri::async_runtime::block_on(runtime.shutdown_all());
 }
@@ -505,6 +507,7 @@ pub fn run() {
             app.manage(backup);
             app.manage(instance_lock);
             app.manage(workspace::WorkspaceManager::new(&storage_directory));
+            app.manage(environment_download::Downloads::new(&storage_directory));
             app.manage(host_terminal::HostTerminalManager::default());
             // Native system installers cannot provision every user's home.
             // Set up the shared skill for the user who actually runs this app
@@ -528,6 +531,7 @@ pub fn run() {
             lifecycle::start(app.handle());
             peer_sharing::start_refresh(app.handle());
             remote_access::start_cleanup(app.handle());
+            environment_download::start_cleanup(app.handle());
             neocloud::runpod::resume(app.handle());
             let workspace_app = app.handle().clone();
             tauri::async_runtime::spawn(async move {
@@ -545,6 +549,10 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            environment_download::start_environment_download,
+            environment_download::list_environment_downloads,
+            environment_download::keep_environment_downloads_alive,
+            environment_download::stop_environment_download,
             releases::check_release_update,
             releases::remind_release_update_later,
             releases::open_release_downloads,

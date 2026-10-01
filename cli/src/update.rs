@@ -23,14 +23,26 @@ pub fn platform() -> &'static str {
     }
 }
 
-fn manifest_url() -> String {
-    std::env::var("YOUGORI_RELEASES_URL").ok().filter(|u| u.starts_with("https://")).unwrap_or_else(|| DEFAULT_MANIFEST.into())
+fn manifest_url() -> Result<String, String> {
+    let url = std::env::var("YOUGORI_RELEASES_URL").unwrap_or_else(|_| DEFAULT_MANIFEST.into());
+    let parsed = reqwest::Url::parse(&url).map_err(|_| "The release server must use HTTPS without credentials")?;
+    if parsed.scheme() != "https" || parsed.host_str().is_none() || !parsed.username().is_empty() || parsed.password().is_some() {
+        return Err("The release server must use HTTPS without credentials".into());
+    }
+    Ok(url)
 }
 
 /// The release asset for this install: the desktop installer, or the standalone engine archive
 /// when only the engine is installed.
 fn asset_key(engine_only: bool) -> String {
     if engine_only { format!("{}-engine", platform()) } else { platform().to_owned() }
+}
+
+fn download_name(url: &str) -> String {
+    reqwest::Url::parse(url).ok()
+        .and_then(|url| url.path_segments().and_then(|segments| segments.last()).map(str::to_owned))
+        .filter(|name| !name.is_empty() && name != "." && name != ".." && !name.contains(['\\', ':', '?', '*', '"', '<', '>', '|']))
+        .unwrap_or_else(|| "Yougori-setup".into())
 }
 
 pub(crate) fn engine_only_install() -> bool {
@@ -47,31 +59,57 @@ fn compare_asset(manifest: &Value, current: &str, key: &str) -> Result<Value, St
     let newer = semver::Version::parse(latest).map_err(|_| "The release manifest has an invalid version")?
         > semver::Version::parse(current).map_err(|e| e.to_string())?;
     let asset = &manifest["assets"][key];
+    let available = crate::release_notice::asset_available(asset);
+    let notes: String = manifest["notes"].as_str().unwrap_or("").chars().filter(|c| !c.is_control()).take(2000).collect();
     Ok(json!({
-        "current": current, "latest": latest, "updateAvailable": newer, "notes": manifest["notes"],
+        "current": current, "latest": latest, "updateAvailable": newer && available, "downloadAvailable": available, "notes": notes,
         "platform": key, "download": asset["url"], "sha256": asset["sha256"],
     }))
 }
 
-async fn manifest() -> Result<Value, String> {
-    let response = reqwest::Client::new().get(manifest_url()).timeout(std::time::Duration::from_secs(20)).send().await
-        .map_err(|e| format!("Cannot reach the release server: {e}"))?;
-    if !response.status().is_success() {
-        return Err(format!("The release server answered {}", response.status()));
+fn choose_manifest(stable: Value, preview: Option<Value>, key: &str) -> Result<(Value, &'static str), String> {
+    let stable_status = compare_asset(&stable, env!("CARGO_PKG_VERSION"), key)?;
+    if stable_status["downloadAvailable"] == true { return Ok((stable, "stable")); }
+    if let Some(preview) = preview {
+        if compare_asset(&preview, env!("CARGO_PKG_VERSION"), key).ok().is_some_and(|status| status["downloadAvailable"] == true) {
+            return Ok((preview, "preview"));
+        }
     }
-    response.json().await.map_err(|_| "The release manifest is not valid JSON".into())
+    Ok((stable, "stable"))
+}
+
+async fn manifest(key: &str) -> Result<(Value, &'static str), String> {
+    let url = manifest_url()?;
+    let client = reqwest::Client::builder().https_only(true)
+        .redirect(reqwest::redirect::Policy::limited(3))
+        .timeout(std::time::Duration::from_secs(20)).build().map_err(|e| e.to_string())?;
+    let stable = crate::release_notice::fetch(&client, &url).await?;
+    if std::env::var_os("YOUGORI_RELEASES_URL").is_some() { return Ok((stable, "custom")); }
+    // Preview is considered only after production confirms no package for this
+    // installation. A production server outage never switches channels.
+    let status = compare_asset(&stable, env!("CARGO_PKG_VERSION"), key)?;
+    let preview = if status["downloadAvailable"] == false {
+        crate::release_notice::fetch(&client, "https://yougori.com/releases/preview.json").await.ok()
+    } else { None };
+    choose_manifest(stable, preview, key)
 }
 
 pub async fn check() -> Result<Value, String> {
-    compare_asset(&manifest().await?, env!("CARGO_PKG_VERSION"), &asset_key(engine_only_install()))
+    let key = asset_key(engine_only_install());
+    let (manifest, channel) = manifest(&key).await?;
+    let mut status = compare_asset(&manifest, env!("CARGO_PKG_VERSION"), &key)?;
+    status["channel"] = channel.into();
+    Ok(status)
 }
 
 /// Streams the installer to disk while hashing it; nothing runs unless the hash matches.
 async fn download(url: &str, expected: &str, path: &std::path::Path) -> Result<(), String> {
-    if !url.starts_with("https://") || expected.len() != 64 {
+    if !crate::release_notice::asset_available(&json!({"url":url,"sha256":expected})) {
         return Err("The release manifest must give an HTTPS download and a SHA-256".into());
     }
-    let mut response = reqwest::Client::new().get(url).send().await.map_err(|e| e.to_string())?;
+    let mut response = reqwest::Client::builder().https_only(true)
+        .timeout(std::time::Duration::from_secs(900)).build().map_err(|e| e.to_string())?
+        .get(url).send().await.map_err(|e| e.to_string())?;
     if !response.status().is_success() {
         return Err(format!("Download failed: {}", response.status()));
     }
@@ -96,12 +134,20 @@ async fn download(url: &str, expected: &str, path: &std::path::Path) -> Result<(
 }
 
 #[cfg(windows)]
+fn signature_command(path: &std::path::Path, script: &str) -> std::process::Command {
+    let mut command = std::process::Command::new("powershell.exe");
+    command.args(["-NoProfile", "-NonInteractive", "-Command", script])
+        .env("YOUGORI_SIGNATURE_PATH", path);
+    command
+}
+
+#[cfg(windows)]
 fn signer(path: &std::path::Path) -> Result<String, String> {
     // Authenticode: the status must be Valid; the subject identifies the publisher.
-    let script = "$s = Get-AuthenticodeSignature -LiteralPath $args[0]; if ($s.Status -ne 'Valid') { exit 3 }; $s.SignerCertificate.Subject";
-    let output = std::process::Command::new("powershell.exe")
-        .args(["-NoProfile", "-NonInteractive", "-Command", script])
-        .arg(path)
+    // PowerShell appends arguments after -Command to its source text rather than
+    // binding them to $args. Keep paths in the child environment as literal data.
+    let script = "$s = Get-AuthenticodeSignature -LiteralPath $env:YOUGORI_SIGNATURE_PATH; if ($s.Status -ne 'Valid') { exit 3 }; $s.SignerCertificate.Subject";
+    let output = signature_command(path, script)
         .output()
         .map_err(|e| e.to_string())?;
     if !output.status.success() {
@@ -116,12 +162,14 @@ pub async fn install(yes: bool) -> Result<Value, String> {
         return Ok(json!({"upToDate": true, "version": status["current"]}));
     }
     let url = status["download"].as_str().ok_or_else(|| format!("No {} download in this release yet", status["platform"].as_str().unwrap_or("")))?.to_owned();
+    if status["channel"] == "preview" {
+        return Ok(json!({"updateAvailable": true, "latest": status["latest"], "channel": "preview", "notes": status["notes"], "next": "This unsigned preview uses the explicit preview installer. Finish your work, then use the installation command at https://yougori.com/#hero-cli or download the app at https://yougori.com/#download. Your environments remain running until you install."}));
+    }
     if !yes {
         return Ok(json!({"updateAvailable": true, "latest": status["latest"], "notes": status["notes"], "next": "Run `yougori update --yes` to download and install it. Yougori stops its workloads while it updates."}));
     }
     let folder = tempfile::Builder::new().prefix("yougori-update-").tempdir().map_err(|e| e.to_string())?.keep();
-    let name = url.rsplit('/').next().filter(|n| !n.is_empty() && !n.contains(['\\', ':'])).unwrap_or("Yougori-setup");
-    let installer = folder.join(name);
+    let installer = folder.join(download_name(&url));
     download(&url, status["sha256"].as_str().unwrap_or(""), &installer).await?;
     if engine_only_install() {
         return replace_engine(&installer, &folder, &status).await;
@@ -243,13 +291,47 @@ mod tests {
     use super::*;
     #[test]
     fn newer_releases_are_detected_for_this_platform() {
-        let manifest = json!({"version":"9.0.0","notes":"n","assets":{platform():{"url":"https://example.com/setup.exe","sha256":"ab"},asset_key(true):{"url":"https://example.com/engine.zip","sha256":"cd"}}});
+        let manifest = json!({"version":"9.0.0","notes":"n","assets":{platform():{"url":"https://example.com/setup.exe","sha256":"a".repeat(64)},asset_key(true):{"url":"https://example.com/engine.zip","sha256":"b".repeat(64)}}});
         let status = compare(&manifest, "1.0.0").unwrap();
         assert_eq!((status["updateAvailable"].as_bool(), status["download"].as_str()), (Some(true), Some("https://example.com/setup.exe")));
         let engine = compare_asset(&manifest, "1.0.0", &asset_key(true)).unwrap();
         assert_eq!((engine["download"].as_str(), engine["platform"].as_str()), (Some("https://example.com/engine.zip"), Some(asset_key(true).as_str())));
         assert_eq!(compare(&json!({"version":"1.0.0"}), "1.0.0").unwrap()["updateAvailable"], false);
         assert!(compare(&json!({"version":"latest"}), "1.0.0").is_err());
+    }
+    #[test]
+    fn missing_invalid_and_unsafe_packages_are_not_updates() {
+        for asset in [json!(null), json!({"url":"https://example.com/x","sha256":"z".repeat(64)}), json!({"url":"https://user:secret@example.com/x","sha256":"a".repeat(64)}), json!({"url":"http://example.com/x","sha256":"a".repeat(64)})] {
+            let manifest = json!({"version":"9.0.0","assets":{platform():asset}});
+            let status = compare(&manifest, "1.0.0").unwrap();
+            assert_eq!(status["updateAvailable"], false);
+            assert_eq!(status["downloadAvailable"], false);
+        }
+    }
+    #[test]
+    fn explicit_checks_find_preview_but_do_not_replace_available_stable_packages() {
+        let key = asset_key(true);
+        let missing = json!({"version":"1.0.1","assets":{}});
+        let package = |version| json!({"version":version,"assets":{&key:{"url":"https://example.com/engine.tar.gz","sha256":"a".repeat(64)}}});
+        let (selected, channel) = choose_manifest(missing.clone(), Some(package("9.0.0")), &key).unwrap();
+        assert_eq!((selected["version"].as_str(), channel), (Some("9.0.0"), "preview"));
+        let (selected, channel) = choose_manifest(package("2.0.0"), Some(package("9.0.0")), &key).unwrap();
+        assert_eq!((selected["version"].as_str(), channel), (Some("2.0.0"), "stable"));
+        assert_eq!(choose_manifest(missing, Some(package("invalid")), &key).unwrap().1, "stable");
+    }
+    #[test]
+    fn signed_download_queries_and_fragments_do_not_become_filenames() {
+        assert_eq!(download_name("https://example.com/release/Yougori-setup.exe?signature=abc/def#download"), "Yougori-setup.exe");
+        assert_eq!(download_name("https://example.com/release/engine.tar.gz?source=command"), "engine.tar.gz");
+        assert_eq!(download_name("https://example.com/"), "Yougori-setup");
+    }
+    #[test]
+    #[cfg(windows)]
+    fn signature_paths_are_literal_including_spaces_quotes_and_shell_characters() {
+        let path = std::path::Path::new("C:\\Program Files\\Yougori's & fixtures\\日本語.exe");
+        let output = signature_command(path, "[Console]::OutputEncoding = [Text.UTF8Encoding]::new(); [Console]::Write($env:YOUGORI_SIGNATURE_PATH)").output().unwrap();
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        assert_eq!(String::from_utf8(output.stdout).unwrap(), path.to_string_lossy());
     }
     #[test]
     fn engine_updates_replace_files_and_keep_other_ones() {
@@ -271,5 +353,7 @@ mod tests {
         let path = std::env::temp_dir().join("yougori-update-test");
         assert!(download("http://example.com/x", &"0".repeat(64), &path).await.is_err());
         assert!(download("https://example.com/x", "short", &path).await.is_err());
+        assert!(download("https://example.com/x", &"z".repeat(64), &path).await.is_err());
+        assert!(download("https://user:secret@example.com/x", &"a".repeat(64), &path).await.is_err());
     }
 }

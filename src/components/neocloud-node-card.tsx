@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { CloudEnvironmentDialog } from "@/components/dialogs/cloud-environment-dialog"
 import { WebLink } from "@/components/dialogs/neocloud-ui"
+import { terminalClipboard } from "@/lib/terminal-clipboard"
 
 function sshDefaults(hint: string, address: string) {
   const port = hint.match(/-p\s+(\d+)/)
@@ -14,7 +15,16 @@ function sshDefaults(hint: string, address: string) {
 
 function Copy({ text, label }: { text: string; label: string }) {
   const [done, setDone] = useState(false)
-  return <Button size="xs" variant="ghost" aria-label={`Copy ${label}`} onClick={() => { void navigator.clipboard.writeText(text).then(() => { setDone(true); window.setTimeout(() => setDone(false), 1500) }) }}>{done ? "Copied" : "Copy"}</Button>
+  const [error, setError] = useState("")
+  return <span>
+    <Button size="xs" variant="ghost" aria-label={`Copy ${label}`} onClick={() => {
+      setError(""); setDone(false)
+      void terminalClipboard.writeText(text)
+        .then(() => { setDone(true); window.setTimeout(() => setDone(false), 1500) })
+        .catch(() => setError("Couldn't copy. Try selecting the text."))
+    }}>{done ? "Copied" : "Copy"}</Button>
+    {error ? <span role="alert" className="neo-note">{error}</span> : null}
+  </span>
 }
 
 const samples: Record<string, string> = {

@@ -14,6 +14,7 @@ pub mod presentation;
 pub mod doctor;
 pub mod update;
 pub mod release_notice;
+pub mod downloads;
 pub mod vault;
 
 pub const SKILL: &str = include_str!("../../skills/yougori/SKILL.txt");

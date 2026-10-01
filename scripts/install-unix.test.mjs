@@ -10,7 +10,7 @@ const bash = process.platform === "win32" ? "C:/Program Files/Git/bin/bash.exe" 
 const unix = path => path.replaceAll("\\", "/").replace(/^([A-Za-z]):/, (_, drive) => `/${drive.toLowerCase()}`)
 const script = readFileSync(new URL("./install/install.sh", import.meta.url), "utf8").replaceAll("\r\n", "\n")
 
-function install(t, { extension = "deb", assetQuery = "", badHash = false, aptExit = "0", skillExit = "0", engineOnly = "0", os = "Linux", arch = "x86_64", assetKey = "linux-x86_64", shell = "/bin/bash", startEngine = "1", profiles = {} } = {}) {
+function install(t, { extension = "deb", assetQuery = "", badHash = false, aptExit = "0", skillExit = "0", engineOnly = "0", os = "Linux", arch = "x86_64", assetKey = "linux-x86_64", shell = "/bin/bash", startEngine = "1", shadowCli = false, profiles = {} } = {}) {
   const root = mkdtempSync(join(tmpdir(), "yougori-installer-"))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const bin = join(root, "bin")
@@ -41,13 +41,19 @@ function install(t, { extension = "deb", assetQuery = "", badHash = false, aptEx
   for (const [name, text] of Object.entries(profiles)) writeFileSync(join(home, name), text)
   const cliLog = join(root, "cli.log")
   const curlLog = join(root, "curl.log")
+  const shadow = join(root, "shadow")
+  if (shadowCli) {
+    mkdirSync(shadow)
+    writeFileSync(join(shadow, "yougori"), '#!/bin/sh\necho "An older Yougori command ran" >&2\nexit 41\n')
+    chmodSync(join(shadow, "yougori"), 0o755)
+  }
   const env = { ...process.env, HOME: unix(home), SHELL: shell, YOUGORI_START_ENGINE: startEngine, FIXTURE_CLI_LOG: unix(cliLog), FIXTURE_BIN: unix(bin), FIXTURE_OS: os,
       FIXTURE_ARCH: arch, FIXTURE_SKILL_EXIT: skillExit, YOUGORI_ENGINE_ONLY: engineOnly, YOUGORI_AUTOSTART: "", YOUGORI_RELEASES_URL: "https://fixture.invalid/latest.json",
-      FIXTURE_APT_LOG: unix(log), FIXTURE_APT_EXIT: aptExit, FIXTURE_CURL_LOG: unix(curlLog),
+      FIXTURE_APT_LOG: unix(log), FIXTURE_APT_EXIT: aptExit, FIXTURE_CURL_LOG: unix(curlLog), FIXTURE_SHADOW: shadowCli ? unix(shadow) : "", FIXTURE_HOME_BIN: shadowCli ? unix(join(home, ".local/bin")) : "",
       FIXTURE_MANIFEST: JSON.stringify({ version: "1.0.0", assets: { [assetKey]: { url: `https://fixture.invalid/Yougori.${extension}${assetQuery}`, sha256: badHash ? "0".repeat(64) : sha } } }),
   }
   if (engineOnly === null) delete env.YOUGORI_ENGINE_ONLY
-  const rerun = () => spawnSync(bash, ["--noprofile", "--norc", "-c", 'export PATH="$FIXTURE_BIN:$PATH"; /bin/sh -s'], {
+  const rerun = () => spawnSync(bash, ["--noprofile", "--norc", "-c", 'export PATH="${FIXTURE_SHADOW:+$FIXTURE_SHADOW:}$FIXTURE_BIN:${FIXTURE_HOME_BIN:+$FIXTURE_HOME_BIN:}$PATH"; /bin/sh -s'], {
     input: script, encoding: "utf8", timeout: 15000, env,
   })
   const result = rerun()
@@ -96,6 +102,13 @@ test("automation can skip engine startup without reporting an expected failure",
   assert.equal(cli, "skills install\n")
   assert.match(result.stdout, /Engine startup skipped/)
   assert.doesNotMatch(result.stdout, /FAIL/)
+})
+
+test("startup and diagnostics use this installation when an older CLI shadows PATH", t => {
+  const { result, cli } = install(t, { shadowCli: true })
+  assert.equal(result.status, 0, result.stderr)
+  assert.equal(cli, "skills install\napp start\ndoctor --format table\n")
+  assert.doesNotMatch(result.stderr, /older Yougori command/)
 })
 
 test("a custom skill conflict does not interrupt installing or starting Yougori", t => {

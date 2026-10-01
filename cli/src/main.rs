@@ -75,6 +75,10 @@ async fn run(args: Vec<String>) -> Result<i32, String> {
         yougori_cli::terminal::run(&args).await?;
         return Ok(0);
     }
+    if args[0] == "download" && args.get(1).is_some_and(|arg| arg == "on") {
+        yougori_cli::downloads::run(&args[2..]).await?;
+        return Ok(0);
+    }
     if args[0] == "schema" {
         if args.len() > 2 {
             return Err("Usage: schema [METHOD]".into());

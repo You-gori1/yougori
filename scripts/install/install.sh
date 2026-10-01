@@ -169,11 +169,11 @@ else
   printf '%s\n' "$skill_output" >&2
   echo 'Yougori is installed. Existing custom skills were preserved; retry skill setup with: yougori skills install' >&2
 fi
-[ "${YOUGORI_AUTOSTART:-}" = "1" ] && yougori app autostart on >/dev/null || true
+[ "${YOUGORI_AUTOSTART:-}" = "1" ] && "$bin/yougori" app autostart on >/dev/null || true
 if [ "$start_engine" = "1" ] && [ -z "$missing" ]; then
   echo "Starting the Yougori engine..."
-  if yougori app start; then
-    yougori doctor --format table || true
+  if "$bin/yougori" app start; then
+    "$bin/yougori" doctor --format table || true
   else
     echo 'The files are installed, but engine startup failed. Check: yougori doctor --format table' >&2
   fi

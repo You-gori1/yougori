@@ -120,6 +120,21 @@ pub fn automatic_allowed() -> bool {
         && std::env::var("YOUGORI_NO_UPDATE_CHECK").as_deref() != Ok("1")
 }
 
+pub(crate) fn asset_available(asset: &Value) -> bool {
+    asset["url"]
+        .as_str()
+        .and_then(|url| reqwest::Url::parse(url).ok())
+        .is_some_and(|url| {
+            url.scheme() == "https"
+                && url.host_str().is_some()
+                && url.username().is_empty()
+                && url.password().is_none()
+        })
+        && asset["sha256"]
+            .as_str()
+            .is_some_and(|hash| hash.len() == 64 && hash.bytes().all(|c| c.is_ascii_hexdigit()))
+}
+
 fn compare(
     manifest: &Value,
     current: &str,
@@ -137,18 +152,7 @@ fn compare(
     let current_version =
         semver::Version::parse(current).map_err(|_| "The installed version is invalid")?;
     let asset = &manifest["assets"][platform];
-    let available = asset["url"]
-        .as_str()
-        .and_then(|url| reqwest::Url::parse(url).ok())
-        .is_some_and(|url| {
-            url.scheme() == "https"
-                && url.host_str().is_some()
-                && url.username().is_empty()
-                && url.password().is_none()
-        })
-        && asset["sha256"]
-            .as_str()
-            .is_some_and(|hash| hash.len() == 64 && hash.bytes().all(|c| c.is_ascii_hexdigit()));
+    let available = asset_available(asset);
     Ok(ReleaseStatus {
         current: current.into(),
         latest: latest.into(),
@@ -167,7 +171,7 @@ fn compare(
     })
 }
 
-async fn fetch(client: &reqwest::Client, url: &str) -> Result<Value, String> {
+pub(crate) async fn fetch(client: &reqwest::Client, url: &str) -> Result<Value, String> {
     let mut response = client
         .get(url)
         .send()

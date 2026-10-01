@@ -1,6 +1,7 @@
 import { cloneElement, useEffect, useRef, useState, type MouseEvent, type ReactElement, type ReactNode } from "react"
 import { ContextMenu } from "@base-ui/react/context-menu"
-import { Trash2Icon } from "lucide-react"
+import { DownloadIcon, Trash2Icon } from "lucide-react"
+import { EnvironmentDownloadDialog } from "@/components/dialogs/environment-download-dialog"
 import { usePlatform } from "@/context/platform-context"
 import type { Environment } from "@/types/platform"
 import { MenuItem, MenuPopup } from "@/components/ui/menu"
@@ -12,6 +13,7 @@ export function EnvironmentNodeMenu({ environment, disabled, asChild, children }
   const { deleteEnvironment, environmentActions } = usePlatform()
   const [confirm, setConfirm] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [download, setDownload] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const pending = useRef(false)
   const nativeMenu = "__TAURI_INTERNALS__" in window && /Win/i.test(navigator.platform)
@@ -23,7 +25,11 @@ export function EnvironmentNodeMenu({ environment, disabled, asChild, children }
       }
     }
     window.addEventListener("yougori-delete-node", requestDelete)
-    return () => window.removeEventListener("yougori-delete-node", requestDelete)
+    const requestDownload = (event: Event) => {
+      if (!disabled && !busy && (event as CustomEvent<string>).detail === environment.id) setDownload(true)
+    }
+    window.addEventListener("yougori-download-node", requestDownload)
+    return () => { window.removeEventListener("yougori-delete-node", requestDelete); window.removeEventListener("yougori-download-node", requestDownload) }
   }, [disabled, busy, environment.id])
   const remove = async () => {
     if (pending.current || busy) return
@@ -40,9 +46,11 @@ export function EnvironmentNodeMenu({ environment, disabled, asChild, children }
     {nativeMenu ? asChild ? cloneElement(children as ReactElement<{ onContextMenu?(event: MouseEvent): void }>, { onContextMenu: markContext }) : <div onContextMenu={markContext}>{children}</div> : <ContextMenu.Root open={menuOpen} onOpenChange={setMenuOpen}>
       {asChild ? <ContextMenu.Trigger render={children as ReactElement<Record<string, unknown>>} /> : <ContextMenu.Trigger>{children}</ContextMenu.Trigger>}
       {menuOpen && <MenuPopup align="start" finalFocus={confirm ? false : undefined} className="nodrag nopan" onPointerDown={event => event.stopPropagation()}>
+        <MenuItem disabled={busy} onClick={() => { setMenuOpen(false); setDownload(true) }}><DownloadIcon aria-hidden="true" />Create a download link</MenuItem>
         <MenuItem variant="destructive" disabled={busy} onClick={() => { setMenuOpen(false); setConfirm(true) }}><Trash2Icon aria-hidden="true" />Delete node</MenuItem>
       </MenuPopup>}
     </ContextMenu.Root>}
+    {download && <EnvironmentDownloadDialog environment={environment} onClose={() => setDownload(false)} />}
     <AlertDialog open={confirm} onOpenChange={value => { if (!pending.current) setConfirm(value) }}>
       <AlertDialogPopup className="nodrag nopan" onPointerDown={event => event.stopPropagation()}>
         <AlertDialogHeader>
