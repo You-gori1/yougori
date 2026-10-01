@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import threading
 import unittest
+from contextlib import contextmanager, ExitStack
 from unittest.mock import Mock, patch
 from types import SimpleNamespace
 from urllib.request import Request, urlopen
@@ -15,6 +16,39 @@ os.environ["YOUGORI_MODEL_TOKEN"] = "a" * 64
 spec = importlib.util.spec_from_file_location("model_server", Path(__file__).parents[1] / "src-tauri/src/model_server.py")
 server = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(server)
+
+class ChatConfig:
+    model_type = "llama"
+    max_position_embeddings = 2048
+
+
+@contextmanager
+def model_startup(count=1, files=(), config=None, versions=None):
+    config = config or ChatConfig()
+    network = Mock(config=config)
+    network.eval.return_value = network
+    models = Mock()
+    models._model_mapping = {ChatConfig: object}
+    models.from_pretrained.return_value = network
+    transformers = SimpleNamespace(AutoConfig=Mock(), AutoModelForCausalLM=models, AutoTokenizer=Mock())
+    transformers.AutoConfig.from_pretrained.return_value = config
+    hub = SimpleNamespace(HfApi=Mock())
+    hub.HfApi.return_value.model_info.return_value = SimpleNamespace(
+        sha="a" * 40, siblings=[SimpleNamespace(rfilename=name) for name in files])
+    torch = SimpleNamespace(float16="float16", cuda=SimpleNamespace(
+        is_available=lambda: True, device_count=lambda: count, get_device_name=lambda index: "Test GPU"))
+    installed = {"transformers": "5.18.0", "accelerate": "1.15.0", "huggingface-hub": "1.33.0", **(versions or {})}
+    with ExitStack() as stack:
+        stack.enter_context(patch.dict("sys.modules", torch=torch, transformers=transformers, huggingface_hub=hub))
+        stack.enter_context(patch.object(server.importlib.metadata, "version", side_effect=installed.__getitem__))
+        stack.enter_context(patch.object(server.threading, "Thread"))
+        install = stack.enter_context(patch.object(server.subprocess, "run"))
+        stack.enter_context(patch.dict(os.environ, YOUGORI_INSTALL_TORCH="0"))
+        stack.enter_context(patch.dict(server.STATE, status="installing", error=None))
+        for name in ("NETWORK", "TOKENIZER", "TORCH"):
+            stack.enter_context(patch.object(server, name, None))
+        yield SimpleNamespace(transformers=transformers, hub=hub, install=install, models=models, config=config)
+
 
 class ModelServerTests(unittest.TestCase):
     def test_malformed_saved_usage_cannot_break_request_accounting(self):
@@ -92,29 +126,70 @@ class ModelServerTests(unittest.TestCase):
 
     def test_model_loading_uses_all_visible_gpus_when_more_than_one_is_attached(self):
         for count in [1, 2, 8]:
-            with self.subTest(count=count):
-                torch = SimpleNamespace(float16="float16", cuda=SimpleNamespace(
-                    is_available=lambda: True, device_count=lambda: count,
-                    get_device_name=lambda index: "Test GPU"))
-                network = Mock()
-                network.eval.return_value = network
-                network.config.max_position_embeddings = 2048
-                models = Mock()
-                models.from_pretrained.return_value = network
-                transformers = SimpleNamespace(AutoModelForCausalLM=models, AutoTokenizer=Mock())
-                with patch.dict("sys.modules", torch=torch, transformers=transformers), \
-                     patch.object(server.importlib.metadata, "version", side_effect=lambda p: {"transformers":"4.57.2", "accelerate":"1.11.0"}[p]), \
-                     patch.object(server.threading, "Thread"), \
-                     patch.dict(os.environ, YOUGORI_INSTALL_TORCH="0"), \
-                     patch.dict(server.STATE, status="installing"), \
-                     patch.object(server, "NETWORK", None), patch.object(server, "TOKENIZER", None), patch.object(server, "TORCH", None):
-                    server.load_model()
-                    self.assertEqual(server.STATE["status"], "ready")
-                    self.assertEqual(server.STATE["gpuCount"], count)
-                    options = models.from_pretrained.call_args.kwargs
-                    self.assertEqual(options["device_map"], "balanced" if count > 1 else {"": 0})
-                    self.assertFalse(options["trust_remote_code"])
-                    self.assertTrue(options["use_safetensors"])
+            with self.subTest(count=count), model_startup(count=count) as fixture:
+                server.load_model()
+                self.assertEqual(server.STATE["status"], "ready", server.STATE["error"])
+                self.assertEqual(server.STATE["gpuCount"], count)
+                fixture.install.assert_not_called()
+                options = fixture.models.from_pretrained.call_args.kwargs
+                self.assertEqual(options["device_map"], "balanced" if count > 1 else {"": 0})
+                self.assertEqual(options["dtype"], "auto")
+                self.assertFalse(options["trust_remote_code"])
+                self.assertTrue(options["use_safetensors"])
+
+    def test_model_start_upgrades_dependencies_that_cannot_recognize_qwen3_5(self):
+        with model_startup(versions={"transformers": "4.57.2", "accelerate": "1.11.0"}) as fixture:
+            server.load_model()
+            self.assertEqual(server.STATE["status"], "ready", server.STATE["error"])
+            fixture.install.assert_called_once()
+            installed = fixture.install.call_args.args[0]
+            self.assertIn("transformers==5.18.0", installed)
+            self.assertIn("accelerate==1.15.0", installed)
+            self.assertNotIn("torch==2.8.0", installed, "Do not replace the existing CUDA PyTorch")
+
+    def test_dependency_failure_stops_before_model_downloads(self):
+        with model_startup(versions={"transformers": "4.57.2", "accelerate": "1.11.0"}) as fixture:
+            fixture.install.side_effect = server.subprocess.CalledProcessError(1, "pip")
+            server.load_model()
+            self.assertEqual(server.STATE["status"], "error")
+            fixture.hub.HfApi.assert_not_called()
+            fixture.models.from_pretrained.assert_not_called()
+
+    def test_custom_decision_head_is_not_silently_ignored_by_the_chat_runner(self):
+        with model_startup(files=("config.json", "model.safetensors", "joint_head_config.json", "joint_head.safetensors")) as fixture, \
+             patch.object(server, "MODEL", "Cloudflare/clef"):
+            server.load_model()
+            self.assertEqual(server.STATE["status"], "error")
+            self.assertIn("decision", server.STATE["error"])
+            self.assertIn("Cloudflare/clef", server.STATE["error"])
+            fixture.transformers.AutoConfig.from_pretrained.assert_not_called()
+            fixture.transformers.AutoTokenizer.from_pretrained.assert_not_called()
+            fixture.models.from_pretrained.assert_not_called()
+
+    def test_non_chat_architecture_is_rejected_before_tokenizer_and_weights(self):
+        with model_startup(config=SimpleNamespace(model_type="bert")) as fixture:
+            server.load_model()
+            self.assertEqual(server.STATE["status"], "error")
+            self.assertIn("bert", server.STATE["error"])
+            fixture.transformers.AutoTokenizer.from_pretrained.assert_not_called()
+            fixture.models.from_pretrained.assert_not_called()
+
+    def test_config_tokenizer_and_weights_use_the_same_checkpoint_revision(self):
+        with model_startup() as fixture:
+            server.load_model()
+            self.assertEqual(server.STATE["status"], "ready", server.STATE["error"])
+            fixture.hub.HfApi.return_value.model_info.assert_called_once_with(server.MODEL, timeout=30)
+            for loader in (fixture.transformers.AutoConfig, fixture.transformers.AutoTokenizer, fixture.models):
+                options = loader.from_pretrained.call_args.kwargs
+                self.assertEqual(options["revision"], "a" * 40)
+                self.assertFalse(options["trust_remote_code"])
+            self.assertIs(fixture.models.from_pretrained.call_args.kwargs["config"], fixture.config)
+
+    def test_nested_text_context_is_used_for_qwen3_5(self):
+        for maximum, expected in [(262144, 32768), (2048, 2048)]:
+            with self.subTest(maximum=maximum), patch.object(server, "NETWORK", SimpleNamespace(
+                    config=SimpleNamespace(text_config=SimpleNamespace(max_position_embeddings=maximum)))):
+                self.assertEqual(server.context_window(), expected)
 
     def test_chat_validation_rejects_unbounded_and_unsupported_inputs(self):
         valid = {"messages": [{"role": "user", "content": "hello"}]}

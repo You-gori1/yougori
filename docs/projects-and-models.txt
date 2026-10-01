@@ -384,14 +384,20 @@ A stopped pod may still incur storage charges. The explicit model stop command
 only stops the model process and leaves the pod billable. Detach leaves the model
 running; after stopping a pod, start it in Neocloud before model chat POD resumes.
 
-For local runs, the first launch downloads a PyTorch CUDA OCI image, pinned Transformers/Accelerate
-dependencies and model weights. The optional GPU backend requires supported Windows
-x64, WSL2 and NVIDIA hardware/drivers. The application checks support and provisions
+For local runs, the first launch downloads a PyTorch CUDA OCI image, pinned Transformers,
+Accelerate and Hugging Face Hub dependencies, and model weights. The optional GPU
+backend requires supported Windows x64, WSL2 and NVIDIA hardware/drivers. The application checks support and provisions
 that backend when needed; it does not silently fall back to CPU. Sufficient storage,
 RAM and VRAM are required. Public causal language models supported by Transformers
 with safetensors are supported; arbitrary repository Python and pickle weights are
 not executed. Gated/private, vision, audio and custom-code model architectures need
 additional support. Model weights persist in the environment's named cache volume.
+The runner supports text chat from Qwen3.5 checkpoints through Transformers 5.18.0
+and uses the checkpoint's saved precision. Config, tokenizer and weights come from
+the same repository revision. Architecture and custom decision-head checks run
+before downloading weights. Cloudflare/clef includes a custom structured-decision
+head and needs its own decision runner; running only its backbone as chat would
+discard that head. It is rejected with a specific explanation.
 
 The optional API is http://127.0.0.1:PORT/v1, with /models and /chat/completions.
 Use Authorization: Bearer API_KEY. Unauthenticated requests are rejected. Requests

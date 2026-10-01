@@ -16,6 +16,7 @@ STATE = {"status": "installing", "model": MODEL, "error": None}
 GENERATION = threading.Lock()
 REQUESTS = threading.BoundedSemaphore(8)
 TOKENIZER = NETWORK = TORCH = None
+MODEL_DEPENDENCIES = {"transformers": "5.18.0", "accelerate": "1.15.0", "huggingface-hub": "1.33.0"}
 # Usage lives beside the model cache so it survives restarts. Prompts and replies are never recorded.
 USAGE_PATH = os.path.join(os.environ.get("HF_HOME", "/root/.cache/huggingface"), "yougori-usage.json")
 USAGE_LOCK = threading.Lock()
@@ -115,12 +116,30 @@ def validate_chat(body):
     return messages, tokens, temperature, stream, truncate
 
 
+def checkpoint():
+    """Inspect metadata before downloading weights; never substitute a chat backbone for a custom head."""
+    from huggingface_hub import HfApi
+    from transformers import AutoConfig, AutoModelForCausalLM
+    metadata = HfApi().model_info(MODEL, timeout=30)
+    files = {item.rfilename for item in metadata.siblings or []}
+    if {"joint_head_config.json", "joint_head.safetensors"} <= files:
+        raise RuntimeError(MODEL + " is a structured decision model with a custom prediction head. "
+                           "Yougori's model runner serves text chat and cannot run this decision head. "
+                           "See https://huggingface.co/" + MODEL + " for its decision API and runner.")
+    revision = metadata.sha
+    config = AutoConfig.from_pretrained(MODEL, revision=revision, trust_remote_code=False)
+    if type(config) not in AutoModelForCausalLM._model_mapping:
+        raise RuntimeError("The " + config.model_type + " architecture is not supported by Yougori's text chat runner. "
+                           "Choose a causal language model with built-in Transformers support and safetensors weights.")
+    return config, revision
+
+
 def load_model():
     global TOKENIZER, NETWORK, TORCH
     try:
         print("Checking model dependencies...", flush=True)
         threading.Thread(target=report_loading, daemon=True).start()
-        required = {"transformers": "4.57.2", "accelerate": "1.11.0"}
+        required = dict(MODEL_DEPENDENCIES)
         if os.environ.get('YOUGORI_INSTALL_TORCH') == '1':
             try:
                 importlib.metadata.version('torch')
@@ -144,13 +163,15 @@ def load_model():
             raise RuntimeError("CUDA is unavailable. Check the GPU runtime and NVIDIA driver in Yougori.")
         TORCH = torch
         gpu_count = torch.cuda.device_count()
+        print("Checking model compatibility...", flush=True)
+        config, revision = checkpoint()
         print("Downloading tokenizer for " + MODEL + "...", flush=True)
-        TOKENIZER = AutoTokenizer.from_pretrained(MODEL, trust_remote_code=False)
+        TOKENIZER = AutoTokenizer.from_pretrained(MODEL, revision=revision, trust_remote_code=False)
         STATE["status"] = "loading"
         print("Downloading model weights and loading onto the GPU (cached files are reused)...", flush=True)
         NETWORK = AutoModelForCausalLM.from_pretrained(
-            MODEL, trust_remote_code=False, use_safetensors=True,
-            torch_dtype=torch.float16,
+            MODEL, config=config, revision=revision, trust_remote_code=False, use_safetensors=True,
+            dtype="auto",
             device_map="balanced" if gpu_count > 1 else {"": 0},
             attn_implementation="eager",
         ).eval()
@@ -176,7 +197,8 @@ def report_loading():
 
 
 def context_window():
-    return min(getattr(NETWORK.config, "max_position_embeddings", None) or 4096, 32768)
+    config = getattr(NETWORK.config, "text_config", None) or NETWORK.config
+    return min(getattr(config, "max_position_embeddings", None) or 4096, 32768)
 
 
 def render(messages):
