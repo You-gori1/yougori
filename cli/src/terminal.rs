@@ -172,6 +172,7 @@ async fn run_inner(args: &[String]) -> Result<(), String> {
     if !io::stdin().is_terminal() || !io::stdout().is_terminal() {
         return Err("Open terminal requires an interactive terminal".into());
     }
+    crate::client::start(None).await?;
     let id = crate::public::resolve(target).await?;
     println!("Yougori terminal · {}\nType exit or press Ctrl+] to close this shell. Your workload keeps running.\n", target.chars().filter(|c| !c.is_control()).collect::<String>());
     attach(&id, project.then(|| project_command(container)).as_deref()).await
@@ -215,7 +216,7 @@ fn key_bytes(key: KeyEvent) -> Vec<u8> {
 }
 
 pub async fn attach(id: &str, command: Option<&str>) -> Result<(), String> {
-    if !io::stdin().is_terminal() {
+    if !io::stdin().is_terminal() || !io::stdout().is_terminal() {
         return Err(
             "A shell requires an interactive terminal; the environment is still running".into(),
         );
@@ -275,6 +276,10 @@ pub async fn attach(id: &str, command: Option<&str>) -> Result<(), String> {
         json!({"environmentId":id,"sessionId":session,"action":"close"}),
     )
     .await;
+    // A detached full-screen guest program may not send its normal cleanup.
+    // Restore the host screen and cursor before returning to a CLI menu.
+    let _ = io::stdout().write_all(b"\x1b[?1049l\x1b[0m\x1b[?25h\r\n");
+    let _ = io::stdout().flush();
     drop(raw);
     result
 }

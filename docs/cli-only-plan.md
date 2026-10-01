@@ -4,6 +4,8 @@ Goal: someone runs one install command, gets `yougori` in their terminal, and ca
 
 ## Status
 
+The interactive CLI offers **Open terminal here** under **Manage an environment**. Containers, GPU containers and built-in microVMs also offer to start and open their terminal after creation. The guest shell uses the current console; `exit` or Ctrl+] returns to the menu and leaves the environment running. Stopped or paused guests require a start choice, while busy or failed guests are left alone. Full VMs use their environment console window instead.
+
 The command catalog and backend dispatch cover the desktop commands, with deliberate desktop-only exceptions described below. This is source-level coverage, not a claim that every provider, guest type, installer, and hardware path has passed an end-to-end test. What still needs a running engine or real hardware is at the end of this section.
 
 **Current CLI-only limits**

@@ -14,7 +14,7 @@ use std::{
 pub const HELP: &str = r#"
 Public commands:
   yougori                         Open the main menu; quietly add this project's shortcut
-  yougori cli                     Interactive menus: choose actions, environments and paths
+  yougori cli                     Interactive menus: create, manage and open environment terminals
   yougori launch [--change]        Run this project; press y to sync when switching copies
   npm run yougori                 Run the project again; Ctrl+C stops its container
   npm run yougori-change          Change project settings, then run it

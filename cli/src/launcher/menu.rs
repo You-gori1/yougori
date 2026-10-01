@@ -337,7 +337,62 @@ async fn create() -> Result<(), String> {
             if internet { "enabled" } else { "disabled" }
         ),
     )?;
-    execute(&args.iter().map(String::as_str).collect::<Vec<_>>()).await
+    execute(&args.iter().map(String::as_str).collect::<Vec<_>>()).await?;
+    let created = state().await?["environments"]
+        .as_array()
+        .and_then(|items| {
+            items.iter().find(|env| {
+                env["name"].as_str().is_some_and(|n| n.eq_ignore_ascii_case(name.trim()))
+            })
+        })
+        .cloned()
+        .ok_or("The created environment was not found. Open Manage an environment to refresh.")?;
+    if kind == "vm" {
+        if menu(
+            "Open this environment now?",
+            &["Open environment window", "Return to menu"],
+        )? == 0 {
+            execute(&["env", "open", id(&created)?]).await?;
+        }
+    } else if choose_with_note(
+        "Open this environment now?",
+        "Start it and use its shell in this terminal. Type exit or press Ctrl+] to return; the environment keeps running.",
+        &["Start and open terminal here".into(), "Keep it stopped and return to menu".into()],
+    )? == 0 {
+        open_terminal_here(&created, true).await?;
+    }
+    Ok(())
+}
+
+fn terminal_needs_start(env: &Value) -> Result<bool, String> {
+    if matches!(env["kind"].as_str(), Some("fullVm" | "computerBranch")) {
+        return Err("This environment has no interactive guest terminal. Use Open environment window for its console.".into());
+    }
+    match env["status"].as_str() {
+        Some("running") => Ok(false),
+        Some("stopped" | "paused") => Ok(true),
+        Some("error") => Err("Fix this environment's error before opening its terminal. Details shows the last error.".into()),
+        _ => Err("Wait for this environment to finish its current action before opening its terminal.".into()),
+    }
+}
+
+async fn open_terminal_here(env: &Value, start_authorized: bool) -> Result<(), String> {
+    let env_id = id(env)?;
+    if terminal_needs_start(env)? {
+        if !start_authorized
+            && choose_with_note(
+                "Start and open this environment?",
+                "Its shell will use this terminal. Exiting the shell leaves the environment running.",
+                &["Start and open terminal here".into(), "Back".into()],
+            )? != 0
+        {
+            return Ok(());
+        }
+        execute(&["start", env_id]).await?;
+    }
+    // execute pauses the menu painter and restores it after the PTY closes,
+    // including errors. The shell owns this console, not a new desktop window.
+    execute(&["terminal", env_id]).await
 }
 
 async fn manage() -> Result<(), String> {
@@ -355,6 +410,7 @@ async fn manage() -> Result<(), String> {
             "Start",
             "Stop",
             "Restart",
+            "Open terminal here",
             "Open environment window",
             "Logs",
             "Rename",
@@ -378,18 +434,19 @@ async fn manage() -> Result<(), String> {
             )?;
             execute(&[action, env_id]).await
         }
-        4 => execute(&["env", "open", env_id]).await,
-        5 => execute(&["logs", env_id]).await,
-        6 => {
+        4 => open_terminal_here(&env, false).await,
+        5 => execute(&["env", "open", env_id]).await,
+        6 => execute(&["logs", env_id]).await,
+        7 => {
             let name = text("New name", env["name"].as_str().unwrap_or(""), false)?;
             execute(&["rename", env_id, &name]).await
         }
-        7 => {
+        8 => {
             let name = text("Snapshot name", "before-change", false)?;
             confirm("Create snapshot?", &clean(&title))?;
             execute(&["snapshot", "create", env_id, "--name", &name, "--yes"]).await
         }
-        8 => {
+        9 => {
             let folder = browse("Save backup in", PathKind::Folder)?;
             confirm(
                 "Export backup?",
@@ -405,9 +462,9 @@ async fn manage() -> Result<(), String> {
             ])
             .await
         }
-        9 => files(env_id).await,
-        10 => execute(&["ports", "list", env_id]).await,
-        11 => {
+        10 => files(env_id).await,
+        11 => execute(&["ports", "list", env_id]).await,
+        12 => {
             confirm(
                 "Permanently delete this environment?",
                 &format!(
@@ -417,7 +474,7 @@ async fn manage() -> Result<(), String> {
             )?;
             execute(&["rm", env_id, "--yes"]).await
         }
-        12 => {
+        13 => {
             let host = state().await?;
             let slider = |key: &str, label, unit, maximum: u32| {
                 let current = env["resourcePolicy"][key]["preferred"]
@@ -479,7 +536,7 @@ async fn manage() -> Result<(), String> {
             ])
             .await
         }
-        13 => {
+        14 => {
             let guest_port = port("Service port inside this environment", 3000)?;
             let access = network(false, Some(env_id), Some(guest_port)).await?;
             if let Some(params) = publish_params(&access, env_id, guest_port) {
@@ -932,7 +989,7 @@ pub(super) async fn run(args: &[String]) -> Result<i32, String> {
                 "Overview — environments, services and jobs",
                 "Run a project — choose a Node.js or Python folder",
                 "Create an environment — container, GPU, microVM or VM",
-                "Manage an environment — start, stop, files and backups",
+                "Manage an environment — terminal, start, stop, files and backups",
                 "Models — run, chat and API access",
                 "Neocloud — RunPod account, prices and deployments",
                 "MCP Vault — vault, approvals and MCP connections",
@@ -1013,6 +1070,22 @@ pub(super) async fn run(args: &[String]) -> Result<i32, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn terminals_start_only_stopped_or_paused_guests_and_leave_busy_guests_alone() {
+        for kind in ["container", "microVm", "cloud"] {
+            assert!(!terminal_needs_start(&json!({"kind":kind,"status":"running"})).unwrap());
+            for status in ["stopped", "paused"] {
+                assert!(terminal_needs_start(&json!({"kind":kind,"status":status})).unwrap());
+            }
+            for status in ["error", "provisioning", "deleting", "unknown"] {
+                assert!(terminal_needs_start(&json!({"kind":kind,"status":status})).is_err());
+            }
+        }
+        for kind in ["fullVm", "computerBranch"] {
+            assert!(terminal_needs_start(&json!({"kind":kind,"status":"stopped"})).is_err());
+        }
+    }
 
     #[test]
     fn generated_creations_preserve_paths_names_and_resource_choices() {
