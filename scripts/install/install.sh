@@ -48,9 +48,16 @@ case "$sha" in *[!0-9a-fA-F]*) fail "the release SHA-256 is invalid" ;; esac
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
-file="$work/$(basename "$url")"
+asset_url=${url%%#*}
+asset_path=${asset_url%%\?*}
+file="$work/$(basename "$asset_path")"
+# The server saves aggregate command/app totals, without visitor identifiers.
+case "$asset_url" in
+  *\?*) download_url="${asset_url}&source=command" ;;
+  *) download_url="${asset_url}?source=command" ;;
+esac
 echo "Downloading Yougori $version..."
-curl --proto '=https' --proto-redir '=https' --connect-timeout 20 --max-time 900 -fL --progress-bar "$url" -o "$file" || fail "download failed"
+curl --proto '=https' --proto-redir '=https' --connect-timeout 20 --max-time 900 -fL --progress-bar "$download_url" -o "$file" || fail "download failed"
 [ "$(hash_file "$file")" = "$(printf '%s' "$sha" | tr 'A-F' 'a-f')" ] || fail "the download does not match the published SHA-256. Nothing was installed."
 
 bin="$HOME/.local/bin"

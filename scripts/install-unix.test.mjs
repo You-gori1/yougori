@@ -10,7 +10,7 @@ const bash = process.platform === "win32" ? "C:/Program Files/Git/bin/bash.exe" 
 const unix = path => path.replaceAll("\\", "/").replace(/^([A-Za-z]):/, (_, drive) => `/${drive.toLowerCase()}`)
 const script = readFileSync(new URL("./install/install.sh", import.meta.url), "utf8").replaceAll("\r\n", "\n")
 
-function install(t, { extension = "deb", badHash = false, aptExit = "0", engineOnly = "0", os = "Linux", arch = "x86_64", assetKey = "linux-x86_64", shell = "/bin/bash", startEngine = "1", profiles = {} } = {}) {
+function install(t, { extension = "deb", assetQuery = "", badHash = false, aptExit = "0", engineOnly = "0", os = "Linux", arch = "x86_64", assetKey = "linux-x86_64", shell = "/bin/bash", startEngine = "1", profiles = {} } = {}) {
   const root = mkdtempSync(join(tmpdir(), "yougori-installer-"))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const bin = join(root, "bin")
@@ -18,7 +18,7 @@ function install(t, { extension = "deb", badHash = false, aptExit = "0", engineO
   const stubs = {
     uname: 'if [ "$1" = "-s" ]; then echo "$FIXTURE_OS"; else echo "$FIXTURE_ARCH"; fi',
     id: 'echo 1000',
-    curl: 'case "$*" in *latest.json*) printf "%s" "$FIXTURE_MANIFEST" ;; *) while [ "$#" -gt 0 ]; do if [ "$1" = "-o" ]; then shift; printf "package" > "$1"; exit 0; fi; shift; done; exit 1 ;; esac',
+    curl: 'printf "%s\\n" "$@" >> "$FIXTURE_CURL_LOG"; case "$*" in *latest.json*) printf "%s" "$FIXTURE_MANIFEST" ;; *) while [ "$#" -gt 0 ]; do if [ "$1" = "-o" ]; then shift; printf "package" > "$1"; exit 0; fi; shift; done; exit 1 ;; esac',
     sudo: 'exec "$@"',
     "apt-get": 'printf "%s\\n" "$@" > "$FIXTURE_APT_LOG"; exit "$FIXTURE_APT_EXIT"',
     ln: '[ "$1" = "-sf" ] && { [ "$2" = "/usr/bin/yougori" ] || [ "$2" = "$HOME/.local/opt/yougori-engine/cli/yougori" ]; } && [ "$3" = "$HOME/.local/bin/yougori" ]',
@@ -40,10 +40,11 @@ function install(t, { extension = "deb", badHash = false, aptExit = "0", engineO
   mkdirSync(home)
   for (const [name, text] of Object.entries(profiles)) writeFileSync(join(home, name), text)
   const cliLog = join(root, "cli.log")
+  const curlLog = join(root, "curl.log")
   const env = { ...process.env, HOME: unix(home), SHELL: shell, YOUGORI_START_ENGINE: startEngine, FIXTURE_CLI_LOG: unix(cliLog), FIXTURE_BIN: unix(bin), FIXTURE_OS: os,
       FIXTURE_ARCH: arch, YOUGORI_ENGINE_ONLY: engineOnly, YOUGORI_AUTOSTART: "", YOUGORI_RELEASES_URL: "https://fixture.invalid/latest.json",
-      FIXTURE_APT_LOG: unix(log), FIXTURE_APT_EXIT: aptExit,
-      FIXTURE_MANIFEST: JSON.stringify({ version: "1.0.0", assets: { [assetKey]: { url: `https://fixture.invalid/Yougori.${extension}`, sha256: badHash ? "0".repeat(64) : sha } } }),
+      FIXTURE_APT_LOG: unix(log), FIXTURE_APT_EXIT: aptExit, FIXTURE_CURL_LOG: unix(curlLog),
+      FIXTURE_MANIFEST: JSON.stringify({ version: "1.0.0", assets: { [assetKey]: { url: `https://fixture.invalid/Yougori.${extension}${assetQuery}`, sha256: badHash ? "0".repeat(64) : sha } } }),
   }
   if (engineOnly === null) delete env.YOUGORI_ENGINE_ONLY
   const rerun = () => spawnSync(bash, ["--noprofile", "--norc", "-c", 'export PATH="$FIXTURE_BIN:$PATH"; /bin/sh -s'], {
@@ -51,8 +52,18 @@ function install(t, { extension = "deb", badHash = false, aptExit = "0", engineO
   })
   const result = rerun()
   if (result.error) throw result.error
-  return { result, rerun, home, cli: existsSync(cliLog) ? readFileSync(cliLog, "utf8") : "", apt: existsSync(log) ? readFileSync(log, "utf8") : null, engineInstalled: existsSync(join(root, "home/.local/opt/yougori-engine/yougori-engine")), cliInstalled: existsSync(join(root, "home/.local/opt/yougori-engine/cli/yougori")) }
+  return { result, rerun, home, curl: readFileSync(curlLog, "utf8"), cli: existsSync(cliLog) ? readFileSync(cliLog, "utf8") : "", apt: existsSync(log) ? readFileSync(log, "utf8") : null, engineInstalled: existsSync(join(root, "home/.local/opt/yougori-engine/yougori-engine")), cliInstalled: existsSync(join(root, "home/.local/opt/yougori-engine/cli/yougori")) }
 }
+
+test("command downloads are attributed without changing the package filename or existing query", t => {
+  const plain = install(t)
+  assert.equal(plain.result.status, 0, plain.result.stderr)
+  assert.match(plain.curl, /https:\/\/fixture.invalid\/Yougori\.deb\?source=command\n/)
+  const query = install(t, { assetQuery: "?download=1#fragment" })
+  assert.equal(query.result.status, 0, query.result.stderr)
+  assert.match(query.curl, /https:\/\/fixture.invalid\/Yougori\.deb\?download=1&source=command\n/)
+  assert.match(query.apt, /Yougori\.deb\n$/)
+})
 
 test("piped install preserves Bash profiles and saves PATH exactly once", t => {
   const original = 'export USER_SETTING="keep me"\n'

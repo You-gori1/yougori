@@ -42,7 +42,11 @@ $folder = Join-Path $env:TEMP ("yougori-install-" + [Guid]::NewGuid().ToString('
 New-Item -ItemType Directory -Path $folder | Out-Null
 $download = Join-Path $folder ([IO.Path]::GetFileName(([Uri]$asset.url).AbsolutePath))
 Write-Host "Downloading Yougori $($manifest.version)$(if ($engineOnly) { ' (engine only)' })..."
-try { Invoke-WebRequest -Uri $asset.url -OutFile $download -UseBasicParsing } catch { Fail "download failed ($($_.Exception.Message))" }
+# The server saves aggregate command/app totals, without visitor identifiers.
+$downloadUri = [UriBuilder]$asset.url
+$downloadUri.Fragment = ''
+$downloadUri.Query = if ($downloadUri.Query) { "$($downloadUri.Query.TrimStart('?'))&source=command" } else { 'source=command' }
+try { Invoke-WebRequest -Uri $downloadUri.Uri.AbsoluteUri -OutFile $download -UseBasicParsing } catch { Fail "download failed ($($_.Exception.Message))" }
 
 $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $download).Hash
 if ($hash -ne $asset.sha256.ToUpperInvariant()) { Remove-Item -Recurse -Force $folder; Fail 'the download does not match the published SHA-256. Nothing was installed.' }
