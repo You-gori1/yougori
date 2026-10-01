@@ -215,6 +215,22 @@ fn key_bytes(key: KeyEvent) -> Vec<u8> {
     bytes
 }
 
+fn detach_key(key: KeyEvent) -> bool {
+    if !key.modifiers.contains(KeyModifiers::CONTROL) {
+        return false;
+    }
+    if key.code == KeyCode::Char(']') {
+        return true;
+    }
+    // Unix terminals send the byte 0x1d for Ctrl+]. Crossterm decodes that
+    // legacy control byte as Ctrl+5; Windows console events retain Ctrl+].
+    #[cfg(unix)]
+    if key.code == KeyCode::Char('5') {
+        return true;
+    }
+    false
+}
+
 pub async fn attach(id: &str, command: Option<&str>) -> Result<(), String> {
     if !io::stdin().is_terminal() || !io::stdout().is_terminal() {
         return Err(
@@ -252,7 +268,7 @@ pub async fn attach(id: &str, command: Option<&str>) -> Result<(), String> {
             while event::poll(Duration::ZERO).map_err(|e| e.to_string())? {
                 let bytes = match event::read().map_err(|e| e.to_string())? {
                     Event::Key(key) if key.kind != KeyEventKind::Release => {
-                        if key.code == KeyCode::Char(']') && key.modifiers.contains(KeyModifiers::CONTROL) { return Ok(()); }
+                        if detach_key(key) { return Ok(()); }
                         key_bytes(key)
                     }
                     Event::Paste(text) => text.into_bytes(),
@@ -316,5 +332,23 @@ mod tests {
             key_bytes(KeyEvent::new(KeyCode::Char('b'), KeyModifiers::ALT)),
             b"\x1bb"
         );
+    }
+    #[test]
+    fn detach_accepts_platform_control_bracket_events_without_catching_plain_keys() {
+        assert!(detach_key(KeyEvent::new(
+            KeyCode::Char(']'),
+            KeyModifiers::CONTROL
+        )));
+        assert_eq!(
+            detach_key(KeyEvent::new(KeyCode::Char('5'), KeyModifiers::CONTROL)),
+            cfg!(unix)
+        );
+        for code in [KeyCode::Char(']'), KeyCode::Char('5'), KeyCode::Char('c')] {
+            assert!(!detach_key(KeyEvent::new(code, KeyModifiers::NONE)));
+        }
+        assert!(!detach_key(KeyEvent::new(
+            KeyCode::Char('c'),
+            KeyModifiers::CONTROL
+        )));
     }
 }
