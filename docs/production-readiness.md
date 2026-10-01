@@ -90,6 +90,31 @@ replace the backing appliance of a running development environment.
 
 ## Current local evidence (2026-09-30)
 
+### Installer and SSH refresh (2026-10-01)
+
+- All six Windows/Linux packages were rebuilt from commit
+  `cc2c5a6eb79c5f0d04c4ce2e98774ec05396107a` and published with immutable
+  filenames, hashes and publicly downloadable matching sources. The website
+  refresh is commit `1bfa279f420e595fa7388eb4cb234b27f96a321c`.
+- The extracted Windows desktop/engine each match 495 configured resource files;
+  Linux desktop/engine each match 85. MSI version and all three CLI aliases pass.
+- A real Linux x64 installer starts its engine and reinstalls an idle engine
+  while preserving existing Bash profiles. The live ARM64 HTTPS installer passes
+  archive checksum, architecture and installed CLI checks in an isolated home.
+- The packaged ARM64 engine creates an `alpine:3.24` container, executes a guest
+  command, removes it and exits cleanly under emulation. Physical Pi validation
+  remains pending. No existing user environments were stopped for these tests.
+- The CLI tests, 505 frontend tests, 299 desktop backend tests, all-target native
+  check, Go vet/race tests, 20 website server tests and 27 production website
+  browser tests pass. Windows cache-cleanup tests skip while `cargo run` is active;
+  file-symlink tests require Windows symlink privileges.
+- The source checkout's development-only `brace-expansion` dependencies are
+  patched to 1.1.21 and 5.0.12. App and website npm audits report no vulnerabilities.
+  These packages are not shipped in the app or engine; this lockfile follow-up
+  does not replace the exact matching sources for the already-built packages.
+  The Rust engine audit reports no known vulnerabilities, six unmaintained
+  dependency warnings and one yanked-version warning (`yoke-derive` 0.8.3).
+
 - Local isolated candidates built Windows NSIS/MSI, Linux DEB, standalone engine
   archives and matching source ZIPs without commits or GitHub Actions. Packages,
   exact checksums, logs and reports are in `D:\Yougori-Releases\2026-09-30-local`.
