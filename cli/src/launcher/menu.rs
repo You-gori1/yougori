@@ -850,7 +850,7 @@ async fn system() -> Result<(), String> {
                 _ => Ok(()),
             }
         }
-        7 => execute(&["update", "--check"]).await,
+        7 => super::releases::offer(true).await,
         8 => execute(&["app", "show"]).await,
         9 => {
             confirm(
@@ -916,6 +916,7 @@ pub(super) async fn run(args: &[String]) -> Result<i32, String> {
         return Err("This terminal cannot display interactive menus. Open Windows Terminal or another ANSI terminal, and remove TERM=dumb if set.".into());
     }
     let _session = ui::Session::start("cli", "Choose what you want to do");
+    super::releases::offer(false).await?;
     if let Ok(folder) = std::env::current_dir() {
         // Inspect before registering the shortcut so our package.json edit is
         // not mistaken for a change the user made.

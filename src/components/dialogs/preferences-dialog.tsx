@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/switch"
 import { formatBytesFromGb } from "@/lib/domain"
 import { useTopicWalkthroughModal } from "@/lib/topic-walkthrough"
 import { PreferencesVolumes } from "@/components/dialogs/preferences-volumes"
+import { ReleaseUpdateSettings } from "@/components/release-update"
 import "@/components/dialogs/preferences-dialog.css"
 
 export function PreferencesDialog() {
@@ -141,6 +142,8 @@ export function PreferencesDialog() {
         </section>
 
         <PreferencesVolumes open={open} />
+
+        <ReleaseUpdateSettings />
 
         {error && <p role="alert" className="preferences-error">{error}</p>}
       </DialogPanel>

@@ -26,6 +26,7 @@ mod neocloud;
 mod duplication;
 mod projects;
 mod changes;
+mod releases;
 mod model_runner;
 mod file_export;
 mod ignore_rules;
@@ -532,6 +533,9 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            releases::check_release_update,
+            releases::remind_release_update_later,
+            releases::open_release_downloads,
             vault::vault_status,
             vault::vault_control,
             vault::vault_add_items,

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { startFirstLaunchInstructions } from "@/lib/instructions-tour"
 import "@/components/dashboard-actions.css"
 import { PreferencesDialog } from "@/components/dialogs/preferences-dialog"
+import { ReleaseUpdateNotice } from "@/components/release-update"
 import { PersonalVault } from "@/components/personal-vault"
 import { ModelWorkspace } from "@/components/model-workspace"
 import yougoriLogo from "../../Yoo-app.png"
@@ -49,6 +50,7 @@ export function AppShell({ onCreate, children, vaultError }: {
         </div>
       </header>
       <main className="workspace-main mx-auto min-h-[calc(100vh-64px)] w-full min-w-0 px-5 py-8 sm:px-6 sm:py-10">
+        <ReleaseUpdateNotice />
         {children}
       </main>
 

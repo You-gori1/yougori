@@ -222,7 +222,9 @@ fn skill_install_is_idempotent_and_never_overwrites_personal_edits() {
     );
     let skill = std::fs::read_to_string(path.join("SKILL.md")).unwrap();
     assert!(skill.starts_with(yougori_cli::SKILL));
-    assert!(skill.contains(env!("CARGO_BIN_EXE_yougori-cli")));
+    // Cargo accepts either separator in a Windows target directory; current_exe
+    // returns the native spelling of the same executable.
+    assert!(skill.replace('\\', "/").contains(&env!("CARGO_BIN_EXE_yougori-cli").replace('\\', "/")));
     assert_eq!(
         std::fs::read_to_string(path.join("references/cli.md")).unwrap(),
         yougori_cli::GUIDE

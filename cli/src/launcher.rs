@@ -24,6 +24,7 @@ mod neocloud;
 mod package;
 mod plan;
 mod project;
+mod releases;
 mod scripts;
 mod stream;
 mod sync;
@@ -474,6 +475,7 @@ async fn run_model(args: &[String]) -> Result<i32, String> {
     };
     let _raw = ui::Raw::on()?;
     let session = ui::Session::start("run", "open models, served from this PC");
+    releases::offer(false).await?;
     ui::intro(&clean(&target), "model");
     let engine = ui::task("Starting Yougori engine");
     client::start(None).await?;

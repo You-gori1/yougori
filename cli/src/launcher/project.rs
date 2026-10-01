@@ -1209,6 +1209,7 @@ pub(super) async fn run_in(folder: &Path, change: bool) -> Result<i32, String> {
     let path = settings.join(format!("{key}.json"));
     let existing = load(&path, &folder)?;
     let _session = ui::Session::start("launch", "Run your project in a container");
+    super::releases::offer(false).await?;
     let name = project_name(&folder)
         .map(|name| clean(&name))
         .unwrap_or_else(|_| "project".into());

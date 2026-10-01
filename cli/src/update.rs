@@ -33,7 +33,7 @@ fn asset_key(engine_only: bool) -> String {
     if engine_only { format!("{}-engine", platform()) } else { platform().to_owned() }
 }
 
-fn engine_only_install() -> bool {
+pub(crate) fn engine_only_install() -> bool {
     crate::client::desktop_executable(None).is_err() && crate::client::engine_executable().is_some()
 }
 

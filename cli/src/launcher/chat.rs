@@ -119,6 +119,7 @@ pub async fn run(args: &[String]) -> Result<i32, String> {
     let _raw = ui::Raw::on()?;
     let target = &args[2];
     let _session = ui::Session::start("model", if options.neocloud { "open models, served from Neocloud" } else { "open models, chat and API" });
+    super::releases::offer(false).await?;
     let engine = ui::task("Starting Yougori engine");
     client::start(None).await?;
     let mut engine = Some(engine);
