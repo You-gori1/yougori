@@ -1,5 +1,5 @@
 //! Real WebView2/IPC regression, not a browser mock. No screenshots or user data.
-use crate::{commands, store::PlatformStore};
+use crate::{commands, runtime::RuntimeManager, store::PlatformStore};
 use std::sync::{Arc, Mutex};
 use tauri::{Manager, State};
 
@@ -35,6 +35,7 @@ fn window_smoke_report(
 fn native_guest_windows_render_through_async_ipc() {
     let data = tempfile::tempdir().unwrap();
     let store = PlatformStore::load(data.path().join("state.json")).unwrap();
+    let runtime = RuntimeManager::new(std::path::Path::new(env!("CARGO_MANIFEST_DIR")), data.path()).unwrap();
     store.mutate(|s| {
         s.environments = vec![serde_json::from_value(serde_json::json!({
             "id":"env-window-smoke","name":"Window regression test","kind":"container","provider":"yougoriOci","status":"running","runtime":"alpine","description":"test","createdAt":"2026-01-01T00:00:00Z",
@@ -49,9 +50,10 @@ fn native_guest_windows_render_through_async_ipc() {
         uuid::Uuid::new_v4().simple()
     );
     context.config_mut().app.windows.clear();
-    let app = tauri::Builder::default().any_thread().manage(store).manage(result.clone())
+    let app = tauri::Builder::default().any_thread().manage(store).manage(runtime).manage(result.clone())
         .invoke_handler(tauri::generate_handler![commands::get_platform_state, commands::open_environment_window, window_smoke_report])
         .on_page_load(|webview, payload| {
+            eprintln!("Window smoke page {}: {:?} {}", webview.label(), payload.event(), payload.url());
             if !matches!(payload.event(), tauri::webview::PageLoadEvent::Finished) { return; }
             let code = if webview.label() == "main" {
                 "(async()=>{try{for(let i=0;i<2;i++)await window.__TAURI_INTERNALS__.invoke('open_environment_window',{environmentId:'env-window-smoke'});}catch(e){window.__TAURI_INTERNALS__.invoke('window_smoke_report',{label:'main',error:String(e)});}})()".to_owned()
@@ -63,6 +65,7 @@ fn native_guest_windows_render_through_async_ipc() {
             webview.eval(&code).unwrap();
         })
         .setup(move |app| {
+            eprintln!("Window smoke dev URL: {:?}", app.config().build.dev_url);
             tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::App("index.html".into())).visible(false).data_directory(data.path().join("webview")).build()?;
             let handle = app.handle().clone();
             std::thread::spawn(move || { std::thread::sleep(std::time::Duration::from_secs(25)); handle.exit(1); });
@@ -71,6 +74,7 @@ fn native_guest_windows_render_through_async_ipc() {
             Ok(())
         }).build(context).unwrap();
     let code = app.run_return(|_, _| {});
+    assert!(result.error.lock().unwrap().is_none(), "{:?}", result.error.lock().unwrap());
     assert_eq!(code, 0, "{:?}", result.error.lock().unwrap());
     assert_eq!(result.windows.lock().unwrap().len(), 2);
 }

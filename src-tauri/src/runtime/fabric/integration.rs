@@ -106,11 +106,11 @@ async fn fabric_real_microvms_and_container_exchange_data_without_internet() -> 
         }
         let prepare=execute(&runtime,&a,"mkdir -p /tmp/yougori-project && printf original > /tmp/yougori-project/note.txt").await?;
         if prepare.exit_code!=0 { return Err(format!("prepare selected folder: {prepare:?}")); }
-        runtime.apply_environment_connection_with_folders("selected-ac",&a,&c,&ConnectionDirection::Bidirectional,&[PermissionKind::Data],&[],&[SelectedConnectionFolder { environment_id:a.id.clone(),path:"/tmp/yougori-project".into() }, SelectedConnectionFolder { environment_id:a.id.clone(),path:"/".into() }],false).await?;
+        let root_share = runtime.apply_environment_connection_with_folders("selected-ac",&a,&c,&ConnectionDirection::Bidirectional,&[PermissionKind::Data],&[],&[SelectedConnectionFolder { environment_id:a.id.clone(),path:"/".into() }],false).await;
+        if !root_share.is_err_and(|error| error.contains("entire filesystem")) { return Err("A selected-folder connection allowed the entire filesystem".into()); }
+        runtime.apply_environment_connection_with_folders("selected-ac",&a,&c,&ConnectionDirection::Bidirectional,&[PermissionKind::Data],&[],&[SelectedConnectionFolder { environment_id:a.id.clone(),path:"/tmp/yougori-project".into() }],false).await?;
         let mounted=execute(&runtime,&c,"cat /yougori/shared/selected-ac-selected-0/note.txt").await?;
         if mounted.stdout!="original" { return Err(format!("selected folder not mounted immediately: {mounted:?}")); }
-        let root_mounted=execute(&runtime,&c,"cat /yougori/shared/selected-ac-selected-1/tmp/yougori-project/note.txt").await?;
-        if root_mounted.stdout!="original" { return Err(format!("selected root not mounted immediately: {root_mounted:?}")); }
         let changed=execute(&runtime,&c,"printf changed > /yougori/shared/selected-ac-selected-0/note.txt").await?;
         let original=execute(&runtime,&a,"cat /tmp/yougori-project/note.txt").await?;
         if changed.exit_code!=0 || original.stdout!="changed" { return Err(format!("selected folder did not stay live: {changed:?}, {original:?}")); }

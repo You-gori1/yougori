@@ -584,7 +584,7 @@ async fn download_link(env: &Value) -> Result<(), String> {
         } else { item.choice() }
     }));
     choices.push(ui::Choice::new("Back", ""));
-    let choice = ui::select_required("Download link address", &[], &choices)?;
+    let choice = ui::select("Download link address", &[], &choices, 0)?;
     if choice == choices.len() - 1 { return Ok(()); }
     confirm("Create a complete environment download?", "Anyone with the link can copy all files and credentials inside this environment. The link lasts while this CLI is open; Ctrl+C turns it off. The environment must be stopped for a consistent copy.")?;
     if env["status"] != "stopped" {
