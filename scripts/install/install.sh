@@ -3,9 +3,9 @@
 #   curl -fsSL https://yougori.com/install.sh | bash
 # Downloads the current release, checks its SHA-256 (and the Apple signature on macOS), installs it
 # for this user by default, or through apt for an explicit Debian/Ubuntu desktop install. Links
-# `yougori` into ~/.local/bin and runs `yougori doctor`.
+# `yougori` into ~/.local/bin, saves PATH for future shells and starts the engine.
 # Environment overrides: YOUGORI_ENGINE_ONLY=0 (opt into the desktop bundle),
-# YOUGORI_RELEASES_URL (HTTPS manifest), YOUGORI_AUTOSTART=1.
+# YOUGORI_RELEASES_URL (HTTPS manifest), YOUGORI_AUTOSTART=1, YOUGORI_START_ENGINE=0.
 set -eu
 
 fail() { printf 'Yougori install failed: %s\n' "$1" >&2; exit 1; }
@@ -17,6 +17,9 @@ need tar
 manifest_url="${YOUGORI_RELEASES_URL:-https://yougori.com/releases/latest.json}"
 case "$manifest_url" in https://*) ;; *) fail "YOUGORI_RELEASES_URL must be HTTPS" ;; esac
 engine_only="${YOUGORI_ENGINE_ONLY:-1}"
+start_engine="${YOUGORI_START_ENGINE:-1}"
+case "$start_engine" in 0|1) ;; *) fail "YOUGORI_START_ENGINE must be 0 or 1" ;; esac
+missing=""
 
 os=$(uname -s)
 arch=$(uname -m)
@@ -30,7 +33,7 @@ hash_file() {
 }
 
 echo "Finding the latest Yougori release..."
-manifest=$(curl -fsSL "$manifest_url") || fail "cannot read $manifest_url"
+manifest=$(curl --proto '=https' --proto-redir '=https' --connect-timeout 20 --max-time 90 -fsSL "$manifest_url") || fail "cannot read $manifest_url"
 # Read one asset field without requiring jq: the manifest is small, flat JSON per asset.
 field() {
   printf '%s' "$manifest" | tr -d '\n' | sed -n "s/.*\"$platform\"[[:space:]]*:[[:space:]]*{\([^}]*\)}.*/\1/p" | sed -n "s/.*\"$1\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p"
@@ -40,12 +43,14 @@ url=$(field url)
 sha=$(field sha256)
 [ -n "$url" ] && [ -n "$sha" ] || fail "release $version has no download for $platform yet"
 case "$url" in https://*) ;; *) fail "the release download is not HTTPS" ;; esac
+[ "${#sha}" = 64 ] || fail "the release SHA-256 is invalid"
+case "$sha" in *[!0-9a-fA-F]*) fail "the release SHA-256 is invalid" ;; esac
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 file="$work/$(basename "$url")"
 echo "Downloading Yougori $version..."
-curl -fL --progress-bar "$url" -o "$file" || fail "download failed"
+curl --proto '=https' --proto-redir '=https' --connect-timeout 20 --max-time 900 -fL --progress-bar "$url" -o "$file" || fail "download failed"
 [ "$(hash_file "$file")" = "$(printf '%s' "$sha" | tr 'A-F' 'a-f')" ] || fail "the download does not match the published SHA-256. Nothing was installed."
 
 bin="$HOME/.local/bin"
@@ -62,7 +67,15 @@ case "$platform" in
       codesign --verify --strict "$staged/yougori-engine" 2>/dev/null || fail "the engine signature is not valid. Nothing was installed."
     fi
     target="$HOME/.local/opt/yougori-engine"
-    [ -x "$target/cli/yougori" ] && "$target/cli/yougori" app quit --yes >/dev/null 2>&1 && sleep 5 || true
+    if [ -x "$target/cli/yougori" ] && "$target/cli/yougori" app status >/dev/null 2>&1; then
+      "$target/cli/yougori" app quit --yes >/dev/null 2>&1 || fail "the running engine refused to stop. Existing files were left untouched."
+      attempts=0
+      while "$target/cli/yougori" app status >/dev/null 2>&1; do
+        attempts=$((attempts + 1))
+        [ "$attempts" -lt 60 ] || fail "the running engine did not stop. Existing files were left untouched."
+        sleep 1
+      done
+    fi
     mkdir -p "$target"
     cp -R "$staged/." "$target/"
     chmod 755 "$target/yougori-engine" "$target/cli/yougori"
@@ -105,9 +118,53 @@ case "$platform" in
     ;;
 esac
 
-case ":$PATH:" in *":$bin:"*) ;; *) echo "Add $bin to your PATH (for example in ~/.profile): export PATH=\"$bin:\$PATH\""; PATH="$bin:$PATH" ;; esac
+# A piped installer cannot change its parent shell. Persist the setting without
+# replacing the user's profiles, then give an exact command for this terminal.
+save_path() {
+  profile="$1"
+  if [ -f "$profile" ] && grep -qF '# Yougori CLI PATH' "$profile"; then return; fi
+  if ! cat >> "$profile" <<'PROFILE'
+
+# Yougori CLI PATH
+case ":$PATH:" in
+  *":$HOME/.local/bin:"*) ;;
+  *) export PATH="$HOME/.local/bin:$PATH" ;;
+esac
+PROFILE
+  then printf 'Could not save PATH in %s; add ~/.local/bin to your shell PATH.\n' "$profile" >&2; fi
+}
+save_path "$HOME/.profile"
+case "${SHELL:-/bin/bash}" in
+  */bash)
+    save_path "$HOME/.bashrc"
+    for profile in "$HOME/.bash_profile" "$HOME/.bash_login"; do
+      [ ! -f "$profile" ] || save_path "$profile"
+    done
+    ;;
+  */zsh) save_path "$HOME/.zprofile"; save_path "$HOME/.zshrc" ;;
+esac
+case ":$PATH:" in
+  *":$bin:"*) ;;
+  *)
+    echo 'PATH saved for future shells. In this terminal, run:'
+    echo 'export PATH="$HOME/.local/bin:$PATH"'
+    PATH="$bin:$PATH"
+    export PATH
+    ;;
+esac
 [ "${YOUGORI_AUTOSTART:-}" = "1" ] && yougori app autostart on >/dev/null || true
-yougori doctor --format table || true
+if [ "$start_engine" = "1" ] && [ -z "$missing" ]; then
+  echo "Starting the Yougori engine..."
+  if yougori app start; then
+    yougori doctor --format table || true
+  else
+    echo 'The files are installed, but engine startup failed. Check: yougori doctor --format table' >&2
+  fi
+elif [ -n "$missing" ]; then
+  echo 'After installing the dependencies above, run: ~/.local/bin/yougori app start'
+else
+  echo 'Engine startup skipped. Start it with: ~/.local/bin/yougori app start'
+fi
 echo
 if [ "$engine_only" = "1" ]; then echo "Yougori $version is installed (engine only, no desktop app). Try: yougori status"
 else echo "Yougori $version is installed. Try: yougori status"; fi

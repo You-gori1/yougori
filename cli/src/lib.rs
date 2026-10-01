@@ -10,6 +10,7 @@ pub mod overview;
 pub mod project_files;
 pub mod launcher_state;
 pub mod terminal;
+pub mod presentation;
 pub mod doctor;
 pub mod update;
 pub mod vault;

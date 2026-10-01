@@ -5,6 +5,7 @@ use crossterm::{
     event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
     terminal,
 };
+use yougori_cli::presentation;
 use std::{
     collections::VecDeque,
     io::{self, IsTerminal, Write},
@@ -18,6 +19,10 @@ const RESET: &str = "\x1b[0m";
 const TICK: Duration = Duration::from_millis(70);
 const BANNER: Duration = Duration::from_millis(650);
 const SPINNER: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+fn spinner(tick: usize) -> char {
+    if presentation::ascii() { ['|', '/', '-', '\\'][tick % 4] }
+    else { SPINNER[tick % SPINNER.len()] }
+}
 static CTRL_C: AtomicBool = AtomicBool::new(false);
 
 pub fn note_interrupt(key: KeyEvent) {
@@ -225,6 +230,11 @@ fn escape_len(s: &str) -> usize {
 
 /// Columns the text occupies, ignoring escape sequences.
 pub fn width(s: &str) -> usize {
+    let s = presentation::text(s);
+    display_width(&s)
+}
+
+fn display_width(s: &str) -> usize {
     let mut total = 0;
     let mut i = 0;
     while i < s.len() {
@@ -241,13 +251,21 @@ pub fn width(s: &str) -> usize {
 
 /// Cuts text to `max` columns so a live line can never wrap.
 fn fit(s: &str, max: usize) -> String {
-    if width(s) <= max {
+    fit_mode(s, max, presentation::ascii())
+}
+
+fn fit_mode(s: &str, max: usize, ascii: bool) -> String {
+    let s = presentation::text_mode(s, ascii);
+    let s = s.as_ref();
+    if display_width(s) <= max {
         return s.to_owned();
     }
     if max == 0 {
         return String::new();
     }
     let mut out = String::new();
+    let suffix = if ascii { &"..."[..max.min(3)] } else { "…" };
+    let reserve = suffix.len().min(if ascii { 3 } else { 1 });
     let mut used = 0;
     let mut i = 0;
     let mut hyperlink = false;
@@ -264,14 +282,14 @@ fn fit(s: &str, max: usize) -> String {
         }
         let c = s[i..].chars().next().unwrap();
         let w = char_width(c);
-        if used + w + 1 > max {
+        if used + w + reserve > max {
             break;
         }
         out.push(c);
         used += w;
         i += c.len_utf8();
     }
-    out.push('…');
+    out.push_str(suffix);
     if hyperlink { out.push_str("\x1b]8;;\x1b\\"); }
     if caps().color {
         out.push_str(RESET);
@@ -573,7 +591,7 @@ impl Painter {
             "\r\n".to_owned()
         };
         for line in lines {
-            text.push_str(&line);
+            text.push_str(&presentation::text(&line));
             text.push_str("\r\n");
         }
         self.commit(out, text.as_bytes());
@@ -863,6 +881,14 @@ fn wordmark() -> Vec<Vec<char>> {
 
 /// The wordmark, revealed by a sweep of light while `elapsed` is set; still once it is not.
 fn banner_lines(elapsed: Option<Duration>, title: &str, tagline: &str) -> Vec<String> {
+    banner_lines_mode(elapsed, title, tagline, presentation::ascii())
+}
+
+fn banner_lines_mode(elapsed: Option<Duration>, title: &str, tagline: &str, ascii: bool) -> Vec<String> {
+    if ascii {
+        return vec![String::new(), format!("  {}  {}  v{}", bold("YOUGORI"), title, env!("CARGO_PKG_VERSION")),
+            format!("  {}", muted(tagline)), String::new()];
+    }
     let rows = wordmark();
     let columns = rows[0].len();
     let progress = elapsed.map(|e| (e.as_secs_f64() / BANNER.as_secs_f64()).min(1.0));
@@ -907,7 +933,7 @@ fn task_line(task: &TaskState, tick: usize, now: Instant) -> String {
     let elapsed = now - task.started;
     let mut line = format!(
         "{}  {}",
-        paint(&SPINNER[tick % SPINNER.len()].to_string(), SKY),
+        paint(&spinner(tick).to_string(), SKY),
         shimmer(&task.text, elapsed)
     );
     if !task.detail.is_empty() {
@@ -1710,7 +1736,7 @@ impl Dash {
         let since = now - self.since;
         let (mark, status) = match self.tone {
             Tone::Busy => (
-                paint(&SPINNER[tick % SPINNER.len()].to_string(), SKY),
+                paint(&spinner(tick).to_string(), SKY),
                 shimmer(&self.status, since),
             ),
             Tone::Good => {
@@ -1875,6 +1901,14 @@ pub fn dash_close() {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn ascii_lines_fit_after_expanding_arrows_and_ellipsis() {
+        for columns in 0..30 {
+            let line = super::fit_mode("\x1b[32m│ Ready → environment…\x1b[0m", columns, true);
+            assert!(super::display_width(&line) <= columns, "{columns}: {line:?}");
+            assert!(line.is_ascii());
+        }
+    }
     use super::*;
 
     #[test]
@@ -2069,8 +2103,11 @@ mod tests {
         assert_eq!(width("日本"), 4);
         let cut = fit("\x1b[1mabcdefghij\x1b[0m", 5);
         assert_eq!(width(&cut), 5);
-        assert!(cut.starts_with("\x1b[1mabcd"));
-        assert!(cut.contains('…'));
+        if presentation::ascii() {
+            assert!(cut.starts_with("\x1b[1mab") && cut.contains("..."));
+        } else {
+            assert!(cut.starts_with("\x1b[1mabcd") && cut.contains('…'));
+        }
         assert_eq!(fit("short", 10), "short");
         assert_eq!(width(&fit("日本語テキスト", 5)), 5);
     }
@@ -2089,7 +2126,7 @@ mod tests {
         let clipped = fit(&link, 6);
         assert_eq!(width(&clipped), 6);
         assert!(clipped.contains(url));
-        assert!(clipped.contains("…\x1b]8;;\x1b\\"));
+        assert!(clipped.contains(if presentation::ascii() { "...\x1b]8;;\x1b\\" } else { "…\x1b]8;;\x1b\\" }));
         let fallback = link_row("public", url, 40, false);
         assert!(fallback.contains("press u for URL"));
         assert!(!fallback.contains("https://"));
@@ -2105,10 +2142,13 @@ mod tests {
         assert_eq!(text[0].chars().count(), 34);
         assert!(text[0].starts_with("▀▄ ▄▀ ▄▀▀▄"));
         assert!(text[2].ends_with("▀▀▀"));
-        let still = banner_lines(None, "launch", "tagline");
+        let still = banner_lines_mode(None, "launch", "tagline", false);
         assert!(still[2].contains("launch") && still[3].contains("tagline"));
-        let early = banner_lines(Some(Duration::ZERO), "launch", "tagline");
+        let early = banner_lines_mode(Some(Duration::ZERO), "launch", "tagline", false);
         assert!(!early[2].contains("launch"), "text follows the sweep");
+        let ascii = banner_lines_mode(None, "launch", "tagline", true);
+        assert!(ascii.iter().all(|s| s.is_ascii()));
+        assert!(ascii[1].contains("YOUGORI") && ascii[1].contains("launch") && ascii[2].contains("tagline"));
     }
 
     #[test]
