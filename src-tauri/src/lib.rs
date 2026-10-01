@@ -506,6 +506,18 @@ pub fn run() {
             app.manage(instance_lock);
             app.manage(workspace::WorkspaceManager::new(&storage_directory));
             app.manage(host_terminal::HostTerminalManager::default());
+            // Native system installers cannot provision every user's home.
+            // Set up the shared skill for the user who actually runs this app
+            // or engine. Development checkouts do not change installed skills.
+            #[cfg(not(debug_assertions))]
+            {
+                let skill_app = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Err(error) = host_terminal::setup_access(&skill_app).await {
+                        eprintln!("Automatic Yougori skill setup could not finish: {error}");
+                    }
+                });
+            }
             app.manage(vault_gateway::GatewayState::default());
             app.manage(vault_setup::SetupState::default());
             #[cfg(target_os = "windows")]

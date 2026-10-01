@@ -159,6 +159,16 @@ case ":$PATH:" in
     export PATH
     ;;
 esac
+# Skill setup needs only the installed CLI, even when engine startup is skipped
+# or runtime dependencies are missing. Use this install's executable, not a
+# possibly older Yougori command elsewhere on PATH.
+echo "Setting up the Yougori skill..."
+if skill_output=$("$bin/yougori" skills install 2>&1); then
+  echo "Yougori skill ready: $HOME/Yougori/Workspace/skills/yougori"
+else
+  printf '%s\n' "$skill_output" >&2
+  echo 'Yougori is installed. Existing custom skills were preserved; retry skill setup with: yougori skills install' >&2
+fi
 [ "${YOUGORI_AUTOSTART:-}" = "1" ] && yougori app autostart on >/dev/null || true
 if [ "$start_engine" = "1" ] && [ -z "$missing" ]; then
   echo "Starting the Yougori engine..."

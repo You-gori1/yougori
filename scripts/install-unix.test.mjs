@@ -10,7 +10,7 @@ const bash = process.platform === "win32" ? "C:/Program Files/Git/bin/bash.exe" 
 const unix = path => path.replaceAll("\\", "/").replace(/^([A-Za-z]):/, (_, drive) => `/${drive.toLowerCase()}`)
 const script = readFileSync(new URL("./install/install.sh", import.meta.url), "utf8").replaceAll("\r\n", "\n")
 
-function install(t, { extension = "deb", assetQuery = "", badHash = false, aptExit = "0", engineOnly = "0", os = "Linux", arch = "x86_64", assetKey = "linux-x86_64", shell = "/bin/bash", startEngine = "1", profiles = {} } = {}) {
+function install(t, { extension = "deb", assetQuery = "", badHash = false, aptExit = "0", skillExit = "0", engineOnly = "0", os = "Linux", arch = "x86_64", assetKey = "linux-x86_64", shell = "/bin/bash", startEngine = "1", profiles = {} } = {}) {
   const root = mkdtempSync(join(tmpdir(), "yougori-installer-"))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const bin = join(root, "bin")
@@ -21,10 +21,10 @@ function install(t, { extension = "deb", assetQuery = "", badHash = false, aptEx
     curl: 'printf "%s\\n" "$@" >> "$FIXTURE_CURL_LOG"; case "$*" in *latest.json*) printf "%s" "$FIXTURE_MANIFEST" ;; *) while [ "$#" -gt 0 ]; do if [ "$1" = "-o" ]; then shift; printf "package" > "$1"; exit 0; fi; shift; done; exit 1 ;; esac',
     sudo: 'exec "$@"',
     "apt-get": 'printf "%s\\n" "$@" > "$FIXTURE_APT_LOG"; exit "$FIXTURE_APT_EXIT"',
-    ln: '[ "$1" = "-sf" ] && { [ "$2" = "/usr/bin/yougori" ] || [ "$2" = "$HOME/.local/opt/yougori-engine/cli/yougori" ]; } && [ "$3" = "$HOME/.local/bin/yougori" ]',
+    ln: '[ "$1" = "-sf" ] && { [ "$2" = "/usr/bin/yougori" ] || [ "$2" = "$HOME/.local/opt/yougori-engine/cli/yougori" ]; } && [ "$3" = "$HOME/.local/bin/yougori" ] && cp "$FIXTURE_BIN/yougori" "$3" && chmod 755 "$3"',
     tar: 'while [ "$#" -gt 0 ]; do if [ "$1" = "-C" ]; then shift; mkdir -p "$1/cli"; printf "fixture engine" > "$1/yougori-engine"; printf "fixture cli" > "$1/cli/yougori"; exit 0; fi; shift; done; exit 1',
     codesign: 'exit 0',
-    yougori: 'printf "%s\\n" "$*" >> "$FIXTURE_CLI_LOG"; exit 0',
+    yougori: 'printf "%s\\n" "$*" >> "$FIXTURE_CLI_LOG"; if [ "$1" = "skills" ] && [ "$FIXTURE_SKILL_EXIT" != 0 ]; then echo "Existing custom skill left unchanged" >&2; exit "$FIXTURE_SKILL_EXIT"; fi; exit 0',
     "qemu-system-x86_64": 'exit 0',
     "qemu-img": 'exit 0',
     ldconfig: 'echo "libgtk-3.so.0"',
@@ -42,7 +42,7 @@ function install(t, { extension = "deb", assetQuery = "", badHash = false, aptEx
   const cliLog = join(root, "cli.log")
   const curlLog = join(root, "curl.log")
   const env = { ...process.env, HOME: unix(home), SHELL: shell, YOUGORI_START_ENGINE: startEngine, FIXTURE_CLI_LOG: unix(cliLog), FIXTURE_BIN: unix(bin), FIXTURE_OS: os,
-      FIXTURE_ARCH: arch, YOUGORI_ENGINE_ONLY: engineOnly, YOUGORI_AUTOSTART: "", YOUGORI_RELEASES_URL: "https://fixture.invalid/latest.json",
+      FIXTURE_ARCH: arch, FIXTURE_SKILL_EXIT: skillExit, YOUGORI_ENGINE_ONLY: engineOnly, YOUGORI_AUTOSTART: "", YOUGORI_RELEASES_URL: "https://fixture.invalid/latest.json",
       FIXTURE_APT_LOG: unix(log), FIXTURE_APT_EXIT: aptExit, FIXTURE_CURL_LOG: unix(curlLog),
       FIXTURE_MANIFEST: JSON.stringify({ version: "1.0.0", assets: { [assetKey]: { url: `https://fixture.invalid/Yougori.${extension}${assetQuery}`, sha256: badHash ? "0".repeat(64) : sha } } }),
   }
@@ -70,7 +70,7 @@ test("piped install preserves Bash profiles and saves PATH exactly once", t => {
   const fixture = install(t, { profiles: { ".profile": original, ".bashrc": original, ".bash_profile": original } })
   assert.equal(fixture.result.status, 0, fixture.result.stderr)
   assert.match(fixture.result.stdout, /In this terminal, run:\nexport PATH=/)
-  assert.match(fixture.cli, /^app start\ndoctor --format table\n$/)
+  assert.match(fixture.cli, /^skills install\napp start\ndoctor --format table\n$/)
   assert.equal(fixture.rerun().status, 0)
   for (const name of [".profile", ".bashrc", ".bash_profile"]) {
     const content = readFileSync(join(fixture.home, name), "utf8")
@@ -93,9 +93,17 @@ test("Zsh installs configure both login and interactive shells", t => {
 test("automation can skip engine startup without reporting an expected failure", t => {
   const { result, cli } = install(t, { startEngine: "0" })
   assert.equal(result.status, 0, result.stderr)
-  assert.equal(cli, "")
+  assert.equal(cli, "skills install\n")
   assert.match(result.stdout, /Engine startup skipped/)
   assert.doesNotMatch(result.stdout, /FAIL/)
+})
+
+test("a custom skill conflict does not interrupt installing or starting Yougori", t => {
+  const { result, cli } = install(t, { skillExit: "1" })
+  assert.equal(result.status, 0, result.stderr)
+  assert.equal(cli, "skills install\napp start\ndoctor --format table\n")
+  assert.match(result.stderr, /Existing custom skill left unchanged/)
+  assert.match(result.stdout, /Yougori 1\.0\.0 is installed/)
 })
 
 for (const arch of ["aarch64", "arm64"]) test(`Linux ${arch} installs the ARM64 CLI and engine`, t => {

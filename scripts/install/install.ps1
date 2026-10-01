@@ -87,6 +87,19 @@ $env:Path = "$userPath;$([Environment]::GetEnvironmentVariable('Path', 'Machine'
 $cli = Get-Command yougori -ErrorAction SilentlyContinue
 if (-not $cli) { Fail 'Yougori installed, but `yougori` is not on PATH. Open a new terminal, or add the Yougori cli folder to PATH.' }
 
+Write-Host 'Setting up the Yougori skill...'
+try {
+  $skillOutput = & $cli.Source skills install 2>&1
+  if ($LASTEXITCODE -ne 0) {
+    Write-Warning "Yougori is installed. Automatic skill setup could not finish; existing custom skills were preserved. Retry with: yougori skills install. $($skillOutput -join ' ')"
+  } else {
+    $skillResult = ($skillOutput -join "`n") | ConvertFrom-Json
+    Write-Host "Yougori skill ready: $($skillResult.result.path)"
+  }
+} catch {
+  Write-Warning "Yougori is installed. Skill setup could not finish: $($_.Exception.Message). Retry with: yougori skills install"
+}
+
 if ($env:YOUGORI_AUTOSTART -eq '1') { & yougori app autostart on | Out-Null }
 & yougori doctor --format table
 Write-Host ''

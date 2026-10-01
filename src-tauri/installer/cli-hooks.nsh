@@ -4,6 +4,11 @@
   ${If} $0 != 0
     DetailPrint "Yougori CLI PATH setup failed. Add $INSTDIR\cli to your user PATH manually."
   ${EndIf}
+  nsExec::ExecToLog '"$INSTDIR\cli\yougori.exe" skills install'
+  Pop $0
+  ${If} $0 != 0
+    DetailPrint "Yougori skill setup could not finish. Existing custom skills were preserved; run yougori skills install to retry."
+  ${EndIf}
 !macroend
 
 !macro NSIS_HOOK_PREUNINSTALL
