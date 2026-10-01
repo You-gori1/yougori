@@ -14,6 +14,25 @@ fn response(output: &Output) -> Value {
 }
 
 #[test]
+fn ssh_ascii_output_does_not_change_wire_json_or_user_text() {
+    let help = Command::new(env!("CARGO_BIN_EXE_yougori"))
+        .arg("help").env("YOUGORI_ASCII", "1").output().unwrap();
+    assert!(help.status.success());
+    assert!(help.stdout.is_ascii(), "{}", String::from_utf8_lossy(&help.stdout));
+    let directory = tempfile::tempdir().unwrap();
+    let skill = directory.path().join("café→日本");
+    let args = ["skills", "install", "--path", skill.to_str().unwrap()];
+    let normal = cli(&args);
+    let ascii = Command::new(env!("CARGO_BIN_EXE_yougori"))
+        .args(args)
+        .env("YOUGORI_ASCII", "1").output().unwrap();
+    assert_eq!(ascii.status.success(), normal.status.success());
+    assert!(ascii.status.success(), "{}", String::from_utf8_lossy(&ascii.stdout));
+    assert_eq!(ascii.stdout, normal.stdout);
+    assert!(String::from_utf8_lossy(&ascii.stdout).contains("café→日本"));
+}
+
+#[test]
 fn launcher_never_prompts_on_pipes_and_model_alias_preserves_resources() {
     for args in [vec!["launch"],vec!["launch", "--cloud"],vec!["run"],vec!["cli"],vec!["terminal", "unused-environment"],vec!["terminal", "unused-environment", "--project"]] {
         let output=cli(&args);

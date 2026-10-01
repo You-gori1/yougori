@@ -1,4 +1,4 @@
-use yougori_cli::{catalog, client, parse, wire, GUIDE, SKILL};
+use yougori_cli::{catalog, client, parse, presentation, wire, GUIDE, SKILL};
 use serde_json::{json, Value};
 use std::{io::Read, path::PathBuf};
 mod output;
@@ -60,7 +60,7 @@ async fn run(args: Vec<String>) -> Result<i32, String> {
                 .last()
                 .is_some_and(|s| matches!(s.as_str(), "--help" | "-h")))
     {
-        print!("{}", output::help(&format!("Yougori — environments, models and Personal Vault\n{}\n{}", yougori_cli::public::HELP, parse::HELP), output::stdout_color()));
+        print!("{}", presentation::text(&output::help(&format!("Yougori — environments, models and Personal Vault\n{}\n{}", yougori_cli::public::HELP, parse::HELP), output::stdout_color())));
         return Ok(0);
     }
     if args[0] == "--version" {
@@ -175,7 +175,7 @@ async fn run(args: Vec<String>) -> Result<i32, String> {
             _ => return Err("Usage: yougori doctor [--format json|table]".into()),
         };
         let report = launcher::command_progress(&args, yougori_cli::doctor::run()).await;
-        if format.map_or_else(output::stdout_terminal, |f| f == "table") { print!("{}", output::doctor(&report, output::stdout_color())) } else { println!("{}", wire_json(report.clone())) }
+        if format.map_or_else(output::stdout_terminal, |f| f == "table") { print!("{}", presentation::text(&output::doctor(&report, output::stdout_color()))) } else { println!("{}", wire_json(report.clone())) }
         return Ok(if report["ready"] == true { 0 } else { 1 });
     }
     if args[0] == "top" {
@@ -195,8 +195,8 @@ async fn run(args: Vec<String>) -> Result<i32, String> {
                 return Ok(0);
             }
             print!("[2J[H{}
-Refreshing every 2 seconds · Ctrl+C to leave
-", output::top(&snapshot, output::stdout_color()));
+Refreshing every 2 seconds * Ctrl+C to leave
+", presentation::text(&output::top(&snapshot, output::stdout_color())));
             tokio::select! {
                 _ = tokio::time::sleep(std::time::Duration::from_secs(2)) => {}
                 _ = tokio::signal::ctrl_c() => return Ok(0),
@@ -244,7 +244,7 @@ Refreshing every 2 seconds · Ctrl+C to leave
                 Ok((value, rendered))
             }
         }).await?;
-        if table { print!("{rendered}") } else { println!("{}", wire_json(value)) }
+        if table { print!("{}", presentation::text(&rendered)) } else { println!("{}", wire_json(value)) }
         return Ok(0);
     }
     if let Some(result) = launcher::command_progress(&args, yougori_cli::public::handle(&args)).await? {
@@ -292,7 +292,7 @@ Refreshing every 2 seconds · Ctrl+C to leave
     }
     if invocation.request.method == "neocloud_prices"
         && price_format.as_deref().map_or_else(output::stdout_terminal, |f| f == "table") {
-        print!("{}", output::neocloud_prices(&result, output::stdout_color()));
+        print!("{}", presentation::text(&output::neocloud_prices(&result, output::stdout_color())));
     } else if invocation.markdown && result.is_string() {
         println!("{}", result.as_str().unwrap());
     } else {
@@ -330,7 +330,7 @@ fn main() {
         Ok(code) => code,
         Err(error) => {
             if output::stdout_terminal() {
-                eprint!("{}", output::error(&error, output::stdout_color()));
+                eprint!("{}", presentation::text(&output::error(&error, output::stdout_color())));
             } else {
                 println!(
                     "{}",

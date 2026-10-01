@@ -46,6 +46,17 @@ Do this in an isolated release checkout so its bundled CLI does not replace the
 developer's host CLI. The installer selects `linux-aarch64-engine` on 64-bit Pi OS;
 32-bit ARM is not supported. QEMU and GTK3 remain system dependencies.
 
+The Unix installer preserves existing shell profiles and adds `~/.local/bin` to
+Bash/Zsh login and interactive shells. A piped script cannot change the current
+parent shell, so it prints the exact `export PATH` command for that terminal.
+It starts the engine when its system dependencies are present; automated installs
+can set `YOUGORI_START_ENGINE=0`. Login autostart remains opt-in.
+
+The CLI uses ASCII decorations over SSH and in non-UTF-8 Unix locales to avoid
+garbled menus. `YOUGORI_ASCII=0` forces Unicode; `YOUGORI_ASCII=1` forces ASCII.
+This affects presentation only. JSON responses, guest output and stored data
+retain their original Unicode bytes.
+
 ## Build candidates
 
 Build locally without GitHub Actions or a commit:

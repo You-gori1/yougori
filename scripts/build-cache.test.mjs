@@ -9,7 +9,13 @@ const available = spawnSync("pwsh", ["-NoProfile", "-Command", "exit 0"], { wind
 const cargoAvailable = spawnSync("cargo", ["--version"], { windowsHide: true }).status === 0
 const script = resolve("scripts/build-cache.ps1")
 
-test("compiler cleanup preserves application data and rejects redirected caches", { skip: !available }, () => {
+test("compiler cleanup preserves application data and rejects redirected caches", { skip: !available }, t => {
+  const running = spawnSync("pwsh", ["-NoProfile", "-Command", "if (Get-Process -Name cargo,rustc -ErrorAction SilentlyContinue) { exit 1 }"], { windowsHide: true })
+  if (running.status === 1) {
+    t.skip("Compiler cleanup intentionally refuses while a Rust build or cargo run is active")
+    return
+  }
+  assert.equal(running.status, 0)
   const root = mkdtempSync(join(tmpdir(), "yougori build cache "))
   const workspace = join(root, "checkout")
   const profile = join(workspace, "src-tauri", "target", "debug")

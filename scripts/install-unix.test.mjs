@@ -10,7 +10,7 @@ const bash = process.platform === "win32" ? "C:/Program Files/Git/bin/bash.exe" 
 const unix = path => path.replaceAll("\\", "/").replace(/^([A-Za-z]):/, (_, drive) => `/${drive.toLowerCase()}`)
 const script = readFileSync(new URL("./install/install.sh", import.meta.url), "utf8").replaceAll("\r\n", "\n")
 
-function install(t, { extension = "deb", badHash = false, aptExit = "0", engineOnly = "0", os = "Linux", arch = "x86_64", assetKey = "linux-x86_64" } = {}) {
+function install(t, { extension = "deb", badHash = false, aptExit = "0", engineOnly = "0", os = "Linux", arch = "x86_64", assetKey = "linux-x86_64", shell = "/bin/bash", startEngine = "1", profiles = {} } = {}) {
   const root = mkdtempSync(join(tmpdir(), "yougori-installer-"))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const bin = join(root, "bin")
@@ -24,7 +24,10 @@ function install(t, { extension = "deb", badHash = false, aptExit = "0", engineO
     ln: '[ "$1" = "-sf" ] && { [ "$2" = "/usr/bin/yougori" ] || [ "$2" = "$HOME/.local/opt/yougori-engine/cli/yougori" ]; } && [ "$3" = "$HOME/.local/bin/yougori" ]',
     tar: 'while [ "$#" -gt 0 ]; do if [ "$1" = "-C" ]; then shift; mkdir -p "$1/cli"; printf "fixture engine" > "$1/yougori-engine"; printf "fixture cli" > "$1/cli/yougori"; exit 0; fi; shift; done; exit 1',
     codesign: 'exit 0',
-    yougori: 'exit 0',
+    yougori: 'printf "%s\\n" "$*" >> "$FIXTURE_CLI_LOG"; exit 0',
+    "qemu-system-x86_64": 'exit 0',
+    "qemu-img": 'exit 0',
+    ldconfig: 'echo "libgtk-3.so.0"',
   }
   for (const [name, body] of Object.entries(stubs)) {
     const path = join(bin, name)
@@ -33,18 +36,56 @@ function install(t, { extension = "deb", badHash = false, aptExit = "0", engineO
   }
   const sha = createHash("sha256").update("package").digest("hex")
   const log = join(root, "apt.log")
-  const env = { ...process.env, HOME: unix(join(root, "home")), FIXTURE_BIN: unix(bin), FIXTURE_OS: os,
+  const home = join(root, "home")
+  mkdirSync(home)
+  for (const [name, text] of Object.entries(profiles)) writeFileSync(join(home, name), text)
+  const cliLog = join(root, "cli.log")
+  const env = { ...process.env, HOME: unix(home), SHELL: shell, YOUGORI_START_ENGINE: startEngine, FIXTURE_CLI_LOG: unix(cliLog), FIXTURE_BIN: unix(bin), FIXTURE_OS: os,
       FIXTURE_ARCH: arch, YOUGORI_ENGINE_ONLY: engineOnly, YOUGORI_AUTOSTART: "", YOUGORI_RELEASES_URL: "https://fixture.invalid/latest.json",
       FIXTURE_APT_LOG: unix(log), FIXTURE_APT_EXIT: aptExit,
       FIXTURE_MANIFEST: JSON.stringify({ version: "1.0.0", assets: { [assetKey]: { url: `https://fixture.invalid/Yougori.${extension}`, sha256: badHash ? "0".repeat(64) : sha } } }),
   }
   if (engineOnly === null) delete env.YOUGORI_ENGINE_ONLY
-  const result = spawnSync(bash, ["--noprofile", "--norc", "-c", 'export PATH="$FIXTURE_BIN:$PATH"; /bin/sh -s'], {
+  const rerun = () => spawnSync(bash, ["--noprofile", "--norc", "-c", 'export PATH="$FIXTURE_BIN:$PATH"; /bin/sh -s'], {
     input: script, encoding: "utf8", timeout: 15000, env,
   })
+  const result = rerun()
   if (result.error) throw result.error
-  return { result, apt: existsSync(log) ? readFileSync(log, "utf8") : null, engineInstalled: existsSync(join(root, "home/.local/opt/yougori-engine/yougori-engine")), cliInstalled: existsSync(join(root, "home/.local/opt/yougori-engine/cli/yougori")) }
+  return { result, rerun, home, cli: existsSync(cliLog) ? readFileSync(cliLog, "utf8") : "", apt: existsSync(log) ? readFileSync(log, "utf8") : null, engineInstalled: existsSync(join(root, "home/.local/opt/yougori-engine/yougori-engine")), cliInstalled: existsSync(join(root, "home/.local/opt/yougori-engine/cli/yougori")) }
 }
+
+test("piped install preserves Bash profiles and saves PATH exactly once", t => {
+  const original = 'export USER_SETTING="keep me"\n'
+  const fixture = install(t, { profiles: { ".profile": original, ".bashrc": original, ".bash_profile": original } })
+  assert.equal(fixture.result.status, 0, fixture.result.stderr)
+  assert.match(fixture.result.stdout, /In this terminal, run:\nexport PATH=/)
+  assert.match(fixture.cli, /^app start\ndoctor --format table\n$/)
+  assert.equal(fixture.rerun().status, 0)
+  for (const name of [".profile", ".bashrc", ".bash_profile"]) {
+    const content = readFileSync(join(fixture.home, name), "utf8")
+    assert.ok(content.startsWith(original))
+    assert.equal(content.match(/# Yougori CLI PATH/g).length, 1)
+    const result = spawnSync(bash, ["--noprofile", "--norc", "-c", '. "$HOME/$PROFILE"; . "$HOME/$PROFILE"; printf "%s" "$PATH"'], {
+      encoding: "utf8", env: { ...process.env, HOME: unix(fixture.home), PROFILE: name },
+    })
+    assert.equal(result.status, 0, result.stderr)
+    assert.equal(result.stdout.split(":").filter(entry => entry === unix(join(fixture.home, ".local/bin"))).length, 1)
+  }
+})
+
+test("Zsh installs configure both login and interactive shells", t => {
+  const { result, home } = install(t, { shell: "/bin/zsh" })
+  assert.equal(result.status, 0, result.stderr)
+  for (const name of [".zprofile", ".zshrc"]) assert.match(readFileSync(join(home, name), "utf8"), /# Yougori CLI PATH/)
+})
+
+test("automation can skip engine startup without reporting an expected failure", t => {
+  const { result, cli } = install(t, { startEngine: "0" })
+  assert.equal(result.status, 0, result.stderr)
+  assert.equal(cli, "")
+  assert.match(result.stdout, /Engine startup skipped/)
+  assert.doesNotMatch(result.stdout, /FAIL/)
+})
 
 for (const arch of ["aarch64", "arm64"]) test(`Linux ${arch} installs the ARM64 CLI and engine`, t => {
   const { result, apt, engineInstalled, cliInstalled } = install(t, { arch, engineOnly: null, assetKey: "linux-aarch64-engine", extension: "tar.gz" })
