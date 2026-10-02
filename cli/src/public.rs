@@ -6,7 +6,7 @@ use crate::{
 };
 use serde_json::{json, Value};
 use std::{
-    io::{IsTerminal, Write},
+    io::{IsTerminal, Read, Write},
     path::PathBuf,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -25,7 +25,8 @@ Public commands:
   yougori create [OPTIONS] IMAGE    Create without starting
   yougori status                   Everything at a glance: environments, links, sharing, jobs
   yougori ps [-a] [--type container|gpu|model|microvm|vm|cloud|shared|app]
-  yougori inspect ENV | logs ENV | exec ENV COMMAND...
+  yougori inspect ENV | logs ENV [--cursor CURSOR] [--tail BYTES] [--follow]
+  yougori exec ENV [--no-wait] [--timeout WAIT_SECONDS] [--guest-timeout SECONDS] -- COMMAND...
   yougori terminal ENV            Open an interactive shell; exit leaves the workload running
   yougori download on ENV [--domain HOST] --yes  Share a complete copy while this CLI stays open
   yougori download list | off ID   Lifetime download counts / turn off a download link
@@ -49,6 +50,8 @@ Public commands:
   yougori rm ENV --yes             Permanently delete an environment and its managed data
   yougori pull IMAGE | images | image rm IMAGE
   yougori up|apply|down [-f yougori.yaml]
+  yougori deployment status [-f yougori.yaml]  Application, tunnel and public HTTPS readiness
+  yougori deployment secret set NAME --yes    Reads {"value":"..."} from private stdin
   yougori import compose.yaml [--dry-run]
   yougori run --gpu nvidia IMAGE
   yougori run --isolation microvm IMAGE
@@ -57,6 +60,7 @@ Public commands:
   yougori microvm run IMAGE        Alias for run --isolation microvm
   yougori model run hf.co/OWNER/MODEL [--neocloud [--environment ENV]] [--change] [--api] [--port 8000]
   yougori model stop ENV           Stop the model; a Neocloud pod stays billable
+  yougori model preflight hf.co/OWNER/MODEL   Compatibility and requirements before weights
                                    Reuses this model's environment when one exists
   yougori model chat ENV | model status ENV | model api ENV [--port 8000]
   yougori model chat ENV [--new]   Continues the conversation shared with the app
@@ -72,6 +76,7 @@ Public commands:
                                   Remote tunnel sharing; use --file - for credentials
   yougori remote start --domain app.example.com   Share on a saved domain
   yougori agent inventory         Machine-readable compute targets and current capabilities
+  yougori agent discover          Current CLI/engine, protocol and canonical skill identity
   yougori neocloud providers | discover --provider P [--location REGION]
   yougori neocloud plan --file request.json | create --file request.json --yes
   yougori neocloud inspect|start|stop ENV
@@ -484,7 +489,7 @@ pub async fn handle(args: &[String]) -> Result<Option<Value>, String> {
     if ![
         "run", "create", "ps", "start", "stop", "restart", "rm", "exec", "logs", "inspect", "pull",
         "images", "image", "info", "version", "up", "down", "apply", "import", "changes", "model",
-        "cp", "ls", "rename", "volume", "init", "prefs",
+        "cp", "ls", "rename", "volume", "init", "prefs", "deployment",
     ]
     .contains(&command)
     {
@@ -494,6 +499,41 @@ pub async fn handle(args: &[String]) -> Result<Option<Value>, String> {
         return Ok(Some(
             json!({"version":env!("CARGO_PKG_VERSION"),"command":"yougori"}),
         ));
+    }
+    if command == "deployment" {
+        match args.get(1).map(String::as_str) {
+            Some("status") => {
+                let path = match &args[2..] {
+                    [] => manifest::locate(&std::env::current_dir().map_err(|e| e.to_string())?)?,
+                    [flag, path] if matches!(flag.as_str(), "-f" | "--file") => absolute(path)?,
+                    _ => return Err("Usage: yougori deployment status [-f yougori.yaml]".into()),
+                };
+                client::start(None).await?;
+                return call("deployment_status", json!({"path":path})).await.map(Some);
+            },
+            Some("secret") => {
+                // Read a bounded private JSON request from stdin, never accept
+                // an application credential as a shell argument.
+                let (method, name) = match &args[2..] {
+                    [action, name, yes] if action == "set" && yes == "--yes" => ("set_deployment_secret", name),
+                    [action, name, yes] if action == "delete" && yes == "--yes" => ("delete_deployment_secret", name),
+                    _ => return Err("Usage: deployment secret set NAME --yes < private-secret.json | delete NAME --yes. Set reads {\"value\":\"...\"} from stdin.".into()),
+                };
+                let mut params = json!({"name":name});
+                if method == "set_deployment_secret" {
+                    use std::io::Read;
+                    let mut bytes = Vec::new();
+                    std::io::stdin().take(crate::wire::MAX_REQUEST as u64 + 1).read_to_end(&mut bytes).map_err(|e| e.to_string())?;
+                    if bytes.len() > crate::wire::MAX_REQUEST { return Err("Secret request exceeds 1 MB".into()); }
+                    let input: Value = serde_json::from_slice(&bytes).map_err(|_| "Secret stdin must be a JSON object containing only value")?;
+                    if input.as_object().is_none_or(|o| o.len() != 1) || !input["value"].is_string() { return Err("Secret stdin must contain only a string value".into()); }
+                    params["value"] = input["value"].clone();
+                }
+                client::start(None).await?;
+                return call(method, params).await.map(Some);
+            },
+            _ => return Err("Usage: yougori deployment status [-f PATH] | secret set|delete NAME --yes".into()),
+        }
     }
     if command == "run" || command == "create" {
         if command == "run" && first == "run" && args.get(1).is_some_and(|s| s.starts_with("hf.co/") || s.starts_with("https://huggingface.co/")) {
@@ -609,6 +649,14 @@ pub async fn handle(args: &[String]) -> Result<Option<Value>, String> {
     {
         return Err("Usage: yougori volume rm NAME... --yes. This permanently deletes the volume and its data.".into());
     }
+    let execution = if command == "exec" {
+        if args.len() < 3 { return Err("Usage: exec ENV [--no-wait] [--timeout SECONDS] -- COMMAND [ARG...]".into()); }
+        Some(crate::execution::parse(&args[2..])?)
+    } else { None };
+    let logs = if command == "logs" {
+        if args.len()<2{return Err("Usage: logs ENV [--cursor CURSOR] [--limit BYTES] [--tail BYTES] [--last-error] [--follow]".into());}
+        Some(crate::logs::parse(&args[2..])?)
+    }else{None};
     client::start(None).await?;
     let require_one = || {
         if args.len() == 2 {
@@ -691,21 +739,19 @@ pub async fn handle(args: &[String]) -> Result<Option<Value>, String> {
             call("rename_environment", json!({"environmentId":id,"name":args[2]})).await?
         }
         "logs" => {
-            let id = resolve(require_one()?).await?;
-            let result = call("get_environment_logs", json!({"environmentId":id})).await?;
-            json!({"id":id,"logs":result})
+            let id=resolve(&args[1]).await?;
+            crate::logs::read(&id,logs.unwrap()).await?
         }
         "exec" => {
-            if args.len() < 3 {
-                return Err("Usage: yougori exec ENV COMMAND [ARG...]".into());
-            }
             let id = resolve(&args[1]).await?;
-            let command = shell_words::join(&args[2..]);
-            call(
-                "execute_environment_command",
-                json!({"request":{"environmentId":id,"command":command}}),
-            )
-            .await?
+            let options = execution.unwrap();
+            let state=call("get_platform_state",json!({})).await?;
+            let target=state["environments"].as_array().and_then(|items|items.iter().find(|e|e["id"]==id)).ok_or("Environment not found")?;
+            let request = crate::execution::prepare_request(target,&id,&options)?;
+            let accepted = client::call(&request).await?;
+            if !options.no_wait && accepted["accepted"] == true {
+                client::wait_job(accepted["jobId"].as_str().ok_or("Missing execution job ID")?, options.timeout).await?
+            } else { accepted }
         }
         "images" => {
             if args.len() != 1 {
@@ -761,14 +807,14 @@ pub async fn handle(args: &[String]) -> Result<Option<Value>, String> {
     Ok(Some(result))
 }
 async fn follow_logs(id: &str) -> Result<(), String> {
-    let mut previous = String::new();
+    let mut cursor = None;
+    let mut terminal=crate::logs::TerminalText::default();
     loop {
-        let output = call("get_environment_logs", json!({"environmentId":id})).await?;
-        let text = output.as_str().unwrap_or("");
-        let delta = text.strip_prefix(&previous).unwrap_or(text);
-        print!("{delta}");
+        let output = call("get_environment_log_window", json!({"environmentId":id,"cursor":cursor,"limit":65536,"tail":16384})).await?;
+        print!("{}",terminal.feed(output["stdout"].as_str().unwrap_or("")));
         std::io::stdout().flush().map_err(|e| e.to_string())?;
-        previous = text.into();
+        cursor=output["nextCursor"].as_str().map(str::to_owned);
+        if output["truncated"]==true {continue;}
         let state = call("refresh_host_metrics", json!({})).await?;
         let running = state["environments"]
             .as_array()
@@ -794,6 +840,11 @@ async fn terminal(id: &str) -> Result<(), String> {
 }
 async fn model(args: &[String]) -> Result<Value, String> {
     let action = args.get(1).map(String::as_str).unwrap_or("");
+    if action == "preflight" {
+        if args.len() != 3 { return Err("Usage: yougori model preflight hf.co/OWNER/MODEL".into()); }
+        client::start(None).await?;
+        return call("model_preflight", json!({"model":args[2]})).await;
+    }
     if !["run", "chat", "stop", "status", "api", "usage", "access", "history"].contains(&action) {
         return Err("Usage: yougori model run hf.co/OWNER/MODEL [--change] [--api] [--port PORT] | chat ENV [--new] | history ENV | status ENV | api ENV [--port PORT] | access ENV | usage ENV [--days N] [--reset]".into());
     }
@@ -852,6 +903,12 @@ async fn model(args: &[String]) -> Result<Value, String> {
         return Ok(json!({"dryRun":true,"model":target,"gpu":"nvidia","api":api,"port":port,"resources":resources,"neocloud":neocloud,"environment":environment}));
     }
     if neocloud && environment.is_none() { return Err("Choosing a Neocloud pod needs an interactive terminal. For scripts add --environment POD_NAME --api.".into()); }
+    let chat_mode = model_chat_mode(action, api, std::io::stdin().is_terminal(), std::io::stdout().is_terminal());
+    // Validate scripted input before starting or changing a model. Automatic
+    // chat after `model run` belongs only to an interactive terminal.
+    let prompts = if chat_mode == ModelChatMode::Scripted {
+        Some(scripted_prompts(&mut std::io::stdin().lock())?)
+    } else { None };
     client::start(None).await?;
     let result = if action == "run" && neocloud {
         let state = call("get_platform_state", json!({})).await?;
@@ -897,10 +954,118 @@ async fn model(args: &[String]) -> Result<Value, String> {
         let usage = call(if reset { "reset_model_usage" } else { "model_usage" }, json!({"environmentId":id})).await?;
         return Ok(usage_summary(id, &usage, days, now_hour()));
     }
-    if !api {
-        chat_session(id, fresh).await?;
+    match chat_mode {
+        ModelChatMode::Interactive => chat_session(id, fresh).await?,
+        ModelChatMode::Scripted => return scripted_chat(id, fresh, prompts.unwrap(), |method, params| call(method, params)).await,
+        ModelChatMode::None => {},
     }
     Ok(result)
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum ModelChatMode { None, Interactive, Scripted }
+
+fn model_chat_mode(action: &str, api: bool, stdin_terminal: bool, stdout_terminal: bool) -> ModelChatMode {
+    if api || !matches!(action, "run" | "chat") { ModelChatMode::None }
+    else if stdin_terminal && stdout_terminal { ModelChatMode::Interactive }
+    else if action == "chat" { ModelChatMode::Scripted }
+    else { ModelChatMode::None }
+}
+
+const SCRIPTED_CHAT_INPUT_LIMIT: usize = 64 * 1024;
+const SCRIPTED_CHAT_PROMPT_LIMIT: usize = 32;
+const SCRIPTED_CHAT_CONTENT_LIMIT: usize = 256 * 1024;
+const SCRIPTED_CHAT_REPLY_LIMIT: usize = 64 * 1024;
+
+fn scripted_prompts(input: &mut impl Read) -> Result<Vec<String>, String> {
+    let mut bytes = Vec::new();
+    input.take(SCRIPTED_CHAT_INPUT_LIMIT as u64 + 1).read_to_end(&mut bytes).map_err(|e| format!("Cannot read model chat input: {e}"))?;
+    if bytes.len() > SCRIPTED_CHAT_INPUT_LIMIT { return Err("Model chat input must be at most 64 KiB".into()); }
+    let text = String::from_utf8(bytes).map_err(|_| "Model chat input must be UTF-8")?;
+    let prompts: Vec<_> = text.lines().map(str::trim).filter(|line| !line.is_empty()).map(str::to_owned).collect();
+    if prompts.len() > SCRIPTED_CHAT_PROMPT_LIMIT { return Err("Model chat input must contain at most 32 nonempty lines".into()); }
+    if prompts.iter().any(|prompt| prompt.len() > 16 * 1024) { return Err("Each model chat prompt must be at most 16 KiB".into()); }
+    Ok(prompts)
+}
+
+fn transcript_message(role: &str, content: &str, limit: usize, remaining: &mut usize) -> Value {
+    let mut end = content.len().min(limit).min(*remaining);
+    while !content.is_char_boundary(end) { end -= 1; }
+    *remaining -= end;
+    json!({"role":role,"content":&content[..end],"truncated":end != content.len()})
+}
+
+fn truncate_chat_field(value: &mut String, limit: usize) -> bool {
+    if value.len() <= limit { return false; }
+    let mut end = limit;
+    while !value.is_char_boundary(end) { end -= 1; }
+    value.truncate(end);
+    true
+}
+
+fn transcript_error(stage: &str, turn: usize, mut response: crate::wire::Response) -> Value {
+    let mut truncated = response.error.as_mut().is_some_and(|error| truncate_chat_field(error, 8192));
+    if let Some(details) = response.error_details.as_mut() {
+        truncated |= truncate_chat_field(&mut details.code, 1024);
+        truncated |= truncate_chat_field(&mut details.outcome, 1024);
+        truncated |= details.affected_resource.as_mut().is_some_and(|resource| truncate_chat_field(resource, 1024));
+    }
+    json!({"stage":stage,"turn":turn,"response":response,"truncated":truncated})
+}
+
+/// Scripted chat reads literal newline-separated prompts and emits no text.
+/// Capture each turn's machine error so partial success cannot look like a
+/// request that never ran, and never retry a failed or unsaved turn here.
+async fn scripted_chat<F, Fut>(id: &str, fresh: bool, prompts: Vec<String>, mut invoke: F) -> Result<Value, String>
+where F: FnMut(&'static str, Value) -> Fut, Fut: std::future::Future<Output = Result<Value, String>> {
+    let mut store = invoke("model_chat_history", json!({"environmentId":id})).await?;
+    if !store["conversations"].is_array() {
+        store = json!({"conversations":[],"activeId":null,"settings":{"system":"","temperature":0.7,"maxTokens":1024}});
+    }
+    let status = invoke("model_status", json!({"environmentId":id})).await?;
+    let limit = (if status["stream"] == true { 4096 } else { 2048 }).min(status["context"].as_u64().map_or(4096, |c| c / 2));
+    let settings = store["settings"].clone();
+    let max_tokens = settings["maxTokens"].as_u64().unwrap_or(1024).clamp(1, limit.max(1));
+    let temperature = settings["temperature"].as_f64().unwrap_or(0.7);
+    let system = settings["system"].as_str().unwrap_or("").to_owned();
+    if fresh || !store["conversations"].as_array().unwrap().iter().any(|c| c["id"] == store["activeId"]) {
+        start_conversation(&mut store);
+    }
+    let mut transcript = Vec::new();
+    let mut errors = Vec::new();
+    let mut remaining = SCRIPTED_CHAT_CONTENT_LIMIT;
+    let mut completed = 0;
+    let mut attempted = 0;
+    let mut saved = true;
+    for prompt in &prompts {
+        attempted += 1;
+        transcript.push(transcript_message("user", prompt, SCRIPTED_CHAT_INPUT_LIMIT, &mut remaining));
+        let index = store["conversations"].as_array().unwrap().iter().position(|c| c["id"] == store["activeId"]).ok_or("Saved conversation is invalid")?;
+        let conversation = &mut store["conversations"][index];
+        if conversation["title"] == "New chat" { conversation["title"] = chat_title(prompt).into(); }
+        let messages = conversation["messages"].as_array_mut().ok_or("Saved conversation is invalid")?;
+        messages.push(json!({"id":new_id(),"role":"user","content":prompt}));
+        let request = fit_messages(&system, messages);
+        let response = client::capture_errors(invoke("model_chat", json!({"environmentId":id,"messages":request,"maxTokens":max_tokens,"temperature":temperature}))).await;
+        let answer = match response {
+            Ok(answer) => answer,
+            Err(error) => { messages.pop(); errors.push(transcript_error("reply", attempted, error)); break; }
+        };
+        let Some(reply) = answer["choices"][0]["message"]["content"].as_str() else {
+            messages.pop(); errors.push(transcript_error("reply", attempted, crate::wire::Response::failure("Invalid model answer"))); break;
+        };
+        completed += 1;
+        transcript.push(transcript_message("assistant", reply, SCRIPTED_CHAT_REPLY_LIMIT, &mut remaining));
+        messages.push(json!({"id":new_id(),"role":"assistant","content":reply}));
+        conversation["updatedAt"] = now_millis().into();
+        if let Err(error) = client::capture_errors(invoke("save_model_chat_history", json!({"environmentId":id,"history":store}))).await {
+            saved = false; errors.push(transcript_error("save", attempted, error)); break;
+        }
+    }
+    let truncated = transcript.iter().any(|message| message["truncated"] == true);
+    Ok(json!({"environmentId":id,"mode":"scriptedChat","messages":transcript,"truncated":truncated,
+        "requested":prompts.len(),"attempted":attempted,"completed":completed,"saved":saved,
+        "outcome":if errors.is_empty() {"succeeded"} else if completed == 0 {"failed"} else {"partial"},"errors":errors}))
 }
 /// `web:/app/data` names a path inside an environment. Windows drive paths (`C:/…`) have a one-letter prefix.
 fn environment_path(arg: &str) -> Option<(&str, &str)> {
@@ -1041,7 +1206,8 @@ fn prefs(args: &[String]) -> Result<Value, String> {
         [action] if action == "path" => Ok(json!({"user": user, "project": project})),
         [action] if action == "show" => Ok(json!({
             "user": {"path": user, "text": read(&user)}, "project": {"path": project, "text": read(&project)},
-            "note": "Suggestions only; the project file wins when both set the same thing. Always ask the user before acting.",
+            "note": "Suggestions only; project preferences take priority. Existing task authorization determines whether another question is needed; never ask again for already-authorized action and scope.",
+            "projectStatus": if project.is_some() { "found" } else { "noProjectPreferences" },
         })),
         [action, key, value] if action == "remember" => {
             let current = std::fs::read_to_string(&target).unwrap_or_else(|_| crate::project_files::PREFERENCES_TEMPLATE.to_owned());
@@ -1169,6 +1335,119 @@ async fn chat_session(id: &str, fresh: bool) -> Result<(), String> {
 }
 fn now_hour() -> u64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() / 3600).unwrap_or(0)
+}
+
+#[cfg(test)]
+mod scripted_chat_tests {
+    use super::*;
+
+    #[test]
+    fn automatic_chat_requires_both_terminal_streams() {
+        for (input, output) in [(false, false), (true, false), (false, true)] {
+            assert_eq!(model_chat_mode("run", false, input, output), ModelChatMode::None);
+            assert_eq!(model_chat_mode("chat", false, input, output), ModelChatMode::Scripted);
+        }
+        assert_eq!(model_chat_mode("run", false, true, true), ModelChatMode::Interactive);
+        assert_eq!(model_chat_mode("chat", false, true, true), ModelChatMode::Interactive);
+        assert_eq!(model_chat_mode("run", true, true, true), ModelChatMode::None);
+        assert_eq!(model_chat_mode("status", false, true, true), ModelChatMode::None);
+    }
+
+    #[test]
+    fn scripted_input_is_bounded_utf8_and_treats_slash_commands_literally() {
+        assert_eq!(scripted_prompts(&mut "hello\n\n/exit\n/new\n日本\r\n".as_bytes()).unwrap(), ["hello", "/exit", "/new", "日本"]);
+        assert!(scripted_prompts(&mut vec![b'x'; SCRIPTED_CHAT_INPUT_LIMIT + 1].as_slice()).is_err());
+        assert!(scripted_prompts(&mut vec![b'x'; 16 * 1024 + 1].as_slice()).is_err());
+        assert!(scripted_prompts(&mut "x\n".repeat(33).as_bytes()).is_err());
+        assert!(scripted_prompts(&mut &[0xff][..]).is_err());
+    }
+
+    #[tokio::test]
+    async fn mocked_scripted_chat_returns_one_transcript_and_saved_conversation() {
+        let requests = std::cell::RefCell::new(Vec::new());
+        let result = scripted_chat("private-fixture", true, vec!["hello".into(), "/exit".into()], |method, params| {
+            requests.borrow_mut().push((method, params.clone()));
+            std::future::ready(Ok(match method {
+                "model_chat_history" => json!({"conversations":[],"settings":{}}),
+                "model_status" => json!({"context":4096}),
+                "model_chat" => json!({"choices":[{"message":{"content":"reply"}}]}),
+                "save_model_chat_history" => json!({"saved":true}),
+                _ => panic!("Unexpected mock request: {method}"),
+            }))
+        }).await.unwrap();
+        assert_eq!(result["outcome"], "succeeded");
+        assert_eq!(result["completed"], 2);
+        assert_eq!(result["saved"], true);
+        assert_eq!(result["messages"].as_array().unwrap().len(), 4);
+        assert_eq!(result["messages"][2]["content"], "/exit");
+        assert_eq!(result["truncated"], false);
+        let requests = requests.borrow();
+        assert_eq!(requests.iter().filter(|(method, _)| *method == "model_chat").count(), 2);
+        let saved = requests.iter().rev().find(|(method, _)| *method == "save_model_chat_history").unwrap();
+        assert_eq!(saved.1["history"]["conversations"][0]["messages"].as_array().unwrap().len(), 4);
+        let wire = serde_json::to_value(crate::wire::Response::success(result)).unwrap();
+        assert_eq!(wire["version"], crate::wire::VERSION);
+    }
+
+    #[tokio::test]
+    async fn mocked_scripted_chat_preserves_partial_success_without_retry() {
+        let calls = std::cell::Cell::new(0);
+        let result = scripted_chat("private-fixture", true, vec!["first".into(), "second".into(), "third".into()], |method, _| {
+            std::future::ready(match method {
+                "model_chat_history" => Ok(json!({"conversations":[],"settings":{}})),
+                "model_status" => Ok(json!({"context":4096})),
+                "save_model_chat_history" => Ok(json!({})),
+                "model_chat" => {
+                    calls.set(calls.get() + 1);
+                    if calls.get() == 1 { Ok(json!({"choices":[{"message":{"content":"completed reply"}}]})) }
+                    else { Err("Model failed to answer".into()) }
+                },
+                _ => panic!("Unexpected mock request"),
+            })
+        }).await.unwrap();
+        assert_eq!(calls.get(), 2);
+        assert_eq!(result["requested"], 3);
+        assert_eq!(result["attempted"], 2);
+        assert_eq!(result["completed"], 1);
+        assert_eq!(result["outcome"], "partial");
+        assert_eq!(result["errors"][0]["response"]["errorDetails"]["code"], "operation_failed");
+        assert_eq!(result["messages"][1]["content"], "completed reply");
+    }
+
+    #[tokio::test]
+    async fn scripted_save_failure_retains_actual_reply_and_stops_further_turns() {
+        let calls = std::cell::Cell::new(0);
+        let result = scripted_chat("private-fixture", true, vec!["first".into(), "second".into()], |method, _| {
+            std::future::ready(match method {
+                "model_chat_history" => Ok(json!({"conversations":[],"settings":{}})),
+                "model_status" => Ok(json!({"context":4096})),
+                "model_chat" => { calls.set(calls.get() + 1); Ok(json!({"choices":[{"message":{"content":"日本".repeat(100_000)}}]})) },
+                "save_model_chat_history" => Err("History save failed".into()),
+                _ => panic!("Unexpected mock request"),
+            })
+        }).await.unwrap();
+        assert_eq!(calls.get(), 1);
+        assert_eq!(result["completed"], 1);
+        assert_eq!(result["saved"], false);
+        assert_eq!(result["outcome"], "partial");
+        assert_eq!(result["errors"][0]["stage"], "save");
+        assert_eq!(result["truncated"], true);
+        let reply = result["messages"][1]["content"].as_str().unwrap();
+        assert!(reply.len() <= SCRIPTED_CHAT_REPLY_LIMIT);
+        assert!(reply.ends_with('日') || reply.ends_with('本'));
+    }
+
+    #[test]
+    fn transcript_content_and_errors_are_bounded_at_unicode_boundaries() {
+        let mut remaining = 4;
+        let message = transcript_message("assistant", "日本語", 64, &mut remaining);
+        assert_eq!(message["content"], "日");
+        assert_eq!(remaining, 1);
+        assert_eq!(message["truncated"], true);
+        let error = transcript_error("reply", 1, crate::wire::Response::failure("日本語".repeat(10_000)));
+        assert!(error["response"]["error"].as_str().unwrap().len() <= 8192);
+        assert_eq!(error["truncated"], true);
+    }
 }
 /// Proleptic Gregorian date for a count of days since 1970-01-01 (Howard Hinnant's algorithm).
 fn civil_date(days: i64) -> String {

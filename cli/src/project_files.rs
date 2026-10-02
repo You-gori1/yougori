@@ -1,5 +1,5 @@
 //! Yougori's own project files (`yougori init`) and the preferences file agents read (`yougori prefs`).
-//! Preferences only pre-fill suggestions: agents still ask before every decision.
+//! Preferences suggest choices; authorization comes from the current task.
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 
@@ -25,10 +25,11 @@ target/
 
 pub const PREFERENCES_TEMPLATE: &str = "# Yougori preferences
 
-Suggestions for agents. Always confirm with the user before acting: preferences pre-fill the
-question, they never replace it. Always ask, every time, before anything billable, public,
-destructive (delete, reset, restore), involving credentials, PC folder access, or Full control
-sharing. Never write passwords, tokens or API keys here.
+Suggestions for agents. Preferences never grant permission or revoke existing authorization.
+Ask before a billable, public, destructive, credential, PC-folder or Full control sharing action
+only when the user has not already authorized its action and scope in the current task.
+Carry existing authorization forward; do not ask again for already-authorized work.
+Never write passwords, tokens or API keys here.
 
 Update with `yougori prefs remember KEY VALUE` after the user confirms a choice they want remembered.
 
@@ -111,9 +112,28 @@ pub fn init(folder: &Path, name: Option<&str>) -> Result<Value, String> {
 
 /// `~/.yougori/PREFERENCES.md` and the nearest project's `.yougori/PREFERENCES.md`.
 pub fn preference_files(cwd: &Path) -> (Option<PathBuf>, Option<PathBuf>) {
-    let home = std::env::var_os("USERPROFILE").or_else(|| std::env::var_os("HOME")).map(PathBuf::from);
+    let home = std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" }).map(PathBuf::from);
+    preference_files_with_home(cwd, home.as_deref())
+}
+
+fn same_directory(left: &Path, right: &Path) -> bool {
+    let left = left.canonicalize().unwrap_or_else(|_| left.to_path_buf());
+    let right = right.canonicalize().unwrap_or_else(|_| right.to_path_buf());
+    if cfg!(windows) { left.to_string_lossy().eq_ignore_ascii_case(&right.to_string_lossy()) }
+    else { left == right }
+}
+
+fn preference_files_with_home(cwd: &Path, home: Option<&Path>) -> (Option<PathBuf>, Option<PathBuf>) {
     let user = home.map(|h| h.join(".yougori").join("PREFERENCES.md"));
-    let project = cwd.ancestors().find(|dir| dir.join(".yougori").is_dir() || dir.join("yougori.yaml").is_file())
+    // The home-level .yougori directory contains global preferences. Never let
+    // walking project ancestors turn a --project write into a global write.
+    let project = cwd.ancestors().take_while(|dir| !home.is_some_and(|h| same_directory(dir, h)))
+        .find(|dir| {
+            let local=dir.join(".yougori");
+            let aliases_global=home.is_some_and(|h|same_directory(&local,&h.join(".yougori")))
+                || user.as_ref().is_some_and(|global|same_directory(&local.join("PREFERENCES.md"),global));
+            !aliases_global && (local.is_dir() || dir.join("yougori.yaml").is_file())
+        })
         .map(|dir| dir.join(".yougori").join("PREFERENCES.md"));
     (user, project)
 }
@@ -167,6 +187,30 @@ pub fn forget(text: &str, key: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
+    #[test]
+    fn a_project_alias_to_global_preferences_is_never_a_project_write_target(){
+        let home=tempfile::tempdir().unwrap();
+        let global=home.path().join(".yougori");std::fs::create_dir(&global).unwrap();
+        std::fs::write(global.join("PREFERENCES.md"),"global").unwrap();
+        let project=home.path().join("project");std::fs::create_dir(&project).unwrap();
+        std::os::unix::fs::symlink(&global,project.join(".yougori")).unwrap();
+        assert!(preference_files_with_home(&project,Some(home.path())).1.is_none());
+    }
+    #[test]
+    fn home_preferences_are_never_a_project_write_target() {
+        let home = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(home.path().join(".yougori")).unwrap();
+        let workspace = home.path().join("work/nested");
+        std::fs::create_dir_all(&workspace).unwrap();
+        let (user, project) = preference_files_with_home(&workspace, Some(home.path()));
+        assert_eq!(user.unwrap(), home.path().join(".yougori/PREFERENCES.md"));
+        assert!(project.is_none());
+        std::fs::write(home.path().join("work/yougori.yaml"), "project: x").unwrap();
+        let (_, project) = preference_files_with_home(&workspace, Some(home.path()));
+        assert_eq!(project.unwrap(), home.path().join("work/.yougori/PREFERENCES.md"));
+        assert!(preference_files_with_home(home.path(), Some(home.path())).1.is_none());
+    }
     #[test]
     fn init_creates_valid_files_once_and_never_overwrites() {
         let root = tempfile::tempdir().unwrap();

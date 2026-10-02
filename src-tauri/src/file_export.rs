@@ -8,9 +8,108 @@ use serde_json::{json, Value};
 use std::io::Write;
 use std::path::PathBuf;
 use tauri::State;
+use crate::file_import::{transfers, CopyProgress};
+use std::{sync::Arc,time::{Duration, Instant}};
+use tokio_util::sync::CancellationToken;
 
 const MAX_ENTRIES: usize = 50_000;
 const MAX_BYTES: u64 = 100 * 1024 * 1024 * 1024;
+
+struct ExportControl {
+    leases: Vec<transfers::Lease>,
+    cancellation: CancellationToken,
+    operation: Option<crate::automation::context::OperationContext>,
+    started: Instant,
+    inactivity: Duration,
+    total_limit: Duration,
+    temporary_staging: bool,
+    cleanup_grace: Duration,
+    staging: Option<Arc<tempfile::TempDir>>,
+}
+
+impl ExportControl {
+    fn begin(source: &Source<'_>, target: Option<&str>) -> Result<Self, String> {
+        let source_id = match source { Source::Shared(environment) | Source::Guest(_, environment) => Some(environment.id.as_str()), #[cfg(test)] Source::Fake(_) | Source::Stalled { .. } => None };
+        let mut leases = Vec::new();
+        for id in source_id.into_iter().chain(target) {
+            let lease = transfers::begin(id)?;
+            if target.is_some() { lease.transfer.use_host_staging_export(); } else { lease.transfer.use_host_export(); }
+            leases.push(lease);
+        }
+        let operation = crate::automation::context::current();
+        let cancellation = operation.as_ref().map(|operation| operation.cancellation.child_token()).unwrap_or_default();
+        Ok(Self { leases, cancellation, operation, started:Instant::now(), inactivity:Duration::from_secs(90), total_limit:Duration::from_secs(12 * 60 * 60), temporary_staging:target.is_some(), cleanup_grace:Duration::from_secs(3), staging:None })
+    }
+    fn check(&self) -> Result<(), String> {
+        if self.cancellation.is_cancelled() || self.leases.iter().any(|lease| lease.transfer.cancellation.is_cancelled()) {
+            return Err(format!("YOUGORI_OPERATION_CANCELLED: file export cancelled; originals are unchanged; partialCopyPolicy={}", self.partial_policy()));
+        }
+        if self.started.elapsed() >= self.total_limit { return Err("YOUGORI_TRANSFER_DEADLINE: file export exceeded its 12-hour total limit; completed host files are retained and the incomplete current file is removed".into()); }
+        Ok(())
+    }
+    fn partial_policy(&self) -> &'static str {
+        if self.temporary_staging { "remove_unpublished_host_staging_preserve_originals" } else { "preserve_completed_unique_host_files_remove_incomplete_file" }
+    }
+    fn take_target_lease(&mut self, target:&str) -> Result<transfers::Lease,String> {
+        self.check()?;
+        let index = self.leases.iter().position(|lease|lease.transfer.environment_id == target).ok_or("The destination transfer lease is missing")?;
+        Ok(self.leases.remove(index))
+    }
+    /// Blocking OS disk I/O cannot be force-cancelled. Keep its file/cleanup
+    /// guard on that worker until the OS releases it, and report that outcome.
+    async fn host_work<T: Send + 'static>(&self, work: impl FnOnce() -> Result<T, String> + Send + 'static) -> Result<T, String> {
+        self.check()?;
+        let mut task = tokio::task::spawn_blocking(work);
+        let remaining = self.total_limit.saturating_sub(self.started.elapsed());
+        let interrupted = tokio::select! {
+            biased;
+            _ = self.cancelled() => "cancelled",
+            result = tokio::time::timeout(self.inactivity.min(remaining), &mut task) => match result {
+                Ok(result) => return result.map_err(|_| "Host disk worker stopped unexpectedly".to_string())?,
+                Err(_) => "inactive",
+            },
+        };
+        // Reclaim an already finishing worker before returning. Dropping a
+        // pending JoinHandle leaves its private cleanup guard with the worker.
+        match tokio::time::timeout(self.cleanup_grace, task).await {
+            Ok(_) => Err(format!("{}: host disk worker released its handle; incomplete-file cleanup was attempted. Inspect the unique destination if a file remains; originals are unchanged", if interrupted == "cancelled" { "YOUGORI_OPERATION_CANCELLED" } else { "YOUGORI_TRANSFER_INACTIVE" })),
+            Err(_) => Err(format!("YOUGORI_OPERATION_INTERRUPTED: host disk work {interrupted}, but OS I/O is still pending; incomplete file cleanup will run when its handle closes. Reconciliation required: inspect the unique destination before retrying; originals are unchanged")),
+        }
+    }
+    async fn cancelled(&self) {
+        let mut tokens = vec![self.cancellation.clone()];
+        tokens.extend(self.leases.iter().map(|lease| lease.transfer.cancellation.clone()));
+        futures_util::future::select_all(tokens.into_iter().map(|token| Box::pin(token.cancelled_owned()))).await;
+    }
+    fn report(&self, phase: &'static str, completed: u64, total: u64, entries: usize) {
+        let mut event = CopyProgress { phase, completed_bytes:completed, total_bytes:total, scanned_entries:Some(entries), sent_bytes:Some(completed), confirmed_bytes:Some(completed), ..Default::default() };
+        for lease in &self.leases { event = lease.transfer.report(event); }
+        if let Some(operation) = &self.operation { (operation.progress)(json!({"phase":phase,"completedBytes":completed,"totalBytes":total,"scannedEntries":entries,"sentBytes":completed,"confirmedBytes":completed,"lastProgressAt":event.last_progress_at.unwrap_or_else(||chrono::Utc::now().to_rfc3339()),"partialCopyPolicy":self.partial_policy(),"transferId":self.leases.first().map(|lease|lease.transfer.id.clone())})); }
+    }
+    async fn request(&self, source: &Source<'_>, operation: &str, path: &str, offset: u64, length: u64) -> Result<Value, String> {
+        self.check()?;
+        let remaining = self.total_limit.saturating_sub(self.started.elapsed());
+        tokio::select! {
+            biased;
+            _ = self.cancelled() => { self.check()?; unreachable!() },
+            result = tokio::time::timeout(self.inactivity.min(remaining), source.request(operation, path, offset, length)) => result.map_err(|_| format!("YOUGORI_TRANSFER_INACTIVE: file export made no progress for {} seconds while {operation}; completed host files remain, incomplete current file is removed", self.inactivity.as_secs()))?,
+        }
+    }
+}
+
+async fn with_source_cancellation<T>(control:&ExportControl,target:CancellationToken,import:impl std::future::Future<Output=Result<T,String>>) -> Result<T,String> {
+    tokio::pin!(import);
+    tokio::select! {
+        biased;
+        _ = control.cancelled() => {
+            target.cancel();
+            // Keep both environment registrations and private staging alive
+            // until the import cooperatively closes its streams/workers.
+            import.await
+        },
+        result = &mut import => result,
+    }
+}
 
 pub(crate) enum Source<'a> {
     /// Someone else's environment reached through its sharing link and permissions.
@@ -20,6 +119,8 @@ pub(crate) enum Source<'a> {
     /// In-memory tree for tests: path -> file bytes, or None for a folder.
     #[cfg(test)]
     Fake(std::collections::BTreeMap<String, Option<Vec<u8>>>),
+    #[cfg(test)]
+    Stalled { size: u64, sent: Arc<std::sync::atomic::AtomicU64> },
 }
 
 impl Source<'_> {
@@ -47,6 +148,12 @@ impl Source<'_> {
                     _ => Err("Unsupported".into()),
                 }
             }
+            #[cfg(test)]
+            Source::Stalled { size, sent } => match operation {
+                "stat" => Ok(json!({"info":{"directory":false,"size":size}})),
+                "read" if offset == 0 => { sent.store(length, std::sync::atomic::Ordering::SeqCst); Ok(json!({"data":B64.encode(vec![7u8; length as usize])})) },
+                _ => std::future::pending().await,
+            },
         }
     }
 }
@@ -84,89 +191,179 @@ fn numbered(name: &str, attempt: u32) -> String {
     }
 }
 
-async fn copy_file(source: &Source<'_>, output: &Dir, remote: &str, local: &std::path::Path, size: u64) -> Result<(), String> {
-    let file = output
-        .open_with(local, OpenOptions::new().write(true).create_new(true))
-        .map_err(|_| "Cannot create a copied file")?;
-    write_file(source, file, remote, size).await
+/// The guard follows the owned file onto blocking workers. Even if its async
+/// caller is cancelled while a write/fsync is pending, cleanup waits for that
+/// handle to close rather than claiming that Windows removed an open file.
+struct HostFile {
+    file: Option<cap_std::fs::File>,
+    directory: Dir,
+    path: PathBuf,
+    complete: bool,
+    staging: Option<Arc<tempfile::TempDir>>,
+}
+impl Drop for HostFile {
+    fn drop(&mut self) {
+        self.file.take();
+        if !self.complete { if let Err(error) = self.directory.remove_file(&self.path) { eprintln!("Incomplete host copy needs cleanup: {}",crate::lifecycle::safe_diagnostic(&error.to_string())); } }
+    }
+}
+impl HostFile {
+    fn new(file: cap_std::fs::File, directory: &Dir, path: &std::path::Path) -> Result<Self, String> {
+        let directory = directory.try_clone().map_err(|_| "Cannot retain the copied-file cleanup directory")?;
+        Ok(Self { file:Some(file), directory, path:path.to_owned(), complete:false, staging:None })
+    }
 }
 
-async fn write_file(source: &Source<'_>, mut file: cap_std::fs::File, remote: &str, size: u64) -> Result<(), String> {
+async fn copy_file(source: &Source<'_>, output: &Dir, remote: &str, local: &std::path::Path, size: u64, control: &ExportControl, completed: &mut u64, total: u64, entries: usize) -> Result<(), String> {
+    let directory = output.try_clone().map_err(|_| "Cannot retain the destination directory")?;
+    let local = local.to_owned();
+    let staging = control.staging.clone();
+    let file = control.host_work(move|| {
+        let file = directory.open_with(&local,OpenOptions::new().write(true).create_new(true)).map_err(|_| "Cannot create a copied file")?;
+        let mut file = HostFile::new(file,&directory,&local)?;
+        file.staging = staging;
+        Ok(file)
+    }).await?;
+    write_file(source, file, remote, size, control, completed, total, entries).await
+}
+
+async fn write_file(source: &Source<'_>, mut file: HostFile, remote: &str, size: u64, control: &ExportControl, completed: &mut u64, total: u64, entries: usize) -> Result<(), String> {
     let mut offset = 0;
     while offset < size {
         let length = (size - offset).min(65536);
-        let value = source.request("read", remote, offset, length).await?;
+        let value = control.request(source, "read", remote, offset, length).await?;
         let data = B64.decode(value["data"].as_str().unwrap_or("")).map_err(|_| "Invalid file data")?;
         if data.len() as u64 != length {
             return Err("A source file changed while copying; copy it again".into());
         }
-        file.write_all(&data).map_err(|_| "Cannot write a copied file; check free disk space")?;
+        file = control.host_work(move || {
+            file.file.as_mut().expect("owned output file").write_all(&data).map_err(|_| "Cannot write a copied file; check free disk space")?;
+            Ok(file)
+        }).await?;
         offset += length;
+        *completed += length;
+        control.report("receiving", *completed, total, entries);
     }
-    file.sync_all().map_err(|_| "Cannot finish a copied file".to_string())
+    control.check()?;
+    control.report("verifying", *completed, total, entries);
+    file = control.host_work(move || {
+        file.file.as_mut().expect("owned output file").sync_all().map_err(|_| "Cannot finish a copied file".to_string())?;
+        Ok(file)
+    }).await?;
+    control.check()?;
+    file.complete = true;
+    drop(file);
+    Ok(())
 }
 
 /// Copies `path` (a file or folder, relative to the source root) into a fresh folder named `folder` inside `destination`.
 pub(crate) async fn copy_out(source: Source<'_>, path: &str, destination: &str, folder: &str) -> Result<Value, String> {
+    let control = ExportControl::begin(&source, None)?;
+    copy_out_controlled(source, path, destination, folder, &control).await
+}
+
+async fn copy_out_controlled(source: Source<'_>, path: &str, destination: &str, folder: &str, control: &ExportControl) -> Result<Value, String> {
+    control.check()?;
     let destination = PathBuf::from(destination);
-    if !destination.is_absolute() || !destination.is_dir() {
+    if !destination.is_absolute() {
         return Err("Choose an existing folder on this PC".into());
     }
-    let parent = Dir::open_ambient_dir(&destination, cap_std::ambient_authority()).map_err(|_| "Cannot open the destination folder")?;
-    let info = source.request("stat", path, 0, 0).await?;
+    let location = destination.clone();
+    let parent = control.host_work(move|| {
+        if !location.is_dir() { return Err("Choose an existing folder on this PC".into()); }
+        Dir::open_ambient_dir(&location,cap_std::ambient_authority()).map_err(|_| "Cannot open the destination folder".into())
+    }).await?;
+    control.report("scanning", 0, 0, 0);
+    let info = control.request(&source, "stat", path, 0, 0).await?;
     if info["info"]["directory"] != true {
         // A single file goes straight into the destination under its own name.
         let size = info["info"]["size"].as_u64().ok_or("Invalid file size")?;
         if size > MAX_BYTES { return Err("Copy exceeds 100 GiB".into()); }
         let file_name = path.rsplit('/').next().filter(|n| valid_name(n)).ok_or("The file name is not valid on this PC")?;
-        let (name, file) = (1..1000).find_map(|attempt| {
-            let name = numbered(file_name, attempt);
-            match parent.open_with(&name, OpenOptions::new().write(true).create_new(true)) {
-                Ok(file) => Some(Ok((name, file))),
-                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => None,
-                Err(_) => Some(Err("Cannot create the copied file".to_string())),
-            }
-        }).ok_or("Too many files with this name already exist")??;
+        let directory = parent.try_clone().map_err(|_| "Cannot retain the destination directory")?;
+        let file_name = file_name.to_owned();
+        let staging = control.staging.clone();
+        let (name,file) = control.host_work(move|| {
+            let (name,file) = (1..1000).find_map(|attempt| {
+                let name = numbered(&file_name,attempt);
+                match directory.open_with(&name,OpenOptions::new().write(true).create_new(true)) {
+                    Ok(file)=>Some(Ok((name,file))),
+                    Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists=>None,
+                    Err(_)=>Some(Err("Cannot create the copied file".to_string())),
+                }
+            }).ok_or("Too many files with this name already exist")??;
+            let mut file = HostFile::new(file,&directory,std::path::Path::new(&name))?;
+            file.staging = staging;
+            Ok((name,file))
+        }).await?;
         let copied = destination.join(&name).to_string_lossy().into_owned();
-        write_file(&source, file, path, size).await.map_err(|error| {
-            let _ = parent.remove_file(&name);
-            error
-        })?;
-        return Ok(json!({"file": copied, "entries": 1, "bytes": size}));
+        control.report("receiving", 0, size, 1);
+        let mut completed = 0;
+        write_file(&source, file, path, size, control, &mut completed, size, 1).await?;
+        control.report("complete", size, size, 1);
+        return Ok(json!({"file": copied, "entries": 1, "bytes": size,"partialCopyPolicy":"preserve_completed_unique_host_files_remove_incomplete_file"}));
     }
-    let name = fresh_folder(&parent, folder)?;
-    let output = parent.open_dir(&name).map_err(|_| "Cannot open the destination folder")?;
+    let directory = parent.try_clone().map_err(|_| "Cannot retain the destination directory")?;
+    let folder = folder.to_owned();
+    let retained_staging = control.staging.clone();
+    let (name,output) = control.host_work(move|| {
+        let name = fresh_folder(&directory,&folder)?;
+        let output = directory.open_dir(&name).map_err(|_| "Cannot open the destination folder")?;
+        // Retain private staging while any blocked directory operation runs.
+        drop(directory);
+        drop(retained_staging);
+        Ok((name,output))
+    }).await?;
     let mut count = 0usize;
     let mut total = 0u64;
+    let mut completed = 0u64;
     let result: Result<(), String> = async {
         let mut pending = vec![(path.to_owned(), PathBuf::new(), 0)];
+        let mut files = Vec::new();
         while let Some((remote, local, depth)) = pending.pop() {
+            control.check()?;
             if depth > 64 { return Err("Folder nesting exceeds 64 levels".into()); }
-            let listing = source.request("list", &remote, 0, 0).await?;
+            let listing = control.request(&source, "list", &remote, 0, 0).await?;
             let entries = listing["entries"].as_array().filter(|e| e.len() <= 5000).ok_or("Invalid folder listing")?;
             for item in entries {
+                control.check()?;
                 count += 1;
                 if count > MAX_ENTRIES { return Err("Copy exceeds 50,000 entries; copy smaller folders separately".into()); }
                 let name = item["name"].as_str().filter(|n| valid_name(n)).ok_or("The folder contains a name that is not valid on this PC")?;
                 let child = local.join(name);
                 let remote_child = if remote.is_empty() { name.to_owned() } else { format!("{remote}/{name}") };
                 if item["directory"] == true {
-                    output.create_dir(&child).map_err(|_| "Cannot create a copied folder")?;
+                    let directory = output.try_clone().map_err(|_| "Cannot retain the destination directory")?;
+                    let relative = child.clone();
+                    let retained_staging = control.staging.clone();
+                    control.host_work(move|| {
+                        let result = directory.create_dir(&relative).map_err(|_| "Cannot create a copied folder".to_string());
+                        drop(directory);
+                        drop(retained_staging);
+                        result
+                    }).await?;
                     pending.push((remote_child, child, depth + 1));
+                    control.report("scanning", 0, total, count);
                     continue;
                 }
                 let size = item["size"].as_u64().ok_or("Invalid file size")?;
                 total = total.checked_add(size).ok_or("Copy too large")?;
                 if total > MAX_BYTES { return Err("Copy exceeds 100 GiB; copy smaller folders separately".into()); }
-                copy_file(&source, &output, &remote_child, &child, size).await?;
+                files.push((remote_child, child, size));
+                control.report("scanning", 0, total, count);
             }
+        }
+        control.report("receiving", 0, total, count);
+        for (remote, local, size) in files {
+            copy_file(&source, &output, &remote, &local, size, control, &mut completed, total, count).await?;
         }
         Ok(())
     }
     .await;
     let folder = destination.join(name).to_string_lossy().into_owned();
-    result.map_err(|error| format!("{error}. Files already copied remain in {folder}"))?;
-    Ok(json!({"folder": folder, "entries": count, "bytes": total}))
+    result.map_err(|error| format!("{error}. Unique destination: {folder}; {completed}/{total} bytes received. Completed files are preserved; an incomplete file is removed after its disk handle closes."))?;
+    control.report("complete", completed, total, count);
+    Ok(json!({"folder": folder, "entries": count, "bytes": total,"partialCopyPolicy":"preserve_completed_unique_host_files_remove_incomplete_file"}))
 }
 
 /// Copies a file or folder out of a running environment into a new folder on this PC.
@@ -238,14 +435,24 @@ pub async fn copy_files_between_environments(
     }
     let relative = parts.join("/");
     let folder = parts.last().filter(|name| valid_name(name)).ok_or("The source name is not valid on this PC")?;
-    let staging_root = runtime.storage_root().join("cross-environment-transfers");
-    std::fs::create_dir_all(&staging_root).map_err(|_| "Cannot prepare temporary transfer storage")?;
-    let staging = tempfile::Builder::new().prefix("copy-").tempdir_in(&staging_root).map_err(|_| "Cannot prepare temporary transfer storage")?;
     let shared = source_env.runtime.starts_with("shared://tunnel/");
     let source = if shared { Source::Shared(source_env) } else { Source::Guest(&runtime, source_env) };
-    let copied = copy_out(source, &relative, &staging.path().to_string_lossy(), folder).await?;
+    let mut control = ExportControl::begin(&source, Some(&target_id))?;
+    let staging_root = runtime.storage_root().join("cross-environment-transfers");
+    let staging = control.host_work(move|| {
+        std::fs::create_dir_all(&staging_root).map_err(|_| "Cannot prepare temporary transfer storage")?;
+        Ok(Arc::new(tempfile::Builder::new().prefix("copy-").tempdir_in(&staging_root).map_err(|_| "Cannot prepare temporary transfer storage")?))
+    }).await?;
+    control.staging = Some(staging.clone());
+    let copied = copy_out_controlled(source, &relative, &staging.path().to_string_lossy(), folder, &control).await?;
+    // Retain the same target lease across phases. Stop can cancel the target
+    // even between export completion and the first import operation.
+    let target_lease = control.take_target_lease(&target_id)?;
+    let target_cancellation = target_lease.transfer.cancellation.clone();
     let local = copied["file"].as_str().or(copied["folder"].as_str()).ok_or("The source copy did not produce a file or folder")?;
-    let imported = crate::file_import::copy_files(&target_id, vec![local.to_owned()], &store, &runtime, |_| {}).await?;
+    let operation = crate::automation::context::current();
+    let import = Box::pin(crate::file_import::copy_files_into_reusing_lease(&target_id, vec![local.to_owned()], None, &store, &runtime, move |event| { if let Some(operation) = &operation { (operation.progress)(serde_json::to_value(event).unwrap_or(Value::Null)); } }, target_lease));
+    let imported = with_source_cancellation(&control,target_cancellation,import).await?;
     Ok(json!({"source": trimmed, "sourceEnvironment":source_env.name, "destination": imported.destination,
         "files": imported.files, "bytes": imported.bytes}))
 }
@@ -416,6 +623,120 @@ mod tests {
         }
         assert_eq!(numbered("archive.tar.gz", 2), "archive.tar (2).gz");
         assert_eq!(numbered(".env", 3), ".env (3)");
+    }
+    #[tokio::test]
+    async fn a_stalled_export_times_out_and_removes_only_its_incomplete_file() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::write(root.path().join("blob.bin"), b"existing file").unwrap();
+        let source = Source::Stalled {size:131072,sent:Default::default()};
+        let mut control = ExportControl::begin(&source,None).unwrap();
+        control.inactivity = Duration::from_millis(40);
+        let error = copy_out_controlled(source,"blob.bin",&root.path().to_string_lossy(),"blob",&control).await.unwrap_err();
+        assert!(error.starts_with("YOUGORI_TRANSFER_INACTIVE"),"{error}");
+        assert_eq!(std::fs::read(root.path().join("blob.bin")).unwrap(),b"existing file");
+        assert!(!root.path().join("blob (2).bin").exists());
+    }
+    #[tokio::test]
+    async fn stopping_either_side_cancels_between_export_and_reports_confirmed_bytes() {
+        for stop_target in [false,true] {
+            let root = tempfile::tempdir().unwrap();
+            let source = Source::Stalled {size:131072,sent:Default::default()};
+            let source_id = format!("export-source-{}",uuid::Uuid::new_v4());
+            let target_id = format!("export-target-{}",uuid::Uuid::new_v4());
+            let mut control = ExportControl::begin(&source,Some(&target_id)).unwrap();
+            let source_lease = transfers::begin(&source_id).unwrap();
+            source_lease.transfer.use_host_export();
+            control.leases.push(source_lease);
+            let transfers = control.leases.iter().map(|lease|lease.transfer.id.clone()).collect::<Vec<_>>();
+            let progress = Arc::new(std::sync::Mutex::new(Vec::<Value>::new()));
+            let recorded = progress.clone();
+            control.operation = Some(crate::automation::context::OperationContext {id:"export-test".into(),cancellation:control.cancellation.clone(),progress:Arc::new(move|event|recorded.lock().unwrap().push(event))});
+            let destination = root.path().to_string_lossy().into_owned();
+            let task = tokio::spawn(async move {copy_out_controlled(source,"blob.bin",&destination,"blob",&control).await});
+            tokio::time::timeout(Duration::from_secs(2),async {
+                loop {
+                    if progress.lock().unwrap().iter().any(|event|event["confirmedBytes"] == 65536) {break;}
+                    tokio::time::sleep(Duration::from_millis(5)).await;
+                }
+            }).await.unwrap();
+            let result = transfers::cancel(Some(if stop_target {&target_id} else {&source_id}),None);
+            assert_eq!(result["cancelRequested"],true);
+            let error = tokio::time::timeout(Duration::from_secs(2),task).await.unwrap().unwrap().unwrap_err();
+            assert!(error.starts_with("YOUGORI_OPERATION_CANCELLED"),"{error}");
+            assert!(!root.path().join("blob.bin").exists());
+            assert!(transfers.iter().all(|id|transfers::find(id).is_none()));
+            assert!(progress.lock().unwrap().iter().any(|event|event["partialCopyPolicy"] == "remove_unpublished_host_staging_preserve_originals"));
+        }
+    }
+    #[tokio::test]
+    async fn target_stop_remains_registered_across_the_export_import_handoff() {
+        let root = tempfile::tempdir().unwrap();
+        let target = format!("handoff-target-{}",uuid::Uuid::new_v4());
+        let source = Source::Fake(std::collections::BTreeMap::from([("file".into(),Some(b"exported".to_vec()))]));
+        let mut control = ExportControl::begin(&source,Some(&target)).unwrap();
+        let copied = copy_out_controlled(source,"file",&root.path().to_string_lossy(),"file",&control).await.unwrap();
+        let lease = control.take_target_lease(&target).unwrap();
+        let transfer = lease.transfer.id.clone();
+        drop(control);
+        assert!(transfers::find(&transfer).is_some());
+        assert_eq!(transfers::cancel(Some(&target),None)["cancelRequested"],true);
+        let store = PlatformStore::load(root.path().join("state.json")).unwrap();
+        let resources = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources");
+        let runtime = RuntimeManager::new(&resources,&root.path().join("runtime-fixture")).unwrap();
+        // The helper must check the retained token before even inspecting the
+        // environment or beginning archive preparation/import.
+        let error = crate::file_import::copy_files_into_reusing_lease(&target,vec![copied["file"].as_str().unwrap().to_owned()],None,&store,&runtime,|_|{},lease).await.err().unwrap();
+        assert!(error.starts_with("YOUGORI_OPERATION_CANCELLED"),"{error}");
+        assert!(transfers::find(&transfer).is_none());
+        assert_eq!(std::fs::read(root.path().join("file")).unwrap(),b"exported");
+    }
+    #[tokio::test]
+    async fn source_stop_cancels_the_target_after_export_has_finished() {
+        let source_id = format!("import-phase-source-{}",uuid::Uuid::new_v4());
+        let target_id = format!("import-phase-target-{}",uuid::Uuid::new_v4());
+        let source = Source::Fake(Default::default());
+        let mut control = ExportControl::begin(&source,Some(&target_id)).unwrap();
+        control.leases.push(transfers::begin(&source_id).unwrap());
+        let target = control.take_target_lease(&target_id).unwrap();
+        let target_token = target.transfer.cancellation.clone();
+        let source_transfer = control.leases[0].transfer.id.clone();
+        let target_transfer = target.transfer.id.clone();
+        let importing = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let began = importing.clone();
+        let task = tokio::spawn(async move {
+            let waiter = target_token.clone();
+            let import = async move {
+                target.transfer.use_guest_import();
+                began.store(true,std::sync::atomic::Ordering::SeqCst);
+                waiter.cancelled().await;
+                target.transfer.check()
+            };
+            with_source_cancellation(&control,target_token,import).await
+        });
+        tokio::time::timeout(Duration::from_secs(2),async {while !importing.load(std::sync::atomic::Ordering::SeqCst) {tokio::time::sleep(Duration::from_millis(5)).await;}}).await.unwrap();
+        assert!(transfers::find(&source_transfer).is_some());
+        assert!(transfers::find(&target_transfer).is_some());
+        assert_eq!(transfers::cancel(Some(&source_id),None)["cancelRequested"],true);
+        let error = tokio::time::timeout(Duration::from_secs(2),task).await.unwrap().unwrap().unwrap_err();
+        assert!(error.starts_with("YOUGORI_OPERATION_CANCELLED"),"{error}");
+        assert!(transfers::find(&source_transfer).is_none());
+        assert!(transfers::find(&target_transfer).is_none());
+    }
+    #[tokio::test]
+    async fn blocked_host_io_reports_pending_cleanup_and_removes_the_file_after_release() {
+        let root = tempfile::tempdir().unwrap();
+        let directory = Dir::open_ambient_dir(root.path(),cap_std::ambient_authority()).unwrap();
+        let file = directory.open_with("incomplete",OpenOptions::new().create_new(true).write(true)).unwrap();
+        let output = HostFile::new(file,&directory,std::path::Path::new("incomplete")).unwrap();
+        let source = Source::Fake(Default::default());
+        let mut control = ExportControl::begin(&source,None).unwrap();
+        control.inactivity = Duration::from_millis(10);
+        control.cleanup_grace = Duration::from_millis(10);
+        let error = control.host_work(move|| {std::thread::sleep(Duration::from_millis(150));Ok(output)}).await.err().unwrap();
+        assert!(error.starts_with("YOUGORI_OPERATION_INTERRUPTED"),"{error}");
+        assert!(error.contains("OS I/O is still pending"));
+        assert!(root.path().join("incomplete").exists());
+        tokio::time::timeout(Duration::from_secs(2),async {while root.path().join("incomplete").exists() {tokio::time::sleep(Duration::from_millis(5)).await;}}).await.unwrap();
     }
     #[test]
     fn existing_folders_are_never_reused() {

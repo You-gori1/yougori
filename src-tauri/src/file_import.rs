@@ -16,8 +16,9 @@ use tauri::{ipc::Channel, State};
 use crate::WebviewWindow;
 
 mod drive;
+pub(crate) mod transfers;
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CopyProgress {
     pub phase: &'static str,
@@ -25,6 +26,16 @@ pub struct CopyProgress {
     pub total_bytes: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scanned_entries: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transfer_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sent_bytes: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub confirmed_bytes: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_progress_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub waiting_for: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -111,10 +122,20 @@ pub(crate) fn plan_copy(paths: &[String]) -> Result<CopyPlan, String> {
     )
 }
 
+#[cfg(test)]
 fn scan_copy(
     paths: &[String],
     manifest: tempfile::NamedTempFile,
     progress: impl Fn(CopyProgress),
+) -> Result<CopyPlan, String> {
+    scan_copy_cancellable(paths, manifest, progress, None)
+}
+
+fn scan_copy_cancellable(
+    paths: &[String],
+    manifest: tempfile::NamedTempFile,
+    progress: impl Fn(CopyProgress),
+    operation: Option<std::sync::Arc<transfers::Transfer>>,
 ) -> Result<CopyPlan, String> {
     if paths.is_empty() || paths.len() > 256 {
         return Err("Drop between 1 and 256 files or folders at a time".into());
@@ -131,6 +152,7 @@ fn scan_copy(
     let mut last = Instant::now();
     let mut names = HashSet::new();
     for source in paths {
+        if let Some(operation) = &operation { operation.check()?; }
         let source = PathBuf::from(source);
         if !source.is_absolute() {
             return Err("Dropped files must have an absolute path".into());
@@ -148,7 +170,8 @@ fn scan_copy(
             std::io::Read::read_to_string(&mut std::io::Read::take(file, 1024 * 1024), &mut text).ok().map(|_| crate::ignore_rules::Rules::parse(&text))
         });
         let mut ignored = 0usize;
-        visit(&source, Path::new(&name), &boundary, 0, rules.as_ref(), &mut ignored, &mut |entry| {
+        visit(&source, Path::new(&name), &boundary, 0, rules.as_ref(), &mut ignored, operation.as_deref(), &mut |entry| {
+            if let Some(operation) = &operation { operation.check()?; }
             let Some(entry) = entry else {
                 plan.skipped_links += 1;
                 return Ok(());
@@ -171,6 +194,7 @@ fn scan_copy(
                     completed_bytes: 0,
                     total_bytes: 0,
                     scanned_entries: Some(plan.entry_count),
+                    ..Default::default()
                 });
                 last = Instant::now();
             }
@@ -192,8 +216,10 @@ fn visit(
     depth: usize,
     rules: Option<&crate::ignore_rules::Rules>,
     ignored: &mut usize,
+    operation: Option<&transfers::Transfer>,
     emit: &mut impl FnMut(Option<CopyEntry>) -> Result<(), String>,
 ) -> Result<(), String> {
+    if let Some(operation)=operation {operation.check()?;}
     if depth > 128 {
         return Err(
             "A folder is nested more than 128 levels deep. Shorten that path before copying."
@@ -239,6 +265,7 @@ fn visit(
         let children =
             fs::read_dir(source).map_err(|e| format!("Cannot read {}: {e}", source.display()))?;
         for child in children {
+            if let Some(operation)=operation {operation.check()?;}
             let path = child.map_err(|e| e.to_string())?.path();
             let child_relative = relative.join(safe_name(&path)?);
             if let Some(rules) = rules {
@@ -255,6 +282,7 @@ fn visit(
                 depth + 1,
                 rules,
                 ignored,
+                operation,
                 emit,
             )?;
         }
@@ -344,17 +372,20 @@ struct CopyReader<'a, F> {
     last: &'a mut Instant,
     total: u64,
     progress: &'a F,
+    operation: Option<&'a transfers::Transfer>,
 }
 impl<F: Fn(CopyProgress)> Read for CopyReader<'_, F> {
     fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+        if let Some(operation) = self.operation { operation.check().map_err(io::Error::other)?; }
         let count = self.file.read(buffer)?;
         *self.completed += count as u64;
         if self.last.elapsed().as_millis() >= 150 {
             (self.progress)(CopyProgress {
-                phase: "preparing",
+                phase: "archiving",
                 completed_bytes: *self.completed,
                 total_bytes: self.total,
                 scanned_entries: None,
+                ..Default::default()
             });
             *self.last = Instant::now();
         }
@@ -362,10 +393,20 @@ impl<F: Fn(CopyProgress)> Read for CopyReader<'_, F> {
     }
 }
 
+#[cfg(test)]
 pub(crate) fn write_archive(
     plan: &CopyPlan,
     destination: &Path,
     progress: impl Fn(CopyProgress),
+) -> Result<(), String> {
+    write_archive_cancellable(plan, destination, progress, None)
+}
+
+fn write_archive_cancellable(
+    plan: &CopyPlan,
+    destination: &Path,
+    progress: impl Fn(CopyProgress),
+    operation: Option<std::sync::Arc<transfers::Transfer>>,
 ) -> Result<(), String> {
     let mut archive = tar::Builder::new(BufWriter::with_capacity(
         1024 * 1024,
@@ -377,8 +418,9 @@ pub(crate) fn write_archive(
     ));
     let mut completed = 0;
     let mut last = Instant::now();
-    progress(CopyProgress { phase: "preparing", completed_bytes: 0, total_bytes: plan.bytes, scanned_entries: None });
+    progress(CopyProgress { phase: "archiving", completed_bytes: 0, total_bytes: plan.bytes, ..Default::default() });
     for entry in plan.entries()? {
+        if let Some(operation) = &operation { operation.check()?; }
         let entry = entry?;
         let mut header = tar::Header::new_gnu();
         header.set_uid(0);
@@ -412,6 +454,7 @@ pub(crate) fn write_archive(
                         last: &mut last,
                         total: plan.bytes,
                         progress: &progress,
+                        operation: operation.as_deref(),
                     }
                     .take(entry.bytes),
                 )
@@ -424,8 +467,19 @@ pub(crate) fn write_archive(
         .map_err(|e| e.to_string())?
         .flush()
         .map_err(|e| e.to_string())?;
-    progress(CopyProgress { phase: "preparing", completed_bytes: completed, total_bytes: plan.bytes, scanned_entries: None });
+    progress(CopyProgress { phase: "archiving", completed_bytes: completed, total_bytes: plan.bytes, ..Default::default() });
     Ok(())
+}
+
+pub(crate) fn cancel_transfers(environment_id: &str, transfer_id: Option<&str>) -> serde_json::Value {
+    transfers::cancel(Some(environment_id), transfer_id)
+}
+pub(crate) fn cancel_all_transfers() -> serde_json::Value { transfers::cancel(None, None) }
+
+#[tauri::command]
+pub fn cancel_file_transfer(environment_id: String, transfer_id: Option<String>, window: WebviewWindow) -> Result<serde_json::Value, String> {
+    if window.label() != "main" { return Err("Cancel file copies from the main Yougori window".into()); }
+    Ok(cancel_transfers(&environment_id, transfer_id.as_deref()))
 }
 
 #[tauri::command]
@@ -519,10 +573,20 @@ pub(crate) async fn copy_files_into(
     runtime: &RuntimeManager,
     progress: impl Fn(CopyProgress) + Send + Sync + 'static,
 ) -> Result<CopyResult, String> {
-    let lock = crate::commands::environment_network_lock(environment_id).await;
-    let _guard = lock.try_lock().map_err(|_| {
-        "This environment is busy. Try the drop again when its current action finishes."
-    })?;
+    let lease=transfers::begin(environment_id)?;
+    Box::pin(copy_files_into_reusing_lease(environment_id,paths,destination_folder,store,runtime,progress,lease)).await
+}
+
+/// Keep a between-copy target's cancellation lease registered across the export/import handoff.
+pub(crate) async fn copy_files_into_reusing_lease(
+    environment_id:&str, paths:Vec<String>, destination_folder:Option<String>,
+    store:&PlatformStore, runtime:&RuntimeManager,
+    progress:impl Fn(CopyProgress)+Send+Sync+'static, lease:transfers::Lease,
+)->Result<CopyResult,String>{
+    if lease.transfer.environment_id!=environment_id{return Err("The transfer lease belongs to another environment".into());}
+    let operation = lease.transfer.clone();
+    operation.use_guest_import();
+    operation.check()?;
     let state = store.snapshot()?;
     let environment = state
         .environments
@@ -544,14 +608,17 @@ pub(crate) async fn copy_files_into(
             "Start this environment before copying files into it"
         }.into());
     }
-    let progress = std::sync::Arc::new(progress);
+    let measurement = operation.clone();
+    let progress = std::sync::Arc::new(move |event| progress(measurement.report(event)));
     progress(CopyProgress {
-        phase: "preparing",
+        phase: "scanning",
         completed_bytes: 0,
         total_bytes: 0,
         scanned_entries: None,
+        ..Default::default()
     });
     let cloud = environment.kind == EnvironmentKind::Cloud;
+    if cloud{operation.use_cloud_staging();}
     if destination_folder.is_some() && !matches!(environment.kind, EnvironmentKind::Container | EnvironmentKind::MicroVm) {
         return Err("Choosing a destination folder works for containers and microVMs. Copy without a folder for VMs and cloud servers.".into());
     }
@@ -566,20 +633,37 @@ pub(crate) async fn copy_files_into(
     };
     let full_vm = environment.kind == EnvironmentKind::FullVm;
     let report = progress.clone();
-    let (plan, staging) = tokio::task::spawn_blocking(move || -> Result<_, String> {
+    let cancel = operation.clone();
+    let mut preparation = tokio::task::spawn_blocking(move || -> Result<_, String> {
         fs::create_dir_all(&root).map_err(|e| e.to_string())?;
         let staging = tempfile::Builder::new().prefix("copy-").tempdir_in(&root).map_err(|e| e.to_string())?;
         let manifest = tempfile::Builder::new().prefix("files-").tempfile_in(&root).map_err(|e| e.to_string())?;
-        let plan = scan_copy(&paths, manifest, |p| report(p))?;
+        let plan = scan_copy_cancellable(&paths, manifest, |p| report(p), Some(cancel.clone()))?;
         let disks = sysinfo::Disks::new_with_refreshed_list();
         let disk = crate::runtime::storage::runtime_disk(&disks, &root).ok_or("Could not check free space for the copy")?;
         let required = if full_vm { drive::capacity(&plan) } else { plan.bytes.saturating_mul(2).saturating_add((plan.entry_count as u64).saturating_mul(8192)) };
         if disk.available_space() < required.saturating_add(2 * 1024 * 1024 * 1024) { return Err("Not enough free space for this copy while keeping 2 GB free for your computer. Copy a smaller folder or free some space.".into()); }
-        if full_vm { drive::write_drive(&plan, &staging.path().join("copy.img"), |p| report(p))?; }
-        else { write_archive(&plan, &staging.path().join("copy.tar"), |p| report(p))?; }
+        if full_vm { drive::write_drive_cancellable(&plan, &staging.path().join("copy.img"), |p| report(p), Some(cancel.clone()))?; }
+        else { write_archive_cancellable(&plan, &staging.path().join("copy.tar"), |p| report(p), Some(cancel.clone()))?; }
+        cancel.check()?;
         Ok((plan, staging))
-    }).await.map_err(|e| e.to_string())??;
-    let transfer = uuid::Uuid::new_v4().simple().to_string();
+    });
+    let mut tick=tokio::time::interval(std::time::Duration::from_secs(1));
+    let (plan,staging)=loop {tokio::select! {
+        result=&mut preparation=>break result.map_err(|e|e.to_string())??,
+        _=operation.cancellation.cancelled()=>{
+            match tokio::time::timeout(std::time::Duration::from_secs(3),&mut preparation).await {
+                Ok(_)=>return operation.check().and_then(|_|Err("YOUGORI_OPERATION_CANCELLED: copy preparation cancelled".into())),
+                Err(_)=>return Err("YOUGORI_OPERATION_INTERRUPTED: host file read did not stop within three seconds; its staging data remains private and will be removed when the read returns. No new guest copy was published.".into())
+            }
+        },
+        _=tick.tick()=>{
+            if operation.idle_for()>std::time::Duration::from_secs(90){operation.cancellation.cancel();return Err("YOUGORI_TRANSFER_INACTIVE: scan or archive made no progress for 90 seconds; staged host files will be removed when pending reads finish, originals unchanged".into());}
+            operation.check()?;
+        }
+    }};
+    operation.check()?;
+    let transfer = operation.id.clone();
     let destination = if cloud {
         runtime.cloud.import_file_archive(&environment.id, &staging.path().join("copy.tar"), &transfer, plan.bytes, plan.files, progress.clone()).await?
     } else if full_vm {
@@ -588,6 +672,7 @@ pub(crate) async fn copy_files_into(
             completed_bytes: plan.bytes,
             total_bytes: plan.bytes,
             scanned_entries: None,
+            ..Default::default()
         });
         runtime
             .attach_import_drive(&environment, &staging.path().join("copy.img"), &transfer)

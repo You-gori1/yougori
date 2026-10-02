@@ -7,7 +7,7 @@ export interface Publication { id: string; environmentId: string; port: number; 
 export interface CloudflareAccountOptions { hostname: string; token?: string; presetId?: string; presetSourceEnvironmentId?: string; presetPort?: number; remember: boolean; routesReviewed: boolean }
 export interface SavedCloudflareAccount { saved: boolean; hostname: string; hostPort: number | null }
 export interface SetupTunnelConnection { hostname: string; hostPort: number; status: "connected"; servingApp: boolean }
-export interface HostShare { id: string; environmentId: string; path: string; readOnly: boolean; mountPath: string | null; guestUrl: string }
+export interface HostShare { id: string; environmentId: string; path: string; readOnly: boolean; mountPath: string | null; guestUrl?: string }
 export interface EnvironmentServices { services: ServicePort[]; publications: Publication[]; shares: HostShare[]; notice: string }
 export interface TerminalOutput { data: string; offset: number; done: boolean }
 export interface GuestWindow { label: string; title: string }
@@ -115,7 +115,13 @@ export const workspaceApi = {
     return run<HostShare>("attach_host_folder", { environmentId, path, readOnly }, async () => {
       const state = await platformApi.getState()
       if (state.environments.find(e => e.id === environmentId)?.kind === "cloud") throw new Error("Cloud nodes use connection-owned shared folders, not direct My PC mounts")
-      const id = `share-${crypto.randomUUID()}`; const value = { id, environmentId, path, readOnly, mountPath: state.environments.find(e => e.id === environmentId)?.kind === "fullVm" ? null : `/yougori/shared/my-pc/${id}`, guestUrl: `http://10.0.2.2:12345/test-${id}/` }; fixture(environmentId, state => state.shares.push(value)); return value
+      const id = `share-${crypto.randomUUID()}`; const value = { id, environmentId, path, readOnly, mountPath: state.environments.find(e => e.id === environmentId)?.kind === "fullVm" ? null : `/yougori/shared/my-pc/${id}` }; fixture(environmentId, state => state.shares.push(value)); return value
+    })
+  },
+  shareCredentials(shareId: string) {
+    return run<{ shareId: string; guestUrl: string; sensitive: true }>("host_share_credentials", { shareId }, () => {
+      if (!Object.values(readFixtures()).some(state => state.shares.some(share => share.id === shareId))) throw new Error("Shared folder is no longer connected")
+      return { shareId, guestUrl: `http://10.0.2.2:12345/test-${shareId}/`, sensitive: true }
     })
   },
   unshare(shareId: string) { return run<void>("detach_host_folder", { shareId }, () => { for (const id of Object.keys(readFixtures())) fixture(id, state => { state.shares = state.shares.filter(s => s.id !== shareId) }) }) },

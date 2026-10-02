@@ -205,6 +205,7 @@ impl CudaRuntime {
         tokio::fs::write(assets.join("paths.ps1"), include_str!("../../paths.ps1"))
             .await.map_err(|e| e.to_string())?;
         let mut command = hidden("powershell.exe");
+        command.kill_on_drop(true);
         command
             .args([
                 "-NoProfile",
@@ -238,7 +239,8 @@ impl CudaRuntime {
         Ok(())
     }
 
-    /// Explicit Stop-button recovery only. Never terminate a live app's runtime.
+    /// Recover only a verified abandoned runtime, including native startup.
+    /// The exclusive ownership handle protects other live app instances.
     pub async fn recover_abandoned(&self) -> Result<(), String> {
         if !cfg!(windows) {
             return Err("CUDA runtime recovery requires Windows".into());
@@ -257,7 +259,10 @@ impl CudaRuntime {
         *guard = None;
         let _ownership = self.ownership()?;
         let installation = self.installation()?;
-        self.verify_owned(&installation, true, false).await
+        self.verify_owned(&installation, true, false).await?;
+        // Termination acknowledgement is not recovery: prove the registered
+        // distribution is stopped while our exclusive ownership is still held.
+        self.verify_owned(&installation, false, true).await
     }
     pub fn new(directory: PathBuf) -> Result<Self, String> {
         identity(&directory)?;
@@ -586,6 +591,8 @@ impl CudaRuntime {
         self.shutdown_locked(&mut guard).await
     }
 
+    pub async fn owns_runtime(&self) -> bool { self.process.lock().await.is_some() }
+
     async fn shutdown_locked(&self, guard: &mut Option<Process>) -> Result<(), String> {
         let Some(process) = guard.as_mut() else {
             return Ok(());
@@ -615,6 +622,7 @@ impl CudaRuntime {
         }
         let installation = self.installation()?;
         self.verify_owned(&installation, true, false).await?;
+        self.verify_owned(&installation, false, true).await?;
         *guard = None;
         Ok(())
     }
@@ -827,6 +835,112 @@ mod tests {
         assert!(!CudaRuntime::restore_relocated_installation(&current, &original).unwrap());
         assert_eq!(fs::read(current.join("distribution/ext4.vhdx")).unwrap(), b"test disk");
         assert!(!original.exists());
+    }
+
+    #[cfg(windows)]
+    fn isolated_d_recovery_root() -> Result<PathBuf, String> {
+        let root = PathBuf::from(std::env::var_os("YOUGORI_CUDA_RECOVERY_TEST_ROOT").ok_or("Set YOUGORI_CUDA_RECOVERY_TEST_ROOT to a fresh dedicated D: recovery fixture")?);
+        let base = Path::new("D:/Yougori-Releases/reliability-review-20261002").canonicalize().map_err(|error| error.to_string())?;
+        if !root.is_absolute() || root.parent().and_then(|parent| parent.canonicalize().ok()).as_ref() != Some(&base) {
+            return Err("CUDA crash recovery tests only accept the dedicated D: reliability review directory".into());
+        }
+        let name = root.file_name().and_then(|name| name.to_str()).ok_or("Invalid fixture directory")?;
+        let suffix = name.strip_prefix("cuda-recovery-").ok_or("Fixture directory needs a unique cuda-recovery-UUID name")?;
+        uuid::Uuid::parse_str(suffix).map_err(|_| "Fixture directory UUID is invalid")?;
+        Ok(base.join(name))
+    }
+
+    #[cfg(windows)]
+    async fn recovery_test_post(runtime: &CudaRuntime, endpoint: &Endpoint, path: &str, body: serde_json::Value) -> Result<serde_json::Value, String> {
+        let response = runtime.client.post(format!("{}{path}", endpoint.base_url)).bearer_auth(&endpoint.token)
+            .timeout(Duration::from_secs(180)).json(&body).send().await.map_err(|error| error.to_string())?;
+        let success = response.status().is_success();
+        let value: serde_json::Value = response.json().await.map_err(|error| error.to_string())?;
+        if !success { return Err(format!("Disposable CUDA fixture request failed: {}", value["error"].as_str().unwrap_or("guest operation failed"))); }
+        Ok(value)
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    #[ignore = "internal process owner for the explicitly isolated D: CUDA crash recovery test"]
+    async fn cuda_recovery_fixture_owner() -> Result<(), String> {
+        let root = isolated_d_recovery_root()?;
+        let fixture_id = root.file_name().unwrap().to_string_lossy().to_string();
+        if fs::read_to_string(root.join("yougori-recovery-fixture.txt")).map_err(|error| error.to_string())? != fixture_id {
+            return Err("The disposable CUDA fixture ownership marker is missing; no runtime was started".into());
+        }
+        let runtime = CudaRuntime::new(root.clone())?;
+        let endpoint = runtime.ensure_started().await?;
+        recovery_test_post(&runtime, &endpoint, "/v1/containers/action", serde_json::json!({"id":fixture_id,"action":"start","networkAccess":false})).await?;
+        fs::write(root.join("crash-owner-ready.json"), serde_json::json!({"pid":std::process::id()}).to_string()).map_err(|error| error.to_string())?;
+        // This subprocess deliberately models an engine killed without cleanup.
+        // Its parent owns the exact child handle and the only fixture storage.
+        tokio::time::sleep(Duration::from_secs(600)).await;
+        runtime.shutdown().await
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    #[ignore = "installs a fresh owned CUDA distribution on D: and tests live ownership, engine crash recovery, GPU execution and preserved files"]
+    async fn isolated_d_cuda_engine_crash_recovers_only_after_live_owner_exits() -> Result<(), String> {
+        use std::os::windows::process::CommandExt;
+        let root = isolated_d_recovery_root()?;
+        // Fresh-only: this test never adopts a user's existing distribution.
+        fs::create_dir(&root).map_err(|error| format!("Recovery fixture must be a new directory: {error}"))?;
+        let fixture_id = root.file_name().unwrap().to_string_lossy().to_string();
+        fs::write(root.join("yougori-recovery-fixture.txt"), &fixture_id).map_err(|error| error.to_string())?;
+        let payload = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../src-tauri/resources/runtime/cuda/opendock-agent").canonicalize().map_err(|error| error.to_string())?;
+        let runtime = CudaRuntime::new(root.clone())?;
+        runtime.install(&payload).await?;
+        let result = async {
+            let endpoint = runtime.ensure_started().await?;
+            let separate = CudaRuntime::new(root.clone())?;
+            assert!(separate.recover_abandoned().await.unwrap_err().contains("Another live Yougori"));
+            recovery_test_post(&runtime, &endpoint, "/v1/containers/provision", serde_json::json!({"id":fixture_id,"image":"docker.io/library/python:3.12-slim","command":"sleep 2147483647","cpus":1,"memoryBytes":536870912,"networkAccess":false,"gpuAccess":true})).await?;
+            recovery_test_post(&runtime, &endpoint, "/v1/containers/action", serde_json::json!({"id":fixture_id,"action":"start","networkAccess":false})).await?;
+            let probe = format!("printf '{}' > /root/yougori-recovery-marker\npython3 - <<'YOUGORI_CUDA_PROBE'\n{}\nYOUGORI_CUDA_PROBE", fixture_id, include_str!("../../kernel-probe.py"));
+            let initial = recovery_test_post(&runtime, &endpoint, "/v1/containers/exec", serde_json::json!({"id":fixture_id,"command":probe})).await?;
+            if initial["exitCode"] != 0 || !initial["stdout"].as_str().unwrap_or_default().contains("CUDA KERNEL PASS") { return Err("Fresh D: fixture CUDA kernel probe failed".into()); }
+            runtime.shutdown().await?;
+            struct OwnedChild(std::process::Child);
+            impl Drop for OwnedChild { fn drop(&mut self) { let _ = self.0.kill(); let _ = self.0.wait(); } }
+            let mut owner = OwnedChild(std::process::Command::new(std::env::current_exe().map_err(|error| error.to_string())?)
+                .creation_flags(0x08000000).args(["--ignored","--exact","tests::cuda_recovery_fixture_owner","--nocapture"])
+                .env("YOUGORI_CUDA_RECOVERY_TEST_ROOT", &root).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null())
+                .spawn().map_err(|error| error.to_string())?);
+            let deadline = tokio::time::Instant::now() + Duration::from_secs(180);
+            while !root.join("crash-owner-ready.json").exists() {
+                if owner.0.try_wait().map_err(|error| error.to_string())?.is_some() { return Err("Disposable engine owner exited before its readiness marker".into()); }
+                if tokio::time::Instant::now() > deadline { return Err("Disposable engine owner did not become ready".into()); }
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+            assert!(separate.recover_abandoned().await.unwrap_err().contains("Another live Yougori"));
+            owner.0.kill().map_err(|error| error.to_string())?;
+            owner.0.wait().map_err(|error| error.to_string())?;
+            separate.recover_abandoned().await?;
+            let installation = separate.installation()?;
+            separate.verify_owned(&installation, false, true).await?;
+            assert_eq!(separate.storage_path(), root.join("distribution/ext4.vhdx"));
+            let endpoint = separate.ensure_started().await?;
+            recovery_test_post(&separate, &endpoint, "/v1/containers/action", serde_json::json!({"id":fixture_id,"action":"start","networkAccess":false})).await?;
+            let preserved = recovery_test_post(&separate, &endpoint, "/v1/containers/exec", serde_json::json!({"id":fixture_id,"command":"cat /root/yougori-recovery-marker; test -e /dev/dxg"})).await?;
+            if preserved["exitCode"] != 0 || preserved["stdout"].as_str() != Some(fixture_id.as_str()) { return Err("D: runtime crash recovery lost persistent guest data or GPU access".into()); }
+            recovery_test_post(&separate, &endpoint, "/v1/containers/delete", serde_json::json!({"id":fixture_id})).await?;
+            separate.shutdown().await?;
+            eprintln!("Verified isolated D: CUDA GPU execution, live-owner protection, crash recovery, stopped postcondition and preserved guest files.");
+            Ok::<(), String>(())
+        }.await;
+        // Preserve fixture evidence. Only this newly installed registration may
+        // be removed, and only after exclusive ownership plus stopped verification.
+        runtime.shutdown().await?;
+        let cleanup = CudaRuntime::new(root.clone())?;
+        cleanup.recover_abandoned().await?;
+        let _ownership = cleanup.ownership()?;
+        let installation = cleanup.installation()?;
+        cleanup.verify_owned(&installation, false, true).await?;
+        let status = hidden("wsl.exe").args(["--unregister", &installation.distribution]).status().await.map_err(|error| error.to_string())?;
+        if !status.success() { return Err("Disposable D: CUDA registration cleanup needs attention; user registrations were untouched".into()); }
+        result
     }
 
     #[tokio::test]

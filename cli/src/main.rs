@@ -1,4 +1,6 @@
-use yougori_cli::{catalog, client, parse, presentation, wire, GUIDE, SKILL};
+use yougori_cli::{client, parse, presentation, wire, GUIDE};
+#[cfg(test)]
+use yougori_cli::catalog;
 use serde_json::{json, Value};
 use std::{io::Read, path::PathBuf};
 mod output;
@@ -28,15 +30,12 @@ fn install_skill(args: &[String]) -> Result<Value, String> {
         match args[i].as_str() { "--path" if path.is_none()=> { i+=1; path=Some(PathBuf::from(args.get(i).ok_or("--path requires a skill directory")?)); }, _=>return Err("Usage: skills install [--path SKILL_DIRECTORY]. Existing skills are never overwritten.".into()) }
         i += 1;
     }
-    let path = match path {
-        Some(path) => path,
-        None => yougori_cli::skills::default_directory()?,
-    };
     let executable = std::env::current_exe().map_err(|e| e.to_string())?;
-    yougori_cli::skills::install_at(&path, &executable)?;
-    Ok(
-        json!({"path":path,"message":"Installed Yougori skill. Ask your agent to read SKILL.md in the returned directory. This skill does not grant additional system permissions."}),
-    )
+    let status = match path {
+        Some(path) => yougori_cli::skills::install_at(&path, &executable)?,
+        None => yougori_cli::skills::install_default(&executable)?,
+    };
+    serde_json::to_value(status).map_err(|e| e.to_string())
 }
 async fn run(args: Vec<String>) -> Result<i32, String> {
     let args = if args.is_empty() {
@@ -80,25 +79,29 @@ async fn run(args: Vec<String>) -> Result<i32, String> {
         return Ok(0);
     }
     if args[0] == "schema" {
-        if args.len() > 2 {
-            return Err("Usage: schema [METHOD]".into());
-        }
-        let result = if let Some(name) = args.get(1) {
-            serde_json::to_value(catalog::find(name)?).unwrap()
-        } else {
-            json!({"protocolVersion":wire::VERSION,"methods":catalog::methods()})
-        };
-        println!("{}", output::json(&result, output::stdout_color()));
+        println!("{}", wire_json(yougori_cli::discovery::schema(&args[1..])?));
         return Ok(0);
     }
     if args[0] == "skills" {
         match args.get(1).map(String::as_str) {
-            Some("print") if args.len() == 2 => println!("{SKILL}\n{GUIDE}"),
+            Some("print") if args.len() == 2 => println!("{}", yougori_cli::skills::core_instructions(&std::env::current_exe().map_err(|e| e.to_string())?)),
+            Some("print") if args.len() == 3 && args[2] == "--all" => println!("{}\n{GUIDE}", yougori_cli::skills::core_instructions(&std::env::current_exe().map_err(|e| e.to_string())?)),
+            Some("print") if args.len() == 4 && args[2] == "--topic" => println!("{}", yougori_cli::skills::reference(&args[3])?),
+            Some("status") if args.len() == 2 => println!("{}", wire_json(yougori_cli::discovery::local_interface()?)),
             Some("install") => println!("{}", wire_json(install_skill(&args[2..])?)),
             _ => {
-                return Err("Usage: skills print | skills install [--path SKILL_DIRECTORY]".into())
+                return Err("Usage: skills print [--topic TOPIC | --all] | skills status | skills install [--path SKILL_DIRECTORY]".into())
             }
         }
+        return Ok(0);
+    }
+    if args.as_slice() == ["agent", "discover"] {
+        let mut report = yougori_cli::discovery::local_interface()?;
+        match client::engine_identity().await {
+            Ok(engine) => { report["protocolCompatible"] = engine["protocolCompatible"].clone(); report["engine"] = engine; },
+            Err(error) => { report["engine"] = json!({"available":false,"error":error}); report["protocolCompatible"] = Value::Null; },
+        }
+        println!("{}", wire_json(report));
         return Ok(0);
     }
     if args.first().is_some_and(|arg| arg == "agent")
@@ -106,7 +109,8 @@ async fn run(args: Vec<String>) -> Result<i32, String> {
         if args.len() != 2 { return Err("Usage: yougori agent inventory".into()); }
         client::start(None).await?;
         let state = yougori_cli::public::call("get_platform_state", json!({})).await?;
-        let report = yougori_cli::overview::agent_inventory(&state);
+        let mut report = yougori_cli::overview::agent_inventory(&state);
+        report["interface"] = yougori_cli::discovery::local_interface()?;
         println!("{}", output::json(&serde_json::to_value(wire::Response::success(report)).unwrap(), false));
         return Ok(0);
     }
@@ -140,16 +144,17 @@ async fn run(args: Vec<String>) -> Result<i32, String> {
             if dashboard && engine["engineOnly"] == true {
                 return Err("This engine runs without the desktop app, so there is no dashboard to open at login. Use `yougori app autostart on`.".into());
             }
-            let mut settings = yougori_cli::public::call("get_platform_state", json!({})).await?["settings"].clone();
+            let snapshot = yougori_cli::public::call("get_settings_snapshot", json!({})).await?;
+            let mut settings = snapshot["settings"].clone();
             if let Some(enable) = enable {
                 settings["launchAtStartup"] = enable.into();
                 settings["startupHeadless"] = (enable && !dashboard).into();
-                yougori_cli::public::call("update_settings", json!({"settings": settings})).await?;
+                yougori_cli::public::call("patch_settings", json!({"patch":{"launchAtStartup":enable,"startupHeadless":enable && !dashboard},"expectedRevision":snapshot["revision"]})).await?;
             }
             let on = settings["launchAtStartup"] == true;
             let headless = settings["startupHeadless"] == true;
             let mode = if !on { "off" } else if headless || engine["engineOnly"] == true { "background engine" } else { "dashboard" };
-            Ok::<_, String>(json!({"autostart": on, "mode": mode}))
+            Ok::<_, String>(json!({"autostart": on, "mode": mode,"startupTrigger":"signIn","startsBeforeSignIn":false,"reportCommand":"yougori app startup-report"}))
         }).await?;
         println!("{}", wire_json(result));
         return Ok(0);
@@ -280,7 +285,8 @@ Refreshing every 2 seconds * Ctrl+C to leave
         let explicit_wait = args.starts_with(&["jobs".into(), "wait".into()]);
         // A quit's job ends with the engine, so there is nothing left to wait on.
         if invocation.request.method == "app_quit" {
-            result = json!({"shutdownRequested":true,"stopped":true});
+            // client::quit preserves verified cleanup stages and explicit
+            // uncertainty; do not replace them with an unconditional success.
         } else if !invocation.no_wait && (result["accepted"] == true || explicit_wait) {
             let job_id = result["jobId"]
                 .as_str()
@@ -325,20 +331,20 @@ fn main() {
                 .enable_all()
                 .build()
                 .unwrap()
-                .block_on(Box::pin(run(args)))
+                .block_on(Box::pin(client::capture_errors(run(args))))
         })
         .expect("Cannot start the Yougori CLI thread")
         .join()
         .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
     let code = match result {
         Ok(code) => code,
-        Err(error) => {
+        Err(response) => {
             if output::stdout_terminal() {
-                eprint!("{}", presentation::text(&output::error(&error, output::stdout_color())));
+                eprint!("{}", presentation::text(&output::error(response.error.as_deref().unwrap_or("Yougori operation failed"), output::stdout_color())));
             } else {
                 println!(
                     "{}",
-                    output::json(&serde_json::to_value(wire::Response::failure(error)).unwrap(), false)
+                    output::json(&serde_json::to_value(response).unwrap(), false)
                 );
             }
             1

@@ -37,9 +37,11 @@ impl RuntimeManager {
         if std::fs::metadata(&path).map_err(|e| e.to_string())?.len() > 256 * 1024 {
             return Err("Invalid microVM workload metadata".into());
         }
-        let spec: serde_json::Value =
+        let mut spec: serde_json::Value =
             serde_json::from_slice(&std::fs::read(path).map_err(|e| e.to_string())?)
                 .map_err(|e| e.to_string())?;
+        let options: Options = serde_json::from_value(spec["options"].clone()).map_err(|_| "Invalid microVM workload options")?;
+        crate::projects::secrets::inject(&mut spec["options"], &options.secret_environment)?;
         // Existing helper waits for the guest agent to finish booting.
         self.execute_micro_vm_command(id, "true").await?;
         let endpoint = self
@@ -105,6 +107,7 @@ impl RuntimeManager {
         }
         let options = self.workload_options(id)?;
         let mut value = serde_json::to_value(&options).map_err(|e| e.to_string())?;
+        crate::projects::secrets::inject(&mut value, &options.secret_environment)?;
         if options.binds.is_empty() {
             self.workload_shares.lock().await.remove(id);
             return Ok(value);

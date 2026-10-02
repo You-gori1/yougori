@@ -79,3 +79,6 @@
   .preferences-workbench .preferences-panel { padding-inline: 20px; }
   .preferences-section { grid-template-columns: minmax(0, 1fr); gap: 16px; padding: 22px 0; }
 }
+.preferences-health-fields { display: grid; grid-template-columns: minmax(0, 1fr); gap: .4rem; margin: .75rem 0; border: 0; padding: 0; }
+.preferences-health-fields input, .preferences-health-fields select, .preferences-health-fields textarea { min-width: 0; padding: .5rem .65rem; border: 1px solid var(--border); border-radius: .4rem; background: var(--background); color: var(--foreground); }
+.preferences-health-fields label { font-size: .85rem; }

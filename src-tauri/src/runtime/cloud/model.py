@@ -100,6 +100,9 @@ def request(action, body):
         if action != 'run':
             raise ValueError('Unknown model operation')
         model, token = body['model'], body['token']
+        revision=body.get('revision')
+        if revision is not None and not re.fullmatch(r'[a-f0-9]{40}',revision):
+            raise ValueError('Model revision must be an immutable checkpoint SHA')
         if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', model) or not re.fullmatch(r'[a-f0-9]{64}', token):
             raise ValueError('Invalid model configuration')
         if current:
@@ -121,7 +124,7 @@ def request(action, body):
         source = body['source']
         if not isinstance(source, str) or len(source) > 262144:
             raise ValueError('Invalid model server')
-        for name, data in [('server.py', source), ('config.json', json.dumps({'model': model, 'token': token}))]:
+        for name, data in [('server.py', source), ('config.json', json.dumps({'model': model, 'token': token, 'revision':revision}))]:
             path = root / name
             with open(path, 'w', opener=lambda p, flags: os.open(p, flags | os.O_NOFOLLOW, 0o600)) as file:
                 file.write(data)
@@ -136,6 +139,8 @@ config = json.loads((root / 'config.json').read_text())
 os.environ.update(YOUGORI_MODEL=config['model'], YOUGORI_MODEL_TOKEN=config['token'],
     YOUGORI_MODEL_BIND='127.0.0.1', YOUGORI_INSTALL_TORCH='1',
     HF_HOME=str(root / 'cache'), HF_HUB_DISABLE_TELEMETRY='1')
+if config.get('revision'):
+    os.environ['YOUGORI_MODEL_REVISION']=config['revision']
 (root / 'cache').mkdir(exist_ok=True)
 os.execv(str(python), [str(python), '-u', str(root / 'server.py')])
 '''

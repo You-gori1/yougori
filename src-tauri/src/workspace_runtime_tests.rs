@@ -31,6 +31,96 @@ fn fixture(id: &str, kind: &str) -> Environment {
     })).unwrap()
 }
 
+#[test]
+fn ordinary_share_metadata_omits_bearer_capability() {
+    let share=HostShare{id:"share-test".into(),environment_id:"env-test".into(),path:"selected-only".into(),read_only:true,mount_path:None,guest_url:"http://localhost:1234/private-bearer/".into()};
+    let value=serde_json::to_value(&share).unwrap();
+    assert!(value.get("guestUrl").is_none());
+    assert!(!value.to_string().contains("private-bearer"));
+}
+#[test]
+fn bounded_log_cursors_return_only_new_output_and_detect_rotation() {
+    let first=log_window("first line\n",None,64,64).unwrap();
+    let next=log_window("first line\nsecond line\n",first["nextCursor"].as_str(),64,64).unwrap();
+    assert_eq!(next["stdout"],"second line\n");
+    let same=log_window("first line\nsecond line\n",next["nextCursor"].as_str(),64,64).unwrap();
+    assert_eq!(same["stdout"],"");
+    let rotated=log_window("new rotated log\n",next["nextCursor"].as_str(),64,64).unwrap();
+    assert_eq!(rotated["rotated"],true);assert_eq!(rotated["stdout"],"new rotated log\n");
+    let unicode=log_window("αβγ",None,3,6).unwrap();assert_eq!(unicode["stdout"],"α");assert_eq!(unicode["truncated"],true);
+    assert!(log_window("hello",Some("not-a-cursor"),64,64).is_err());
+}
+#[test]fn protected_log_output_withholds_split_secrets_and_keeps_byte_cursors(){
+    let secrets=vec!["protected-credential".to_owned(),"aaaa".to_owned(),"日本語-key".to_owned()];
+    let first=mask_secret_output("ordinary\nprotected-cred",&secrets,true);assert_eq!(first,"ordinary\n");
+    let initial=log_window(&first,None,64,64).unwrap();
+    let complete=mask_secret_output("ordinary\nprotected-credential\n",&secrets,true);let next=log_window(&complete,initial["nextCursor"].as_str(),64,64).unwrap();assert_eq!(next["stdout"],"********************\n");
+    assert_eq!(mask_secret_output("aaaa",&secrets,true),"****");
+    let unicode=mask_secret_output("日本語-key\n",&secrets,true);assert_eq!(unicode.len(),"日本語-key\n".len());assert!(!unicode.contains("日本語"));
+}
+async fn fixture_listener(manager:&WorkspaceManager,id:&str,environment_id:&str,kind:PublicationKind)->u16{
+    let listener=TcpListener::bind(("127.0.0.1",0)).await.unwrap();let port=listener.local_addr().unwrap().port();
+    let task=tokio::spawn(async move{while let Ok((mut stream,_))=listener.accept().await{let _=stream.write_all(b"still available").await;}});
+    manager.publications.lock().await.insert(id.into(),LivePublication{info:Publication{id:id.into(),environment_id:environment_id.into(),port:8080,kind,host_port:port,urls:vec![format!("http://127.0.0.1:{port}")],status:"active".into(),message:"fixture".into(),cloudflare_account:false},task:Arc::new(ListenerTask(task)),cloudflare:None,logs:None,tunnel_id:None,_cloudflare_config:None,_vm_forward:None});
+    port
+}
+#[tokio::test]
+async fn publication_listener_reuse_keeps_original_and_survives_original_removal(){
+    let data=tempfile::tempdir().unwrap();let runtime=RuntimeManager::new(Path::new(env!("CARGO_MANIFEST_DIR")),data.path()).unwrap();let manager=WorkspaceManager::new(data.path());let store=PlatformStore::load(data.path().join("state.json")).unwrap();let env=fixture("env-reuse","fullVm");store.mutate(|s|{s.environments.push(env.clone());Ok(())}).unwrap();
+    let port=fixture_listener(&manager,"pub-original",&env.id,PublicationKind::Cloudflare).await;
+    let plan=publication_plan(&env.id,8080,&PublicationKind::Loopback,Some(port),None,&store,&manager).await.unwrap();assert_eq!(plan["action"],"reuseListener");assert_eq!(plan["allowed"],true);
+    let published=publish_service(env.id.clone(),8080,PublicationKind::Loopback,Some(port),None,&store,&runtime,&manager).await.unwrap();assert_ne!(published.id,"pub-original");
+    manager.publications.lock().await.remove("pub-original");
+    let mut stream=TcpStream::connect(("127.0.0.1",port)).await.unwrap();let mut bytes=Vec::new();stream.read_to_end(&mut bytes).await.unwrap();assert_eq!(bytes,b"still available");
+    manager.shutdown(&runtime).await;
+    tokio::time::sleep(Duration::from_millis(30)).await;assert!(TcpStream::connect(("127.0.0.1",port)).await.is_err());
+}
+#[tokio::test]
+async fn failed_owned_route_transition_restores_working_listener_and_saved_intent(){
+    let data=tempfile::tempdir().unwrap();let runtime=RuntimeManager::new(Path::new(env!("CARGO_MANIFEST_DIR")),data.path()).unwrap();let manager=WorkspaceManager::new(data.path());let store=PlatformStore::load(data.path().join("state.json")).unwrap();let env=fixture("env-rollback","fullVm");store.mutate(|s|{s.environments.push(env.clone());Ok(())}).unwrap();
+    let port=fixture_listener(&manager,"pub-original",&env.id,PublicationKind::Loopback).await;
+    store.mutate(|s|{s.saved_environment_services.push(crate::models::SavedEnvironmentService{id:"pub-original".into(),environment_id:env.id.clone(),port:8080,kind:PublicationKind::Loopback,host_port:port,domain:None,cloudflare_hostname:None,remembered_account:false});Ok(())}).unwrap();
+    let other=TcpListener::bind(("127.0.0.1",0)).await.unwrap();let other_port=other.local_addr().unwrap().port();
+    assert!(publish_service(env.id.clone(),8080,PublicationKind::Loopback,Some(other_port),None,&store,&runtime,&manager).await.is_err());
+    let restored=manager.publications.lock().await.get("pub-original").unwrap().info.clone();assert_eq!(restored.host_port,port);assert_eq!(store.snapshot().unwrap().saved_environment_services[0].host_port,port);
+    let mut stream=TcpStream::connect(("127.0.0.1",port)).await.unwrap();let mut bytes=Vec::new();stream.read_to_end(&mut bytes).await.unwrap();assert_eq!(bytes,b"still available");
+    store.mutate(|state|{state.environments.push(fixture("env-other","fullVm"));Ok(())}).unwrap();
+    let conflict=publication_plan("env-other",8080,&PublicationKind::Loopback,Some(port),None,&store,&manager).await.unwrap();
+    assert_eq!(conflict["allowed"],false);assert_eq!(conflict["owner"]["id"],"pub-original");
+    let replacement=publication_plan(&env.id,8080,&PublicationKind::Loopback,Some(other_port),None,&store,&manager).await.unwrap();
+    assert_eq!(replacement["allowed"],false);assert_eq!(replacement["owner"]["type"],"externalProcess");assert_eq!(replacement["existing"]["id"],"pub-original");
+    manager.shutdown(&runtime).await;
+}
+
+#[tokio::test]
+async fn saved_domain_transition_failure_preserves_old_route_and_domain_intent(){
+    let data=tempfile::tempdir().unwrap();let runtime=RuntimeManager::new(Path::new(env!("CARGO_MANIFEST_DIR")),data.path()).unwrap();let manager=WorkspaceManager::new(data.path());let store=PlatformStore::load(data.path().join("state.json")).unwrap();let env=fixture("env-domain-rollback","fullVm");store.mutate(|s|{s.environments.push(env.clone());Ok(())}).unwrap();
+    let port=fixture_listener(&manager,"pub-domain",&env.id,PublicationKind::Cloudflare).await;
+    {let mut routes=manager.publications.lock().await;let route=routes.get_mut("pub-domain").unwrap();route.info.cloudflare_account=true;route.info.urls=vec!["https://old.fixture.invalid".into()];route.tunnel_id=Some("01234567-89ab-4def-8123-456789abcdef".into());}
+    store.mutate(|s|{s.saved_domains.push(crate::models::SavedDomain{id:"saved-fixture-domain".into(),credential_environment_id:"fixture-only".into(),port:8080,hostname:"old.fixture.invalid".into(),host_port:port});s.saved_environment_services.push(crate::models::SavedEnvironmentService{id:"pub-domain".into(),environment_id:env.id.clone(),port:8080,kind:PublicationKind::Cloudflare,host_port:port,domain:Some("saved-fixture-domain".into()),cloudflare_hostname:Some("old.fixture.invalid".into()),remembered_account:true});Ok(())}).unwrap();
+    let before=serde_json::to_value(&store.snapshot().unwrap().saved_environment_services).unwrap();
+    let occupied=TcpListener::bind(("127.0.0.1",0)).await.unwrap();let occupied_port=occupied.local_addr().unwrap().port();
+    let token=STANDARD.encode(serde_json::to_vec(&json!({"a":"0123456789abcdef0123456789abcdef","t":"01234567-89ab-4def-8123-456789abcdef","s":STANDARD.encode([7u8;32])})).unwrap());
+    let options=cloudflare::AccountOptions{hostname:"new.fixture.invalid".into(),token:Some(token.clone()),preset_id:None,preset_source_environment_id:None,preset_port:None,remember:false,routes_reviewed:true};
+    let plan=publication_plan(&env.id,8080,&PublicationKind::Cloudflare,Some(occupied_port),Some(options.clone()),&store,&manager).await.unwrap();assert_eq!(plan["allowed"],false);assert_eq!(plan["owner"]["type"],"externalProcess");assert!(!plan.to_string().contains(&token));
+    // The fixture has no guest/QMP endpoint, so replacement fails before any public tunnel starts.
+    let error=match publish_service(env.id.clone(),8080,PublicationKind::Cloudflare,Some(occupied_port),Some(options),&store,&runtime,&manager).await{Err(error)=>error,Ok(_)=>panic!("Invalid fixture replacement must fail before public publication")};assert!(!error.contains(&token));
+    assert_eq!(manager.publications.lock().await["pub-domain"].info.urls,vec!["https://old.fixture.invalid"]);assert_eq!(serde_json::to_value(&store.snapshot().unwrap().saved_environment_services).unwrap(),before);assert_eq!(store.snapshot().unwrap().saved_domains[0].hostname,"old.fixture.invalid");
+    let mut stream=TcpStream::connect(("127.0.0.1",port)).await.unwrap();let mut bytes=Vec::new();stream.read_to_end(&mut bytes).await.unwrap();assert_eq!(bytes,b"still available");manager.shutdown(&runtime).await;
+}
+
+#[tokio::test]
+async fn interrupted_saved_publication_reuses_its_id_and_failed_live_route_is_not_reused(){
+    let data=tempfile::tempdir().unwrap();let runtime=RuntimeManager::new(Path::new(env!("CARGO_MANIFEST_DIR")),data.path()).unwrap();let manager=WorkspaceManager::new(data.path());let store=PlatformStore::load(data.path().join("state.json")).unwrap();let env=fixture("env-saved-publication","fullVm");store.mutate(|s|{s.environments.push(env.clone());Ok(())}).unwrap();
+    let port=fixture_listener(&manager,"pub-compatible-listener",&env.id,PublicationKind::Cloudflare).await;
+    store.mutate(|s|{s.saved_environment_services.push(crate::models::SavedEnvironmentService{id:"pub-saved-stable".into(),environment_id:env.id.clone(),port:8080,kind:PublicationKind::Loopback,host_port:port,domain:None,cloudflare_hostname:None,remembered_account:false});Ok(())}).unwrap();
+    let saved=publication_metadata(&env.id,&store,&manager).await.unwrap();assert_eq!(saved.iter().find(|p|p.id=="pub-saved-stable").unwrap().status,"error");
+    let resumed=publish_service(env.id.clone(),8080,PublicationKind::Loopback,Some(port),None,&store,&runtime,&manager).await.unwrap();assert_eq!(resumed.id,"pub-saved-stable");assert_eq!(store.snapshot().unwrap().saved_environment_services.len(),1);
+    manager.publications.lock().await.get_mut("pub-saved-stable").unwrap().info.status="error".into();
+    let plan=publication_plan(&env.id,8080,&PublicationKind::Loopback,Some(port),None,&store,&manager).await.unwrap();assert_eq!(plan["action"],"replaceOwnedRoute");
+    let retried=publish_service(env.id.clone(),8080,PublicationKind::Loopback,Some(port),None,&store,&runtime,&manager).await.unwrap();assert_eq!(retried.id,"pub-saved-stable");assert_eq!(retried.status,"active");assert_eq!(store.snapshot().unwrap().saved_environment_services.len(),1);manager.shutdown(&runtime).await;
+}
+
 #[tokio::test]
 async fn cloud_model_publications_remain_visible_and_revocable() {
     let data = tempfile::tempdir().unwrap();
@@ -51,7 +141,7 @@ async fn cloud_model_publications_remain_visible_and_revocable() {
                 kind, host_port: 45000, urls: vec![url.into()], status: "active".into(),
                 message: String::new(), cloudflare_account: false,
             },
-            task: tokio::spawn(std::future::pending()), cloudflare: None, logs: None,
+            task: Arc::new(ListenerTask(tokio::spawn(std::future::pending()))), cloudflare: None, logs: None,
             tunnel_id: None, _cloudflare_config: None, _vm_forward: None,
         });
     }

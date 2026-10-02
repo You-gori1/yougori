@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { ModelChat } from "@/components/model-chat"
 import { ModelApiPanel } from "@/components/model-api-panel"
 import { ModelUsagePanel } from "@/components/model-usage-panel"
-import { modelsApi } from "@/api/projects-api"
+import { modelsApi, type ModelPreflight } from "@/api/projects-api"
 import { usePlatform } from "@/context/platform-context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -26,6 +26,7 @@ export function ModelWorkspace({ environmentId, compact = false }: { environment
   const [view, setView] = useState<"chat" | "api" | "usage">("chat")
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
+  const [preflight,setPreflight]=useState<ModelPreflight|null>(null)
   const lock = useRef(false)
   const [launching, setLaunching] = useState(false)
   const [elapsed, setElapsed] = useState(0)
@@ -72,7 +73,7 @@ export function ModelWorkspace({ environmentId, compact = false }: { environment
       <DialogPanel className="model-panel" scrollFade={false}>
         {!environmentId && !selected ? <div className="model-form">
           <label className="model-label" htmlFor="hf-model">Model</label>
-          <Input id="hf-model" value={model} disabled={busy} onChange={e => setModel(e.target.value)} placeholder="hf.co/owner/model" />
+          <Input id="hf-model" value={model} disabled={busy} onChange={e => {setModel(e.target.value);setPreflight(null)}} placeholder="hf.co/owner/model" />
           <p className="model-hint">Public text-generation models with safetensors. Needs enough VRAM.</p>
           <div className="model-api-row">
             <div><label htmlFor="hf-api">Local API</label><p>OpenAI-compatible, this PC only.</p></div>
@@ -81,7 +82,8 @@ export function ModelWorkspace({ environmentId, compact = false }: { environment
               <Switch id="hf-api" checked={api} disabled={busy} onCheckedChange={setApi} />
             </div>
           </div>
-          <div className="model-form-actions"><Button disabled={busy || !model.trim() || (api && !validPort)} loading={busy} onClick={() => void launch()}>Run model</Button></div>
+          {preflight ? <div aria-label="Model compatibility" className="model-hint"><p>{preflight.supported ? "Compatible with text chat" : "Requires a dedicated runner"} · {preflight.task}</p><p>{preflight.reason}</p>{preflight.resources.storageGbRecommended ? <p>Estimated storage {preflight.resources.storageGbRecommended} GB · estimated GPU memory {preflight.resources.gpuMemoryGbEstimated ?? "unknown"} GB. Actual memory varies with context and settings.</p> : null}<p>Weights download directly to persistent model storage and are verified before loading.</p></div> : null}
+          <div className="model-form-actions"><Button variant="outline" disabled={busy || !model.trim()} onClick={() => {setBusy(true);setError("");void modelsApi.preflight(model).then(setPreflight).catch(e=>setError(String(e))).finally(()=>setBusy(false))}}>Check compatibility</Button><Button disabled={busy || !model.trim() || preflight?.supported===false || (api && !validPort)} loading={busy} onClick={() => void launch()}>Run model</Button></div>
         </div> : null}
 
         {selected ? <div className="model-view-row">

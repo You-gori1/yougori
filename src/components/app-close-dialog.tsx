@@ -7,14 +7,14 @@ import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogPanel, DialogPopup, DialogTitle } from "@/components/ui/dialog"
 
-type ClosePhase = "idle" | "checking" | "confirm" | "closing"
+type ClosePhase = "idle" | "checking" | "confirm" | "closing" | "hiding"
 
 export function AppCloseDialog() {
   const { state } = usePlatform()
   const [phase, setPhase] = useState<ClosePhase>("idle")
   const [error, setError] = useState("")
   const submitted = useRef(false)
-  const busy = phase === "checking" || phase === "closing"
+  const busy = phase === "checking" || phase === "closing" || phase === "hiding"
 
   useEffect(() => {
     if (!isTauri()) return
@@ -37,15 +37,21 @@ export function AppCloseDialog() {
     }
   }, [])
 
-  const close = async () => {
+  const close = async (keepRunning: boolean) => {
     if (submitted.current) return
     submitted.current = true
-    setPhase("closing")
+    setPhase(keepRunning ? "hiding" : "closing")
     setError("")
     try {
-      await invoke("finish_app_close", { keepRunning: false })
-      // The command schedules exit. Keep progress visible while native cleanup
-      // finishes, including after this promise has resolved.
+      await invoke("finish_app_close", { keepRunning })
+      if (keepRunning) {
+        // The dashboard stays mounted in the background. Clear the dialog so
+        // reopening Yougori shows the workspace and allows another close.
+        submitted.current = false
+        setPhase("idle")
+      }
+      // Full shutdown schedules exit. Keep progress visible while native
+      // cleanup finishes, including after this promise has resolved.
     } catch (reason) {
       submitted.current = false
       setError(String(reason))
@@ -58,17 +64,18 @@ export function AppCloseDialog() {
     <DialogPopup showCloseButton={!busy} className={busy ? "max-w-sm" : undefined}>
       <DialogHeader>
         <DialogTitle>{busy ? <span className="flex items-center gap-3"><Spinner aria-hidden="true" className="size-5 shrink-0" />Closing Yougori…</span> : "Environments are still active"}</DialogTitle>
-        <DialogDescription>{busy ? "Please wait while Yougori finishes closing." : "Choose what happens before closing Yougori."}</DialogDescription>
+        <DialogDescription>{phase === "hiding" ? "Closing the windows. Your environments will keep running." : busy ? "Please wait while Yougori finishes closing." : "Choose what happens before closing Yougori."}</DialogDescription>
       </DialogHeader>
       {busy ? <span className="sr-only" role="status">Closing Yougori. Please wait.</span> : <>
         <DialogPanel>
           <ul className="space-y-1 text-sm">{active.map(environment => <li key={environment.id}>{environment.name} · {environment.status}</li>)}</ul>
-          <p className="mt-3 text-xs text-muted-foreground">Quitting stops local environments and disconnects shared folders and published services. Yougori will close completely.</p>
+          <p className="mt-3 text-xs text-muted-foreground">Close the app to keep environments, shared folders and published services running in the background. Reopen Yougori from the tray or with <code>yougori app show</code>. Quitting stops local environments and disconnects their services.</p>
           {error ? <p role="alert" className="mt-3 text-sm text-destructive-foreground">{error}</p> : null}
         </DialogPanel>
-        <DialogFooter>
+        <DialogFooter className="flex-col sm:flex-col sm:items-stretch">
+          <Button onClick={() => void close(true)}>Close app, keep environments running</Button>
+          <Button variant="outline" onClick={() => void close(false)}>Stop environments and quit</Button>
           <Button variant="ghost" onClick={() => setPhase("idle")}>Cancel</Button>
-          <Button onClick={() => void close()}>Stop environments and quit</Button>
         </DialogFooter>
       </>}
     </DialogPopup>

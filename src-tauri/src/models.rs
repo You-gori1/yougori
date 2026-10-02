@@ -405,7 +405,7 @@ pub struct ProviderStatus {
     pub detail: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum ThemePreference {
     Light,
@@ -419,7 +419,7 @@ pub enum ThemePreference {
     Custom,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct CustomThemeColors {
     pub background: String,
@@ -428,7 +428,7 @@ pub struct CustomThemeColors {
     pub detail: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
     #[serde(default)]
@@ -486,6 +486,12 @@ pub struct SavedEnvironmentService {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlatformState {
+    /// Changes only when settings change, so narrow updates can reject stale writers.
+    #[serde(default)]
+    pub settings_revision: u64,
+    /// Last native startup outcome. Credentials and request payloads are never retained.
+    #[serde(default)]
+    pub startup_report: Option<crate::lifecycle::StartupReport>,
     /// Completed environment-copy downloads across every temporary link.
     #[serde(default)]
     pub environment_downloads: std::collections::BTreeMap<String, u64>,

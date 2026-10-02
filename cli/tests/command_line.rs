@@ -14,6 +14,56 @@ fn response(output: &Output) -> Value {
 }
 
 #[test]
+fn oversized_scripted_chat_input_fails_before_starting_a_model() {
+    use std::io::Write;
+    use std::process::Stdio;
+    let mut process = Command::new(env!("CARGO_BIN_EXE_yougori-cli"))
+        .args(["model", "chat", "private-unused-fixture"])
+        .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped())
+        .spawn().unwrap();
+    process.stdin.take().unwrap().write_all(&vec![b'x'; 64 * 1024 + 1]).unwrap();
+    let output = process.wait_with_output().unwrap();
+    assert!(!output.status.success());
+    let value = response(&output);
+    assert_eq!(value["version"], yougori_cli::wire::VERSION);
+    assert!(value["error"].as_str().unwrap().contains("64 KiB"));
+    assert_eq!(value["errorDetails"]["outcome"], "not_started");
+}
+
+#[test]
+fn download_dry_run_returns_versioned_output_without_publication() {
+    let output = cli(&["download", "on", "private-unused-fixture", "--domain", "copies.example.com", "--dry-run"]);
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stdout));
+    let value = response(&output);
+    assert_eq!(value["version"], yougori_cli::wire::VERSION);
+    assert_eq!(value["ok"], true);
+    assert_eq!(value["result"]["dryRun"], true);
+    assert_eq!(value["result"]["environment"], "private-unused-fixture");
+    assert_eq!(value["result"]["domain"], "copies.example.com");
+    assert_eq!(value["result"]["foreground"], true);
+    assert!(value["result"].get("url").is_none());
+}
+
+#[test]
+fn private_device_identity_is_structured_when_piped() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("device.json");
+    let output = cli(&["vault", "identity", "--output", path.to_str().unwrap()]);
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stdout));
+    let value = response(&output);
+    assert_eq!(value["version"], yougori_cli::wire::VERSION);
+    assert_eq!(value["ok"], true);
+    assert_eq!(value["result"]["path"], path.to_str().unwrap());
+    assert_eq!(value["result"]["canApprove"], false);
+    assert!(value["result"]["fingerprint"].as_str().is_some_and(|pin| pin.len() == 64));
+    let identity: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+    assert!(identity.get("private_key").is_some());
+    assert!(value["result"].get("key").is_none());
+    assert!(value["result"].get("privateKey").is_none());
+    assert!(value["result"].get("private_key").is_none());
+}
+
+#[test]
 fn ssh_ascii_output_does_not_change_wire_json_or_user_text() {
     let help = Command::new(env!("CARGO_BIN_EXE_yougori"))
         .arg("help").env("YOUGORI_ASCII", "1").output().unwrap();
@@ -130,7 +180,12 @@ fn offline_help_and_catalog_expose_all_features() {
     assert_eq!(yougori_cli::SKILL.lines().nth(1), Some("name: yougori"));
     let schema = cli(&["schema"]);
     assert!(schema.status.success());
-    let parsed = response(&schema);
+    let envelope = response(&schema);
+    assert_eq!(envelope["ok"], true);
+    assert_eq!(envelope["version"], yougori_cli::wire::VERSION);
+    let parsed = &envelope["result"];
+    assert_eq!(parsed["detail"], "index");
+    assert!(schema.stdout.len() < 24_000);
     assert_eq!(
         parsed["methods"].as_array().unwrap().len(),
         yougori_cli::catalog::methods().len()
@@ -147,6 +202,12 @@ fn offline_help_and_catalog_expose_all_features() {
             .iter()
             .any(|m| m["name"] == method));
     }
+    let detailed = response(&cli(&["schema", "delete_environment"]));
+    assert_eq!(detailed["ok"],true);
+    assert_eq!(detailed["result"]["exampleRequiresYes"],true);
+    let invalid = response(&cli(&["schema", "missing-method"]));
+    assert_eq!(invalid["ok"],false);
+    assert_eq!(invalid["errorDetails"]["code"],"invalid_request");
 }
 
 #[test]

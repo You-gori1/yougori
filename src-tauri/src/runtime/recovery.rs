@@ -1,6 +1,133 @@
 use super::RuntimeManager;
+use crate::models::{Environment, RuntimeProviderKind};
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecoveryReport {
+    pub environment_id: String,
+    pub provider: RuntimeProviderKind,
+    pub storage_root: String,
+    pub disk_path: String,
+    pub status: String,
+    pub actions: Vec<String>,
+    pub ownership_released: bool,
+    pub ready_to_start: bool,
+    pub error: Option<String>,
+    pub recovery_action: Option<String>,
+}
+
+pub(crate) const MISSING_OCI_STORAGE:&str = "[YOUGORI_DURABLE_STORAGE_MISSING]";
+fn saved_oci_storage_required(environment:&Environment) -> bool {
+    crate::commands::provider(environment) == RuntimeProviderKind::YougoriOci &&
+    (environment.last_opened_at.is_some() ||
+     matches!(environment.status,crate::models::EnvironmentStatus::Stopped | crate::models::EnvironmentStatus::Running | crate::models::EnvironmentStatus::Paused) ||
+     environment.last_error.as_ref().is_some_and(|error|error.contains(MISSING_OCI_STORAGE)))
+}
+
+fn require_original_oci_disk(disk:&std::path::Path) -> Result<(),String> {
+    if !std::fs::symlink_metadata(disk).is_ok_and(|metadata|metadata.is_file() && !metadata.file_type().is_symlink()) {
+        return Err(format!("{MISSING_OCI_STORAGE} The saved container disk is unavailable, missing or redirected on its original storage root. Restore that durable disk before retrying; no empty replacement was created."));
+    }
+    Ok(())
+}
 
 impl RuntimeManager {
+    pub(crate) fn ensure_saved_oci_storage(&self,environment:&Environment) -> Result<(),String> {
+        if !saved_oci_storage_required(environment) {return Ok(());}
+        let id = environment.runtime_id.as_deref().unwrap_or(&environment.id);
+        let selected = self.storage_runtime(id).map_err(|error|format!("{MISSING_OCI_STORAGE} Could not verify this finalized container's original durable storage: {}",crate::lifecycle::safe_diagnostic(&error)))?;
+        let runtime = selected.as_deref().unwrap_or(self);
+        require_original_oci_disk(&runtime.data_root.join("appliance/system.qcow2"))
+    }
+    /// Resolve the persisted drive and provider before doing any recovery. A
+    /// missing/changed drive never redirects recovery to the default runtime.
+    pub async fn recover_environment_report(&self, environment: &Environment) -> Result<RecoveryReport, String> {
+        let id = environment.runtime_id.as_deref().unwrap_or(&environment.id);
+        let selected = self.storage_runtime(id)?;
+        let runtime = selected.as_deref().unwrap_or(self);
+        let provider = crate::commands::provider(environment);
+        let disk = match provider {
+            RuntimeProviderKind::YougoriCuda => runtime.cuda.storage_path(),
+            RuntimeProviderKind::YougoriOci => runtime.data_root.join("appliance/system.qcow2"),
+            RuntimeProviderKind::Qemu => runtime.data_root.join("environments").join(id).join("system.qcow2"),
+            _ => return Err("This provider does not support abandoned-runtime recovery".into()),
+        };
+        let mut report = RecoveryReport {
+            environment_id: environment.id.clone(), provider: provider.clone(),
+            storage_root: if provider == RuntimeProviderKind::YougoriCuda {
+                disk.parent().and_then(std::path::Path::parent).and_then(std::path::Path::parent).unwrap_or(&runtime.data_root).display().to_string()
+            } else { runtime.data_root.display().to_string() }, disk_path: disk.display().to_string(),
+            status: "blocked".into(), actions: vec!["Verified saved provider and original storage route".into()],
+            ownership_released: false, ready_to_start: false, error: None, recovery_action: None,
+        };
+        let recovered = async {
+            if provider == RuntimeProviderKind::Qemu && !std::fs::symlink_metadata(&disk).is_ok_and(|metadata| metadata.is_file() && !metadata.file_type().is_symlink()) {
+                return Err("The saved VM disk is missing or redirected; reconnect the original storage before recovery".into());
+            }
+            if provider.is_container() {
+                let routed_provider = runtime.container_provider(id)?;
+                if routed_provider != provider { return Err("Saved environment provider and durable runtime route differ; no runtime was stopped".into()); }
+                if provider == RuntimeProviderKind::YougoriOci {require_original_oci_disk(&disk)?;}
+                runtime.recover_container_provider(&provider).await?;
+                if provider == RuntimeProviderKind::YougoriOci { runtime.verify_external_appliance_idle().await?; }
+                // CUDA recover_abandoned verifies the original WSL registration
+                // and a stopped distribution while retaining exclusive ownership.
+            } else {
+                runtime.recover_orphaned_vm(id).await?;
+                runtime.verify_external_vm_idle(id).await?;
+            }
+            Ok::<(), String>(())
+        }.await;
+        match recovered {
+            Ok(()) => {
+                report.status = "ready".into();
+                report.actions.push("Recovered only verified abandoned processes, or verified runtime already idle".into());
+                report.actions.push("Verified ownership release and start prerequisites without starting workloads".into());
+                report.ownership_released = true;
+                report.ready_to_start = true;
+                if provider == RuntimeProviderKind::YougoriCuda {
+                    // Disk ownership recovery and provider readiness are separate
+                    // outcomes. An old payload or missing driver is still blocked.
+                    if let Err(error) = runtime.require_cuda_installation().await {
+                        report.status = "recoveredNeedsSetup".into();
+                        report.ready_to_start = false;
+                        report.error = Some(crate::lifecycle::safe_diagnostic(&error));
+                        report.recovery_action = Some("Set up or update CUDA on this original storage drive, then retry Start".into());
+                    }
+                }
+            }
+            Err(error) => {
+                report.error = Some(crate::lifecycle::safe_diagnostic(&error));
+                report.recovery_action = Some("Close any live owner normally; reconnect the original storage drive or repair the verified provider, then retry recovery".into());
+            }
+        }
+        Ok(report)
+    }
+
+    async fn verify_external_vm_idle(&self, id: &str) -> Result<(), String> {
+        let disk = self.data_root.join("environments").join(id).join("system.qcow2");
+        #[cfg(windows)] {
+            let executables = vec![self.layout.qemu_system.clone(), self.layout.root.join("qemu-secure/qemu-system-x86_64.exe")];
+            let name = format!("Yougori {id}");
+            tokio::task::spawn_blocking(move || windows::check_idle_named(&disk, &executables, &name)).await.map_err(|e| e.to_string())?
+        }
+        #[cfg(target_os = "linux")] { linux_disk_idle(&disk) }
+        #[cfg(target_os = "macos")] { macos_disk_idle(&disk).await }
+        #[cfg(not(any(windows, target_os = "linux", target_os = "macos")))] { let _ = disk; Err("Runtime ownership verification is unavailable".into()) }
+    }
+
+    async fn verify_external_appliance_idle(&self) -> Result<(), String> {
+        let disk = self.data_root.join("appliance/system.qcow2");
+        #[cfg(windows)] {
+            let mut executables = vec![self.layout.qemu_system.clone()];
+            if let Ok(exe) = std::env::current_exe() { if let Some(parent) = exe.parent() { executables.push(parent.join("runtime/qemu/qemu-system-x86_64.exe")); } }
+            tokio::task::spawn_blocking(move || windows::check_idle_named(&disk, &executables, "Yougori Internal OCI Runtime")).await.map_err(|e| e.to_string())?
+        }
+        #[cfg(target_os = "linux")] { linux_disk_idle(&disk) }
+        #[cfg(target_os = "macos")] { macos_disk_idle(&disk).await }
+        #[cfg(not(any(windows, target_os = "linux", target_os = "macos")))] { let _ = disk; Err("Runtime ownership verification is unavailable".into()) }
+    }
     pub async fn recover_orphaned_vm(&self, id: &str) -> Result<(), String> {
         if let Some(engine) = self.storage_runtime(id)? { return Box::pin(engine.recover_orphaned_vm(id)).await; }
 
@@ -69,6 +196,44 @@ impl RuntimeManager {
             let _ = recover;
             Ok(())
         }
+    }
+}
+
+#[cfg(test)]
+mod storage_tests {
+    use super::*;
+    #[tokio::test]
+    async fn missing_saved_oci_disk_blocks_recovery_and_repeated_start_without_replacement() {
+        let data = tempfile::tempdir().unwrap();
+        let resources = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let manager = RuntimeManager::new(resources,data.path()).unwrap();
+        let mut environment:Environment = serde_json::from_value(serde_json::json!({
+            "id":"env-missing-oci","runtimeId":"env-missing-oci","name":"Missing storage fixture","kind":"container","provider":"yougoriOci","status":"stopped","runtime":"docker.io/library/alpine:latest","description":"Disposable","createdAt":"test","cpuUsage":0,"memoryUsageGb":0,"storageDeltaGb":0,"networkRxMbps":0,
+            "resourcePolicy":{"cpu":{"min":1,"preferred":1,"max":1,"current":0},"memoryGb":{"min":1,"preferred":1,"max":1,"current":0},"priority":"normal","dynamic":true}
+        })).unwrap();
+        manager.register_container_provider(&environment.id,&RuntimeProviderKind::YougoriOci).unwrap();
+        let disk = manager.data_root.join("appliance/system.qcow2");
+        let sentinel = manager.data_root.join("environments/preserved-metadata");
+        std::fs::write(&sentinel,b"preserve this").unwrap();
+        let recovery = manager.recover_environment_report(&environment).await.unwrap();
+        assert_eq!(recovery.provider,RuntimeProviderKind::YougoriOci);
+        assert_eq!(recovery.disk_path,disk.display().to_string());
+        assert!(!recovery.ready_to_start);
+        assert!(!recovery.ownership_released);
+        assert!(recovery.error.unwrap().contains(MISSING_OCI_STORAGE));
+        let error = manager.ensure_saved_oci_storage(&environment).unwrap_err();
+        environment.status = crate::models::EnvironmentStatus::Error;
+        environment.last_error = Some(error);
+        assert!(manager.ensure_saved_oci_storage(&environment).unwrap_err().contains(MISSING_OCI_STORAGE));
+        assert!(!disk.exists());
+        assert_eq!(std::fs::read(sentinel).unwrap(),b"preserve this");
+        // A record interrupted before its first successful provision remains
+        // eligible for explicit provisioning retry, even though it has an ID.
+        environment.status = crate::models::EnvironmentStatus::Error;
+        environment.last_error = Some("Environment creation failed before provisioning".into());
+        assert!(manager.ensure_saved_oci_storage(&environment).is_ok());
+        environment.last_opened_at = Some("2026-10-02T00:00:00Z".into());
+        assert!(manager.ensure_saved_oci_storage(&environment).is_err());
     }
 }
 
@@ -208,6 +373,26 @@ mod windows {
                 .with_exe(UpdateKind::Always)
                 .with_cmd(UpdateKind::Always),
         );
+    }
+
+    pub(super) fn check_idle_named(disk: &Path, executables: &[PathBuf], name: &str) -> Result<(), String> {
+        let mut system = System::new();
+        refresh(&mut system);
+        if system.processes().values().any(|process| matches(process, disk, executables, name)) {
+            return Err("[YOUGORI_RECOVERY_NOT_READY] The verified runtime still holds this storage; recovery did not make it ready to start".into());
+        }
+        // A process with an unrecognized executable must never be force-stopped,
+        // but it can still hold this disk. Verify exclusive access separately.
+        match std::fs::symlink_metadata(disk) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(error) => return Err(format!("Cannot inspect recovered runtime disk: {error}")),
+            Ok(metadata) if !metadata.is_file() || metadata.file_type().is_symlink() => return Err("Runtime disk is not a regular owned file".into()),
+            Ok(_) => {}
+        }
+        use std::os::windows::fs::OpenOptionsExt;
+        let _exclusive = std::fs::OpenOptions::new().read(true).write(true).share_mode(0).open(disk)
+            .map_err(|_| "[YOUGORI_RECOVERY_NOT_READY] Runtime storage is still held or is not writable; ownership release was not verified")?;
+        Ok(())
     }
 
     struct Handle(HANDLE);
@@ -410,12 +595,14 @@ mod windows {
             // Check both the startup guard and refusal to kill a live owner's runtime.
             let busy = check(&disk, &allowed, false);
             let refusal = check(&disk, &allowed, true);
+            let postcondition = check_idle_named(&disk, &allowed, "Yougori Internal OCI Runtime");
             let still_running = owned.try_wait().unwrap().is_none();
             let _ = owned.kill();
             let _ = owned.wait();
             assert!(busy.unwrap_err().contains("YOUGORI_RUNTIME_BUSY"));
             assert!(refusal.unwrap_err().contains("Another live process"));
             assert!(still_running);
+            assert!(postcondition.unwrap_err().contains("RECOVERY_NOT_READY"));
 
             let status = std::process::Command::new(std::env::current_exe().unwrap())
                 .creation_flags(0x0800_0000)
@@ -455,6 +642,7 @@ mod windows {
             check(&disk, &allowed, false).unwrap();
             assert_eq!(unsafe { WaitForSingleObject(guard.0 .0, 0) }, WAIT_OBJECT_0);
             check(&disk, &allowed, true).unwrap(); // Repeat recovery is harmless.
+            check_idle_named(&disk, &allowed, "Yougori Internal OCI Runtime").unwrap();
             assert_eq!(std::fs::read(&disk).unwrap(), vec![0u8; 4096]);
             assert_eq!(std::fs::read(&other_disk).unwrap(), b"keep me");
         }

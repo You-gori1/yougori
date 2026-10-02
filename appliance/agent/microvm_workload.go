@@ -86,7 +86,7 @@ func (s *server) microWorkload(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// The OCI process shares only this dedicated VM's network, never the host PC.
-		args, e := appendWorkload([]string{"--namespace", microWorkloadNamespace, "create", "--name", microWorkloadName, "--network", "host"}, q.Image, "", q.Options)
+		args, e := appendResolvedWorkload(ctx, microWorkloadNamespace, []string{"--namespace", microWorkloadNamespace, "create", "--name", microWorkloadName, "--network", "host"}, q.Image, "", q.Options)
 		if e != nil {
 			writeError(w, 400, e.Error())
 			return

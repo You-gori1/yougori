@@ -9,6 +9,7 @@ import { formatBytesFromGb } from "@/lib/domain"
 import { useTopicWalkthroughModal } from "@/lib/topic-walkthrough"
 import { PreferencesVolumes } from "@/components/dialogs/preferences-volumes"
 import { ReleaseUpdateSettings } from "@/components/release-update"
+import { PreferencesStartupHealth } from "@/components/dialogs/preferences-startup-health"
 import "@/components/dialogs/preferences-dialog.css"
 
 export function PreferencesDialog() {
@@ -102,11 +103,11 @@ export function PreferencesDialog() {
           </div>
           <div className="preferences-section-body">
             <div className="preferences-row">
-              <div><label htmlFor="preferences-launch">Launch at sign-in</label><p>Open Yougori when you sign in.</p></div>
+              <div><label htmlFor="preferences-launch">Launch at sign-in</label><p>Open Yougori after you sign in. This does not start the API before sign-in.</p></div>
               <Switch id="preferences-launch" disabled={busy} checked={state.settings.launchAtStartup} onCheckedChange={checked => void perform(() => updateSettings({ ...state.settings, launchAtStartup: checked }))} />
             </div>
             {state.settings.launchAtStartup && <div className="preferences-row">
-              <div><label htmlFor="preferences-background">Start in the background</label><p>Run only the engine at sign-in, for the yougori command line. Open the dashboard any time.</p></div>
+              <div><label htmlFor="preferences-background">Start in the background</label><p>Run only the engine at sign-in, for the yougori command line. Linux requires a systemd user session. Open the dashboard any time.</p></div>
               <Switch id="preferences-background" disabled={busy} checked={state.settings.startupHeadless ?? false} onCheckedChange={checked => void perform(() => updateSettings({ ...state.settings, startupHeadless: checked }))} />
             </div>}
             <div className="preferences-row">
@@ -117,6 +118,15 @@ export function PreferencesDialog() {
               <summary>What about closing the lid?</summary>
               <p>Your operating system still decides what happens when the lid closes or the computer is forced to sleep. To keep running with the lid closed, change its lid action. Linux requires systemd-inhibit; macOS may need external power and a display.</p>
             </details>
+            {state.startupReport && <div className="preferences-note" role="status" aria-label="Automatic startup result">
+              <p>Last automatic startup: {state.startupReport.status === "startedUnverified" ? "started; application health unverified" : state.startupReport.status}.</p>
+              {state.startupReport.serviceRegistration && <p>Sign-in startup: {state.startupReport.serviceRegistration.status}. {state.startupReport.serviceRegistration.recoveryAction}</p>}
+              {state.startupReport.environments.map(result => <div key={result.environmentId}>
+                <p>{state.environments.find(environment => environment.id === result.environmentId)?.name ?? result.environmentId}: {result.status === "runningUnverified" ? "running; application health unverified" : result.status} · {result.stage}{result.readiness?.verifiedPublicly ? " · Public URL verified" : ""}</p>
+                {result.error && <p>{result.error}</p>}
+                {result.recoveryAction && <p>{result.recoveryAction}</p>}
+              </div>)}
+            </div>}
           </div>
         </section>
 
@@ -131,9 +141,12 @@ export function PreferencesDialog() {
               <div className="preferences-environment-list">
                 {state.environments.map(env => {
                   const id = `preferences-autostart-${env.id}`
-                  return <div key={env.id} className="preferences-row preferences-environment-row">
-                    <label htmlFor={id} title={env.name}>{env.name}</label>
-                    <Switch id={id} disabled={busy} checked={autoStartIds.includes(env.id)} onCheckedChange={checked => void perform(() => updateSettings({ ...state.settings, autoStartEnvironmentIds: checked ? [...new Set([...autoStartIds, env.id])] : autoStartIds.filter(item => item !== env.id) }))} />
+                  return <div key={env.id}>
+                    <div className="preferences-row preferences-environment-row">
+                      <label htmlFor={id} title={env.name}>{env.name}</label>
+                      <Switch id={id} disabled={busy} checked={autoStartIds.includes(env.id)} onCheckedChange={checked => void perform(() => updateSettings({ ...state.settings, autoStartEnvironmentIds: checked ? [...new Set([...autoStartIds, env.id])] : autoStartIds.filter(item => item !== env.id) }))} />
+                    </div>
+                    {autoStartIds.includes(env.id) && <PreferencesStartupHealth environmentId={env.id} />}
                   </div>
                 })}
               </div>

@@ -232,12 +232,12 @@ impl RuntimeManager {
         Ok(())
     }
 
-    pub(super) async fn shutdown_all_native_sandboxes(&self) {
-        let mut processes = self.sandboxes.lock().await;
-        for process in processes.values_mut() {
-            let _ = platform::stop(process);
-        }
-        processes.clear();
+    pub(super) async fn shutdown_all_native_sandboxes_report(&self) -> Vec<serde_json::Value> {
+        let processes: Vec<_> = self.sandboxes.lock().await.drain().collect();
+        futures_util::future::join_all(processes.into_iter().map(|(id, mut process)| async move {
+            let stopped = tokio::task::spawn_blocking(move || platform::stop(&mut process)).await.map_err(|error| error.to_string()).and_then(|result| result);
+            serde_json::json!({"provider":"nativeSandbox","environmentId":id,"status":if stopped.is_ok(){"stopped"}else{"failed"},"scope":"ownedRuntimes","postconditionVerified":stopped.is_ok(),"ownershipReleased":stopped.is_ok(),"error":stopped.err().map(|error|crate::lifecycle::safe_diagnostic(&error))})
+        })).await
     }
 }
 
@@ -755,6 +755,11 @@ mod platform {
             if wait == WAIT_TIMEOUT {
                 close(process);
                 return Err("native sandbox application did not stop within five seconds".into());
+            }
+            if wait != 0 {
+                let error = windows_error("verify native sandbox process stopped");
+                close(process);
+                return Err(error);
             }
         }
         close(process);

@@ -38,6 +38,7 @@ pub(crate) mod storage;
 pub(crate) mod factory_reset;
 pub mod startup;
 pub mod workloads;
+pub(crate) mod resource_admission;
 #[cfg(test)]
 mod resource_policy_tests;
 type EnvironmentOperationLocks = HashMap<String, std::sync::Weak<tokio::sync::Mutex<()>>>;
@@ -341,13 +342,44 @@ fn validate_container_policy_capacity(policy: &ResourcePolicy, host: &HostMetric
     Ok(())
 }
 
-static CONTAINER_POLICY_OPERATIONS: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+static CONTAINER_POLICY_OPERATIONS: OnceLock<tokio::sync::Mutex<EnvironmentOperationLocks>> = OnceLock::new();
+
+pub(crate) async fn container_policy_lock(root: &std::path::Path, provider: &RuntimeProviderKind) -> std::sync::Arc<tokio::sync::Mutex<()>> {
+    let key = format!("{}:{provider:?}", root.display());
+    let mut locks = CONTAINER_POLICY_OPERATIONS.get_or_init(Default::default).lock().await;
+    locks.retain(|_, lock| lock.strong_count() > 0);
+    if let Some(lock) = locks.get(&key).and_then(std::sync::Weak::upgrade) { return lock; }
+    let lock = std::sync::Arc::new(tokio::sync::Mutex::new(()));
+    locks.insert(key, std::sync::Arc::downgrade(&lock));
+    lock
+}
+
+pub(crate) async fn environment_container_policy_guard(runtime: &RuntimeManager, environment: &Environment) -> Result<Option<tokio::sync::OwnedMutexGuard<()>>, String> {
+    let provider = provider(environment);
+    if !provider.is_container() { return Ok(None); }
+    let root = runtime.environment_storage_root(runtime_id(environment))?;
+    let lock=container_policy_lock(&root,&provider).await;
+    if let Ok(guard)=lock.clone().try_lock_owned(){return Ok(Some(guard))}
+    crate::automation::context::progress(serde_json::json!({"phase":"waiting","waitingFor":{"resource":"providerPool","provider":provider,"storageRoot":root.display().to_string()}}));
+    let cancellation=crate::automation::context::current().map(|operation|operation.cancellation).unwrap_or_default();
+    let guard=tokio::select!{biased;
+        _=cancellation.cancelled()=>return Err("YOUGORI_OPERATION_CANCELLED: cancelled while waiting for provider coordination before changing this environment".into()),
+        guard=lock.lock_owned()=>guard,
+    };
+    crate::automation::context::progress(serde_json::json!({"phase":"starting","waitingFor":null}));
+    Ok(Some(guard))
+}
 
 #[derive(Debug, Clone)]
 struct ContainerAllocation {
     id: String,
     cpu: f64,
     memory_gb: f64,
+}
+
+struct PreparedContainerStart {
+    rollback: Vec<ContainerAllocation>,
+    target: ContainerAllocation,
 }
 
 async fn rollback_container_allocations(
@@ -380,7 +412,8 @@ async fn prepare_container_start(
     state: &PlatformState,
     target: &Environment,
     runtime: &RuntimeManager,
-) -> Result<Vec<ContainerAllocation>, String> {
+    reservation: Option<&resource_admission::ResourceReservation>,
+) -> Result<PreparedContainerStart, String> {
     // A creation interrupted before provisioning leaves a saved definition but
     // no runtime object. Let the later start path recreate that same ID from
     // its saved image/options before applying per-container limits.
@@ -455,12 +488,25 @@ async fn prepare_container_start(
     } else if let Ok((cpus, memory)) = runtime.cuda_capacity().await {
         scheduler::limit_cuda_pool(&mut candidate, cpus, memory)?;
     }
+    if let Some(reservation) = reservation {
+        for demand in &reservation.demands {
+            if let Some(environment) = candidate.environments.iter_mut().find(|environment| environment.id == demand.id) {
+                environment.resource_policy.cpu.current = environment.resource_policy.cpu.current.min(demand.cpu);
+                environment.resource_policy.memory_gb.current = environment.resource_policy.memory_gb.current.min(demand.memory_gb);
+            }
+        }
+    }
+    let pool_provider = provider(target);
+    let pool_root = runtime.environment_storage_root(runtime_id(target))?;
+    let planned_target = candidate.environments.iter().find(|environment| environment.id == target.id).ok_or("Environment not found while preparing resources")?;
+    let target_allocation = ContainerAllocation { id: runtime_id(target).to_owned(), cpu: planned_target.resource_policy.cpu.current, memory_gb: planned_target.resource_policy.memory_gb.current };
     let allocations = candidate
         .environments
         .iter()
         .filter(|environment| {
             environment.status == EnvironmentStatus::Running
-                && provider(environment).is_container()
+                && provider(environment) == pool_provider
+                && runtime.environment_storage_root(runtime_id(environment)).is_ok_and(|root| root == pool_root)
         })
         .map(|environment| {
             let previous = state
@@ -505,7 +551,8 @@ async fn prepare_container_start(
     // Stopped definitions do not reserve RAM. The runtime can grow when one of
     // them is started, without interrupting workloads already running.
     let active: Vec<_> = candidate.environments.iter().filter(|e|
-        provider(e) == RuntimeProviderKind::YougoriOci
+        pool_provider == RuntimeProviderKind::YougoriOci && provider(e) == pool_provider
+        && runtime.environment_storage_root(runtime_id(e)).is_ok_and(|root| root == pool_root)
         && matches!(e.status, EnvironmentStatus::Running | EnvironmentStatus::Paused)).collect();
     let ids: Vec<_> = active.iter().map(|e| runtime_id(e).to_owned()).collect();
     for (engine, ids) in runtime.storage_groups(&ids)? {
@@ -522,6 +569,20 @@ async fn prepare_container_start(
     }
 
     let mut rollback = Vec::new();
+    // Apply decreases first. A redistributed allocation must never transiently
+    // exceed the admitted budget before the new workload starts.
+    for (previous, next) in &allocations {
+        if next.id == runtime_id(target) && target.status != EnvironmentStatus::Running { continue; }
+        let reduced_cpu = previous.cpu.min(next.cpu);
+        let reduced_memory = previous.memory_gb.min(next.memory_gb);
+        if reduced_cpu == previous.cpu && reduced_memory == previous.memory_gb { continue; }
+        if let Err(error) = runtime.update_container_resources(&next.id, reduced_cpu, reduced_memory).await {
+            let restore = rollback_container_allocations(runtime, &rollback).await.err();
+            return Err(restore.map_or(error.clone(), |restore| format!("{error}; {restore}")));
+        }
+        record_applied_resource_limits(&next.id, reduced_cpu, reduced_memory);
+        rollback.push(previous.clone());
+    }
     for (previous, next) in allocations {
         if missing_target && next.id == runtime_id(target) {
             continue;
@@ -552,16 +613,16 @@ async fn prepare_container_start(
             });
         }
         record_applied_resource_limits(&next.id, next.cpu, next.memory_gb);
-        rollback.push(previous);
+        if !rollback.iter().any(|applied| applied.id == previous.id) { rollback.push(previous); }
     }
-    Ok(rollback)
+    Ok(PreparedContainerStart { rollback, target: target_allocation })
 }
 
 fn container_object_missing(error: &str) -> bool {
     error.contains("no such object") || error.contains("no such container")
 }
 
-fn provider(environment: &Environment) -> RuntimeProviderKind {
+pub(crate) fn provider(environment: &Environment) -> RuntimeProviderKind {
     if environment.kind == EnvironmentKind::Cloud { return RuntimeProviderKind::CloudSsh; }
     if environment.kind == EnvironmentKind::ComputerBranch {
         return RuntimeProviderKind::NativeSandbox;
@@ -584,6 +645,7 @@ async fn container_action_rebuilding_if_missing(
     runtime: &RuntimeManager,
     environment: &Environment,
     action: &str,
+    allocation: Option<&ContainerAllocation>,
 ) -> Result<(), String> {
     let id = runtime_id(environment);
     let result = runtime
@@ -611,6 +673,13 @@ async fn container_action_rebuilding_if_missing(
         )
         .await
         .map_err(|rebuild| format!("{error}. Rebuilding this container also failed: {rebuild}"))?;
+    if let Some(allocation) = allocation {
+        // An interrupted creation may have no object to update in prepare.
+        // Apply its admitted, provider-limited plan before the rebuilt process
+        // starts; saved preferred values are not an allocation reservation.
+        runtime.update_container_resources(id, allocation.cpu, allocation.memory_gb).await?;
+        record_applied_resource_limits(id, allocation.cpu, allocation.memory_gb);
+    }
     runtime
         .container_action(id, "start", environment.network_access)
         .await
@@ -739,7 +808,7 @@ async fn cleanup_snapshot_resources(
     }
 }
 
-async fn enforce_snapshot_retention(
+pub(crate) async fn enforce_snapshot_retention(
     store: &PlatformStore,
     runtime: &RuntimeManager,
     backup: &BackupManager,
@@ -831,7 +900,7 @@ async fn rollback_runtime_transition(
                 (EnvironmentStatus::Stopped, EnvironmentStatus::Paused) => "start",
                 _ => return Ok(()),
             };
-            container_action_rebuilding_if_missing(runtime, environment, action).await?;
+            container_action_rebuilding_if_missing(runtime, environment, action, None).await?;
             if attempted_status == &EnvironmentStatus::Stopped
                 && environment.status == EnvironmentStatus::Paused
             {
@@ -1223,7 +1292,7 @@ pub async fn create_environment(
     }
     // Every supported environment gets its final node ID before slow runtime work.
     // Closing the form leaves this command and its persisted progress intact.
-    vm_creation::create_on_graph(&request, policy.clone(), &id, &store, async {
+    Box::pin(vm_creation::create_on_graph(&request, policy.clone(), &id, &store, Box::pin(async {
         if request.kind == EnvironmentKind::FullVm {
             let prepared = runtime.provision_vm_with_storage(&id, runtime_source, request.storage_gb).await?;
             return Ok((Some(prepared.disk_path.to_string_lossy().into_owned()), prepared.source_path.to_string_lossy().into_owned()));
@@ -1239,7 +1308,7 @@ pub async fn create_environment(
                     if !status.supported { return Err(format!("NVIDIA CUDA is unavailable on this computer: {}", status.detail)); }
                     if !status.installed || status.update_available { cuda_runtime.install_cuda().await?; }
                 }
-                runtime
+                Box::pin(runtime
                     .provision_container_with_storage(
                         &id,
                         runtime_source,
@@ -1248,7 +1317,7 @@ pub async fn create_environment(
                         request.network_access,
                         request.gpu_access,
                         request.storage_gb.unwrap_or(20.0),
-                    )
+                    ))
                     .await?;
                 (None, runtime_source.to_owned(), None)
             }
@@ -1312,7 +1381,7 @@ pub async fn create_environment(
             }
         };
         Ok((runtime_path, managed_runtime_source))
-    }, |state| { let _ = app.emit("yougori-platform-state", state); }).await
+    }), |state| { let _ = app.emit("yougori-platform-state", state); })).await
 }
 
 #[tauri::command]
@@ -1322,6 +1391,7 @@ pub async fn set_environment_status(
     store: State<'_, PlatformStore>,
     runtime: State<'_, RuntimeManager>,
 ) -> Result<PlatformState, String> {
+    if matches!(status, EnvironmentStatus::Stopped | EnvironmentStatus::Paused) { crate::file_import::cancel_transfers(&environment_id, None); crate::guest_execution::cancel_environment_jobs(&environment_id); }
     if status == EnvironmentStatus::Running {
         // A model environment that is reused gets this version's model server; if that fails
         // it starts with the one it has.
@@ -1330,17 +1400,15 @@ pub async fn set_environment_status(
         }
     }
     let network_lock = environment_network_lock(&environment_id).await;
-    let _network_serial = network_lock.try_lock().map_err(|_| "This environment is busy copying files or finishing another action. Wait for it to finish before changing its power state.".to_string())?;
+    let _network_serial = network_lock.try_lock().map_err(|_| "Another lifecycle or network operation is changing this environment; retry after that operation finishes.".to_string())?;
     if matches!(
         status,
         EnvironmentStatus::Provisioning | EnvironmentStatus::Error
     ) {
         return Err("Provisioning and error states are controlled by the runtime".into());
     }
-    let _container_serial = if store.snapshot()?.environments.iter().any(|e|
-        e.id == environment_id && provider(e).is_container()) {
-        Some(CONTAINER_POLICY_OPERATIONS.lock().await)
-    } else { None };
+    let guarded = store.snapshot()?.environments.into_iter().find(|environment| environment.id == environment_id).ok_or("Environment not found")?;
+    let _container_serial = environment_container_policy_guard(&runtime, &guarded).await?;
     let current_state = store.snapshot()?;
     if status == EnvironmentStatus::Running && current_state.pending_factory_resets.iter().any(|p| p.environment.id == environment_id) {
         return Err("Finish the pending Factory reset before starting this environment".into());
@@ -1361,6 +1429,17 @@ pub async fn set_environment_status(
     if environment.status == EnvironmentStatus::Provisioning {
         return Err("Wait for this environment to finish creating before changing its power state".into());
     }
+    if status == EnvironmentStatus::Running {
+        if let Err(error) = runtime.ensure_saved_oci_storage(&environment) {
+            // Preserve the stable missing-storage marker so a subsequent
+            // retry cannot reinterpret this finalized node as fresh creation.
+            let _ = store.mutate(|state| {
+                if let Some(environment) = state.environments.iter_mut().find(|item|item.id == environment_id) {environment.last_error = Some(error.clone());}
+                Ok(())
+            });
+            return Err(error);
+        }
+    }
     if status == EnvironmentStatus::Running && environment.status != EnvironmentStatus::Running {
         // The runtime starts with the preferred values. Force one scheduler
         // reconciliation after every fresh start in case pressure changed.
@@ -1369,6 +1448,10 @@ pub async fn set_environment_status(
         }
     }
     let mut container_rollback = Vec::new();
+    let mut planned_container_start = None;
+    let resource_reservation = if status == EnvironmentStatus::Running && environment.status != EnvironmentStatus::Running && provider(&environment) != RuntimeProviderKind::CloudSsh {
+        Some(resource_admission::reserve_start(&store, &environment, &runtime)?)
+    } else { None };
     let mut started_console: Option<(Option<String>, Option<String>)> = None;
     let operation = match provider(&environment) {
         RuntimeProviderKind::CloudSsh => match status {
@@ -1383,8 +1466,9 @@ pub async fn set_environment_status(
             if status == EnvironmentStatus::Running
                 && environment.status != EnvironmentStatus::Running
             {
-                container_rollback =
-                    prepare_container_start(&current_state, &environment, &runtime).await?;
+                let prepared = prepare_container_start(&current_state, &environment, &runtime, resource_reservation.as_ref()).await?;
+                container_rollback = prepared.rollback;
+                planned_container_start = Some(prepared.target);
             }
             let action = match (&environment.status, &status) {
                 (EnvironmentStatus::Running, EnvironmentStatus::Running)
@@ -1397,7 +1481,7 @@ pub async fn set_environment_status(
                 _ => return Err("invalid container lifecycle transition".into()),
             };
             if let Some(action) = action {
-                container_action_rebuilding_if_missing(&runtime, &environment, action).await
+                container_action_rebuilding_if_missing(&runtime, &environment, action, planned_container_start.as_ref()).await
             } else {
                 Ok(())
             }
@@ -1578,8 +1662,6 @@ pub async fn recover_vm_runtime(
     runtime: State<'_, RuntimeManager>,
 ) -> Result<PlatformState, String> {
     if !confirmed { return Err("Confirm stopping the abandoned VM first".into()); }
-    let lock = environment_network_lock(&environment_id).await;
-    let _guard = lock.lock().await;
     let state = store.snapshot()?;
     let environment = state.environments.iter().find(|item| item.id == environment_id).ok_or("Environment not found")?;
     if provider(environment) != RuntimeProviderKind::Qemu {
@@ -1588,7 +1670,8 @@ pub async fn recover_vm_runtime(
     if environment.status == EnvironmentStatus::Provisioning {
         return Err("Wait for VM creation to finish".into());
     }
-    runtime.recover_orphaned_vm(runtime_id(environment)).await?;
+    let report = crate::lifecycle::recover_environment_runtime_report(environment_id, confirmed, store.clone(), runtime).await?;
+    if !report.ownership_released { return Err(report.error.unwrap_or_else(|| "Recovery postcondition was not verified".into())); }
     store.snapshot()
 }
 
@@ -1608,8 +1691,8 @@ pub async fn recover_container_runtime(
     if !provider(environment).is_container() {
         return Err("Runtime recovery is only available for managed containers".into());
     }
-    let selected = runtime.storage_runtime(runtime_id(environment))?;
-    selected.as_deref().unwrap_or(&runtime).recover_container_provider(&provider(environment)).await?;
+    let report = crate::lifecycle::recover_environment_runtime_report(environment_id, confirmed, store.clone(), runtime).await?;
+    if !report.ownership_released { return Err(report.error.unwrap_or_else(|| "Recovery postcondition was not verified".into())); }
     store.snapshot()
 }
 
@@ -1621,8 +1704,9 @@ pub async fn delete_environment(
     runtime: State<'_, RuntimeManager>,
     backup: State<'_, BackupManager>,
 ) -> Result<EnvironmentDeletionResult, String> {
+    crate::file_import::cancel_transfers(&environment_id, None); crate::guest_execution::cancel_environment_jobs(&environment_id);
     let network_lock = environment_network_lock(&environment_id).await;
-    let _network_serial = network_lock.try_lock().map_err(|_| "This environment is busy copying files or finishing another action. Wait for it to finish before deleting it.".to_string())?;
+    let _network_serial = network_lock.try_lock().map_err(|_| "Another lifecycle or network operation is changing this environment; retry after that operation finishes.".to_string())?;
     factory_reset::cleanup_pending(&environment_id, &store, &runtime, &backup).await?;
     let state = store.snapshot()?;
     let environment = state
@@ -1803,10 +1887,8 @@ pub async fn update_resource_policy(
     runtime: State<'_, RuntimeManager>,
 ) -> Result<PlatformState, String> {
     resource_policy.dynamic = true;
-    let _container_serial = if store.snapshot()?.environments.iter().any(|e|
-        e.id == environment_id && provider(e).is_container()) {
-        Some(CONTAINER_POLICY_OPERATIONS.lock().await)
-    } else { None };
+    let guarded = store.snapshot()?.environments.into_iter().find(|environment| environment.id == environment_id).ok_or("Environment not found")?;
+    let _container_serial = environment_container_policy_guard(&runtime, &guarded).await?;
     validate_policy(&resource_policy)?;
     let environment = store
         .snapshot()?
@@ -1834,6 +1916,11 @@ pub async fn update_resource_policy(
         ));
     }
     let mut container_rollback = Vec::new();
+    let resource_reservation = if environment.status == EnvironmentStatus::Running && !scheduler::fixed_vm_resources(&environment) {
+        let mut proposed = environment.clone();
+        proposed.resource_policy = resource_policy.clone();
+        Some(resource_admission::reserve_start(&store, &proposed, &runtime)?)
+    } else { None };
     if provider(&environment).is_container() {
         validate_container_policy_capacity(&resource_policy, &host)?;
         if environment.status == EnvironmentStatus::Running {
@@ -1845,7 +1932,7 @@ pub async fn update_resource_policy(
                 .ok_or("Environment not found")?
                 .resource_policy = resource_policy.clone();
             container_rollback =
-                prepare_container_start(&candidate, &environment, &runtime).await?;
+                prepare_container_start(&candidate, &environment, &runtime, resource_reservation.as_ref()).await?.rollback;
         }
     }
     if environment.status == EnvironmentStatus::Running
@@ -1987,7 +2074,8 @@ pub async fn update_container_network(
 ) -> Result<PlatformState, String> {
     let network_lock = environment_network_lock(&environment_id).await;
     let _network_serial = network_lock.lock().await;
-    let _container_serial = CONTAINER_POLICY_OPERATIONS.lock().await;
+    let guarded = store.snapshot()?.environments.into_iter().find(|environment| environment.id == environment_id).ok_or("Environment not found")?;
+    let _container_serial = environment_container_policy_guard(&runtime, &guarded).await?;
     let environment = store
         .snapshot()?
         .environments
@@ -2055,6 +2143,10 @@ pub async fn update_environment_gpu(
     store: State<'_, PlatformStore>,
     runtime: State<'_, RuntimeManager>,
 ) -> Result<PlatformState, String> {
+    let lock = environment_network_lock(&environment_id).await;
+    let _environment_guard = lock.lock().await;
+    let guarded = store.snapshot()?.environments.into_iter().find(|environment| environment.id == environment_id).ok_or("Environment not found")?;
+    let _pool_guard = environment_container_policy_guard(&runtime, &guarded).await?;
     let environment = store
         .snapshot()?
         .environments
@@ -3600,26 +3692,14 @@ pub async fn update_settings(
     runtime: State<'_, RuntimeManager>,
     backup: State<'_, BackupManager>,
 ) -> Result<PlatformState, String> {
-    if settings.snapshot_retention == 0 || settings.snapshot_retention > 365 {
-        return Err("Snapshot retention must be between 1 and 365".into());
+    let revision = store.snapshot()?.settings_revision;
+    let saved = crate::lifecycle::save_settings(settings, revision, &store).await?;
+    // The settings commit succeeded even if subsequent snapshot cleanup fails.
+    // Do not invite clients to repeat a completed update as a failed mutation.
+    if let Err(error) = enforce_snapshot_retention(&store, &runtime, &backup).await {
+        eprintln!("Settings saved; snapshot retention cleanup needs attention: {}", crate::lifecycle::safe_diagnostic(&error));
     }
-    if settings.data_directory != store.snapshot()?.settings.data_directory {
-        return Err("Use Storage settings to choose a location and restart the engine".into());
-    }
-    if settings.bandwidth_limit_mbps > 100_000 {
-        return Err("Backup bandwidth must be 0 (unlimited) or at most 100,000 Mbps".into());
-    }
-    crate::lifecycle::validate(&settings, &store)?;
-    let previous = store.snapshot()?.settings;
-    let startup_changed = settings.launch_at_startup != previous.launch_at_startup || settings.startup_headless != previous.startup_headless;
-    if startup_changed { crate::lifecycle::set_launch_at_startup(settings.launch_at_startup, settings.startup_headless)?; }
-    let saved = store.mutate(|state| {
-        state.settings = settings;
-        scheduler::schedule(state);
-        Ok(())
-    });
-    if let Err(error) = saved { if startup_changed { let _=crate::lifecycle::set_launch_at_startup(previous.launch_at_startup, previous.startup_headless); } return Err(error); }
-    enforce_snapshot_retention(&store, &runtime, &backup).await
+    Ok(saved)
 }
 
 pub(crate) fn collect_host_metrics(previous: &HostMetrics, runtime_root: &std::path::Path) -> HostMetrics {
@@ -3718,7 +3798,6 @@ pub async fn refresh_host_metrics(
     }
     // Compute and apply one container allocation at a time. Otherwise a
     // telemetry request holding an older policy can undo a concurrent Save.
-    let container_serial = CONTAINER_POLICY_OPERATIONS.lock().await;
     let cuda_capacity = runtime.cuda_capacity().await.ok();
     let state = store.mutate_ephemeral(|state| {
         let metrics = collect_host_metrics(&state.host, runtime.storage_root());
@@ -3734,21 +3813,30 @@ pub async fn refresh_host_metrics(
                 && provider(environment).is_container()
         })
         .collect::<Vec<_>>();
-    let container_ids = running_containers
-        .iter()
-        .filter(|e| provider(e) == RuntimeProviderKind::YougoriOci)
-        .map(|environment| runtime_id(environment).to_owned())
-        .collect::<Vec<_>>();
-    let cuda_ids = running_containers.iter().filter(|e| provider(e) == RuntimeProviderKind::YougoriCuda)
-        .map(|e| runtime_id(e).to_owned()).collect::<Vec<_>>();
-    // A failed optional backend must not report healthy containers on another
-    // engine as broken. Sample the two engines independently and in parallel.
-    let (container_telemetry, cuda_telemetry) = tokio::join!(
-        runtime.container_telemetry(&container_ids), runtime.container_telemetry(&cuda_ids));
-    let container_telemetry = container_telemetry.map(|entries| entries.into_iter().map(|e|(e.id.clone(),e)).collect::<HashMap<_,_>>());
-    let cuda_telemetry = cuda_telemetry.map(|entries| entries.into_iter().map(|e|(e.id.clone(),e)).collect::<HashMap<_,_>>());
+    // Failure of a provider or missing secondary drive is confined to its own
+    // pool. Read-only samples do not hold lifecycle/configuration locks.
+    let mut pools: std::collections::BTreeMap<String, Vec<String>> = std::collections::BTreeMap::new();
+    let mut telemetry_by_id = HashMap::new();
+    for environment in &running_containers {
+        let id = runtime_id(environment).to_owned();
+        match runtime.environment_storage_root(&id) {
+            Ok(root) => { pools.entry(format!("{}:{:?}", root.display(), provider(environment))).or_default().push(id); }
+            Err(error) => { telemetry_by_id.insert(id, Err(error)); }
+        }
+    }
+    let samples = futures_util::future::join_all(pools.into_values().map(|ids| {
+        let runtime = &runtime;
+        async move { let sample = runtime.container_telemetry(&ids).await; (ids, sample) }
+    })).await;
+    for (ids, sample) in samples {
+        match sample {
+            Ok(entries) => { for entry in entries { telemetry_by_id.insert(entry.id.clone(), Ok(entry)); } }
+            Err(error) => { for id in ids { telemetry_by_id.insert(id, Err(error.clone())); } }
+        }
+    }
     struct ContainerRefresh {
         id: String,
+        last_opened_at: Option<String>,
         exited: bool,
         clean_exit: bool,
         last_error: Option<Option<String>>,
@@ -3756,30 +3844,38 @@ pub async fn refresh_host_metrics(
     }
     let mut container_refreshes = Vec::with_capacity(running_containers.len());
     for environment in running_containers {
+        let root = match runtime.environment_storage_root(runtime_id(environment)) {
+            Ok(root) => root,
+            Err(error) => {
+                container_refreshes.push(ContainerRefresh { id: environment.id.clone(), last_opened_at: environment.last_opened_at.clone(), exited:false, clean_exit:false, last_error:Some(Some(error)), stats:None });
+                continue;
+            }
+        };
+        let lock = container_policy_lock(&root, &provider(environment)).await;
+        // Background telemetry never queues ahead of lifecycle/configuration.
+        let Ok(_pool_guard) = lock.try_lock_owned() else { continue; };
+        let Some(current) = store.snapshot()?.environments.into_iter().find(|current| current.id == environment.id && current.status == EnvironmentStatus::Running && current.last_opened_at == environment.last_opened_at) else { continue; };
+        let environment = &current;
         let mut refresh = ContainerRefresh {
             id: environment.id.clone(),
+            last_opened_at: environment.last_opened_at.clone(),
             exited: false,
             clean_exit: false,
             last_error: None,
             stats: None,
         };
-        let telemetry = match if provider(environment) == RuntimeProviderKind::YougoriCuda { &cuda_telemetry } else { &container_telemetry } {
-            Ok(entries) => match entries.get(runtime_id(environment)) {
-                Some(telemetry) => telemetry,
-                None => {
-                    refresh.last_error = Some(Some(
-                        "The container runtime omitted this environment from batch telemetry"
-                            .into(),
-                    ));
-                    container_refreshes.push(refresh);
-                    continue;
-                }
-            },
-            Err(error) => {
+        let telemetry = match telemetry_by_id.get(runtime_id(environment)) {
+            Some(Ok(telemetry)) => telemetry,
+            Some(Err(error)) => {
                 refresh.last_error = Some(Some(error.clone()));
                 container_refreshes.push(refresh);
                 continue;
-            }
+            },
+            None => {
+                refresh.last_error = Some(Some("The container runtime omitted this environment from its pool telemetry".into()));
+                container_refreshes.push(refresh);
+                continue;
+            },
         };
         if telemetry.paused {
             // Snapshot pauses are temporary. Keep the node healthy and avoid
@@ -3806,6 +3902,7 @@ pub async fn refresh_host_metrics(
                 environment.resource_policy.memory_gb.current,
             )
         {
+            let Ok(_resource_claim) = resource_admission::reserve_update(&store, environment) else { continue; };
             let result = runtime
                 .update_container_resources(
                     runtime_id(environment),
@@ -3839,7 +3936,7 @@ pub async fn refresh_host_metrics(
                 else {
                     continue;
                 };
-                if environment.status != EnvironmentStatus::Running {
+                if environment.status != EnvironmentStatus::Running || environment.last_opened_at != refresh.last_opened_at {
                     continue;
                 }
                 if refresh.exited {
@@ -3860,7 +3957,6 @@ pub async fn refresh_host_metrics(
             Ok(())
         })?;
     }
-    drop(container_serial);
     for environment in state.environments.iter().filter(|environment| {
         environment.status == EnvironmentStatus::Running
             && provider(environment) == RuntimeProviderKind::NativeSandbox
@@ -3910,6 +4006,7 @@ pub async fn refresh_host_metrics(
                 environment.resource_policy.cpu.current,
                 environment.resource_policy.memory_gb.current,
             ) {
+            let Ok(_resource_claim) = resource_admission::reserve_update(&store, environment) else { continue; };
             let result = runtime
                 .update_native_sandbox_resources(
                     runtime_id(environment),
@@ -4005,6 +4102,7 @@ pub async fn refresh_host_metrics(
         {
             continue;
         }
+        let Ok(_resource_claim) = resource_admission::reserve_update(&store, environment) else { continue; };
         let result = runtime
             .update_vm_resources(
                 runtime_id(environment),

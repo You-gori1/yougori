@@ -1,6 +1,8 @@
 import importlib.util
 import http.client
 import json
+import hashlib
+import tempfile
 import os
 from pathlib import Path
 import threading
@@ -23,7 +25,7 @@ class ChatConfig:
 
 
 @contextmanager
-def model_startup(count=1, files=(), config=None, versions=None):
+def model_startup(count=1, files=("model.safetensors",), config=None, versions=None):
     config = config or ChatConfig()
     network = Mock(config=config)
     network.eval.return_value = network
@@ -32,13 +34,19 @@ def model_startup(count=1, files=(), config=None, versions=None):
     models.from_pretrained.return_value = network
     transformers = SimpleNamespace(AutoConfig=Mock(), AutoModelForCausalLM=models, AutoTokenizer=Mock())
     transformers.AutoConfig.from_pretrained.return_value = config
-    hub = SimpleNamespace(HfApi=Mock())
+    hub = SimpleNamespace(HfApi=Mock(), snapshot_download=Mock())
     hub.HfApi.return_value.model_info.return_value = SimpleNamespace(
-        sha="a" * 40, siblings=[SimpleNamespace(rfilename=name) for name in files])
+        sha="a" * 40, siblings=[SimpleNamespace(rfilename=name, lfs={"sha256":hashlib.sha256(b"test weights").hexdigest()}) for name in files])
     torch = SimpleNamespace(float16="float16", cuda=SimpleNamespace(
         is_available=lambda: True, device_count=lambda: count, get_device_name=lambda index: "Test GPU"))
     installed = {"transformers": "5.18.0", "accelerate": "1.15.0", "huggingface-hub": "1.33.0", **(versions or {})}
     with ExitStack() as stack:
+        snapshot = stack.enter_context(tempfile.TemporaryDirectory())
+        for name in files:
+            file=Path(snapshot)/name
+            file.parent.mkdir(parents=True, exist_ok=True)
+            file.write_bytes(b"test weights")
+        hub.snapshot_download.return_value=snapshot
         stack.enter_context(patch.dict("sys.modules", torch=torch, transformers=transformers, huggingface_hub=hub))
         stack.enter_context(patch.object(server.importlib.metadata, "version", side_effect=installed.__getitem__))
         stack.enter_context(patch.object(server.threading, "Thread"))
@@ -178,12 +186,31 @@ class ModelServerTests(unittest.TestCase):
         with model_startup() as fixture:
             server.load_model()
             self.assertEqual(server.STATE["status"], "ready", server.STATE["error"])
-            fixture.hub.HfApi.return_value.model_info.assert_called_once_with(server.MODEL, timeout=30)
+            self.assertEqual(fixture.hub.HfApi.return_value.model_info.call_count,2)
+            fixture.hub.HfApi.return_value.model_info.assert_any_call(server.MODEL, revision=server.MODEL_REVISION, files_metadata=True, timeout=30)
+            fixture.hub.HfApi.return_value.model_info.assert_any_call(server.MODEL, revision="a"*40, files_metadata=True, timeout=30)
             for loader in (fixture.transformers.AutoConfig, fixture.transformers.AutoTokenizer, fixture.models):
                 options = loader.from_pretrained.call_args.kwargs
                 self.assertEqual(options["revision"], "a" * 40)
                 self.assertFalse(options["trust_remote_code"])
             self.assertIs(fixture.models.from_pretrained.call_args.kwargs["config"], fixture.config)
+
+    def test_corrupt_direct_guest_weights_fail_before_model_load(self):
+        with model_startup() as fixture:
+            file=Path(fixture.hub.snapshot_download.return_value)/"model.safetensors"
+            file.write_bytes(b"corrupt cache")
+            server.load_model()
+            self.assertEqual(server.STATE["status"],"error")
+            self.assertIn("checksum",server.STATE["error"])
+            fixture.models.from_pretrained.assert_not_called()
+
+    def test_unverifiable_weights_fail_closed_before_model_load(self):
+        with model_startup() as fixture:
+            fixture.hub.HfApi.return_value.model_info.return_value.siblings[0].lfs=None
+            server.load_model()
+            self.assertEqual(server.STATE["status"],"error")
+            self.assertIn("verifiable",server.STATE["error"])
+            fixture.models.from_pretrained.assert_not_called()
 
     def test_nested_text_context_is_used_for_qwen3_5(self):
         for maximum, expected in [(262144, 32768), (2048, 2048)]:

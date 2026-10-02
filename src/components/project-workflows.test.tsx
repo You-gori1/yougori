@@ -9,11 +9,38 @@ import { ModelChat } from "./model-workspace"
 import { projectsApi, changesApi, modelsApi } from "@/api/projects-api"
 
 vi.mock("@/context/platform-context", () => ({ usePlatform: () => ({ refreshPlatform: vi.fn().mockResolvedValue(undefined), state: { environments: [] } }) }))
-vi.mock("@/api/projects-api", () => ({ projectsApi: { discover: vi.fn(), inspect: vi.fn(), importCompose: vi.fn(), action: vi.fn(), choose: vi.fn() }, changesApi: { inspect: vi.fn() }, modelsApi: { status: vi.fn(), chat: vi.fn(), run: vi.fn() } }))
+vi.mock("@/api/projects-api", () => ({ projectsApi: { discover: vi.fn(), inspect: vi.fn(), importCompose: vi.fn(), action: vi.fn(), choose: vi.fn(), status: vi.fn() }, changesApi: { inspect: vi.fn() }, modelsApi: { status: vi.fn(), chat: vi.fn(), run: vi.fn() } }))
 const preview = { path: "C:/project/yougori.yaml", project: "my-app", environments: [{ name: "frontend", type: "container", image: "node:24", cpu: 2, memoryGb: 4, gpu: false, pcAccess: 1, editPc: true, variables: ["TOKEN"], action: "create" }], connections: 1, publications: 0 }
 afterEach(cleanup)
 beforeEach(() => { vi.clearAllMocks(); vi.mocked(projectsApi.discover).mockResolvedValue([]) })
 describe("project workflows", () => {
+  it("reports a failed public HTTPS probe independently of a running application", async () => {
+    vi.mocked(projectsApi.discover).mockResolvedValue([preview])
+    vi.mocked(projectsApi.inspect).mockResolvedValue(preview)
+    vi.mocked(projectsApi.status).mockResolvedValue({ project: "my-app", status:"notReady",saved:true, ready: false, environments: {frontend: {environmentId:"env-test",level:"localApplication",ready:false,applicationVerified:true,verifiedPublicly:false,stages:{running:{status:"ready"},localHttp:{status:"ready",httpStatus:200},publicHttps:{status:"failed",httpStatus:530}},recoveryAction:"Inspect the public HTTPS stage"}} })
+    render(<ProjectManager />)
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("button", {name:"Projects"}))
+    await user.click(await screen.findByRole("button", {name:/my-app C:\/project/}))
+    await user.click(await screen.findByRole("button", {name:"Check readiness"}))
+    const report=await screen.findByLabelText("Deployment readiness")
+    expect(report).toHaveTextContent("Deployment needs attention")
+    expect(report).toHaveTextContent("Local HTTP: ready (HTTP 200)")
+    expect(report).toHaveTextContent("Public HTTPS: failed (HTTP 530)")
+    expect(report).toHaveTextContent("Inspect the public HTTPS stage")
+  })
+  it("does not claim application verification for a runtime without a health check", async () => {
+    vi.mocked(projectsApi.discover).mockResolvedValue([preview])
+    vi.mocked(projectsApi.inspect).mockResolvedValue(preview)
+    vi.mocked(projectsApi.status).mockResolvedValue({ project:"my-app",status:"ready",saved:true,ready:true,environments:{frontend:{environmentId:"env-test",level:"runtime",ready:true,applicationVerified:false,verifiedPublicly:false,stages:{process:{status:"unverified"}}}} })
+    render(<ProjectManager />)
+    const user=userEvent.setup()
+    await user.click(screen.getByRole("button",{name:"Projects"}))
+    await user.click(await screen.findByRole("button",{name:/my-app C:\/project/}))
+    await user.click(await screen.findByRole("button",{name:"Check readiness"}))
+    expect(await screen.findByLabelText("Deployment readiness")).toHaveTextContent("Runtime ready; application verification not configured")
+    expect(screen.queryByText("Application verified")).not.toBeInTheDocument()
+  })
   it("previews Compose and writes YAML only when import is clicked", async () => {
     vi.mocked(projectsApi.choose).mockResolvedValue("C:/project/compose.yaml")
     vi.mocked(projectsApi.importCompose).mockResolvedValue(preview)

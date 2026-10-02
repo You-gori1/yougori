@@ -785,9 +785,32 @@ export const platformApi = {
         throw new Error("Backup bandwidth must be 0 (unlimited) or at most 100,000 Mbps")
       }
       state.settings = settings
+      state.settingsRevision = (state.settingsRevision ?? 0) + 1
       enforceLocalRetention(state)
       return writeBrowserState(scheduleResources(state))
     })
+  },
+
+  async patchSettings(patch: Partial<AppSettings>, expectedRevision: number) {
+    await run<{ revision: number; changed: Partial<AppSettings>; applied: boolean }>("patch_settings", { patch, expectedRevision }, () => {
+      const state = readBrowserState()
+      if ((state.settingsRevision ?? 0) !== expectedRevision) throw new Error("Settings changed. Read the current settings and retry.")
+      const unknown = Object.keys(patch).filter(key => !(key in state.settings))
+        .filter(key => !["autoStartEnvironmentIds", "keepAwake", "customThemeColors", "startupHeadless"].includes(key))
+      if (unknown.length) throw new Error(`Unknown settings field: ${unknown[0]}`)
+      const next = { ...state.settings, ...patch }
+      if (!Number.isInteger(next.snapshotRetention) || next.snapshotRetention < 1 || next.snapshotRetention > 365) throw new Error("Snapshot retention must be between 1 and 365")
+      if (!Number.isInteger(next.bandwidthLimitMbps) || next.bandwidthLimitMbps < 0 || next.bandwidthLimitMbps > 100_000) throw new Error("Backup bandwidth must be 0 (unlimited) or at most 100,000 Mbps")
+      if (next.dataDirectory !== state.settings.dataDirectory) throw new Error("Use Storage settings to choose a location and restart the engine")
+      if (next.autoStartEnvironmentIds?.some(id => !state.environments.some(environment => environment.id === id))) throw new Error("Automatic startup must reference existing environments")
+      const changed = Object.fromEntries(Object.entries(patch).filter(([key, value]) => JSON.stringify(state.settings[key as keyof AppSettings]) !== JSON.stringify(value))) as Partial<AppSettings>
+      state.settings = next
+      if (Object.keys(changed).length) state.settingsRevision = (state.settingsRevision ?? 0) + 1
+      enforceLocalRetention(state)
+      writeBrowserState(scheduleResources(state))
+      return { revision: state.settingsRevision ?? 0, changed, applied: true }
+    })
+    return platformApi.getState()
   },
 
   getStorageLocation() { return run<string>("get_storage_location", {}, () => "Browser preview — no local environment storage") },

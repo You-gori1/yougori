@@ -605,7 +605,7 @@ pub(crate) fn info(app: &AppHandle, owner: &str) -> Result<serde_json::Value, St
         .map(|(id, session)| serde_json::json!({"sessionId":id,"cwd":session.cwd}))
         .collect();
     Ok(
-        serde_json::json!({"shell":if cfg!(windows){"PowerShell"}else{"Shell"},"cwd":workspace_directory(&home_directory()?)?,"sourceCheckout":development_source_checkout(),"cliPath":cli,"elevated":process::is_elevated()?,"maxSessions":MAX_SESSIONS,"sessions":sessions,"skill":skill,"agentInstructions":yougori_cli::skills::instructions(&cli),"agents":[{"id":"codex","name":"Codex","available":search_command("codex").is_some()},{"id":"claude","name":"Claude","available":search_command("claude").is_some()},{"id":"gemini","name":"Gemini","available":search_command("gemini").is_some()}]}),
+        serde_json::json!({"shell":if cfg!(windows){"PowerShell"}else{"Shell"},"cwd":workspace_directory(&home_directory()?)?,"sourceCheckout":development_source_checkout(),"cliPath":cli,"cliVersion":env!("CARGO_PKG_VERSION"),"protocolVersion":yougori_cli::wire::VERSION,"elevated":process::is_elevated()?,"maxSessions":MAX_SESSIONS,"sessions":sessions,"skill":skill,"canonicalSkill":yougori_cli::skills::descriptor(&cli)?,"managedCopies":yougori_cli::skills::discovery_copies(&cli)?,"agentInstructions":format!("Read the canonical Yougori skill at {}. Version {} (protocol {}). Fetch only the task's reference with `yougori skills print --topic TOPIC`; `--all` explicitly fetches the complete guide. Carry existing task authorization forward.",yougori_cli::skills::default_directory()?.join("SKILL.md").display(),env!("CARGO_PKG_VERSION"),yougori_cli::wire::VERSION),"agents":[{"id":"codex","name":"Codex","available":search_command("codex").is_some()},{"id":"claude","name":"Claude","available":search_command("claude").is_some()},{"id":"gemini","name":"Gemini","available":search_command("gemini").is_some()}]}),
     )
 }
 fn validate_source_checkout(path: &Path) -> Result<PathBuf, String> {
@@ -640,8 +640,7 @@ pub(crate) async fn setup_access(
     let manager = app.state::<HostTerminalManager>();
     let _guard = manager.setup.lock().await;
     let cli = cli_executable(app)?;
-    let path = yougori_cli::skills::default_directory()?;
-    tokio::task::spawn_blocking(move || yougori_cli::skills::install_at(&path, &cli))
+    tokio::task::spawn_blocking(move || yougori_cli::skills::install_default(&cli))
         .await
         .map_err(|e| e.to_string())?
 }

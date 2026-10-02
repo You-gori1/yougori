@@ -394,7 +394,10 @@ export function PlatformProvider({ children, pollHostMetrics = true }: { childre
       })
     },
     importLocalBackup: (path, targetProvider) => perform(() => localBackupApi.import(path, targetProvider), "Local backup restored", "A new stopped environment has been added. Your existing environments are unchanged."),
-    updateSettings: (settings) => perform(() => platformApi.updateSettings(settings), "Settings saved"),
+    updateSettings: (settings) => {
+      const patch = Object.fromEntries(Object.entries(settings).filter(([key, value]) => JSON.stringify(state?.settings[key as keyof AppSettings]) !== JSON.stringify(value))) as Partial<AppSettings>
+      return perform(() => platformApi.patchSettings(patch, state?.settingsRevision ?? 0), "Settings saved")
+    },
     importSharedEnvironment:invitation=>perform(()=>sharingApi.import(invitation),"Shared environment added"),
     refreshPlatform,
     deployCloudEnvironment:(request,riskAcknowledged)=>perform(()=>cloudApi.deploy(request,riskAcknowledged),"Cloud deployment recorded","Inspect its power state, then configure verified SSH access."),

@@ -14,6 +14,7 @@ use std::{
     path::{Path, PathBuf},
     process::Stdio,
     time::Duration,
+    sync::Arc,
 };
 use tauri::{Emitter, Manager, State};
 use crate::{AppHandle, WebviewWindow};
@@ -56,13 +57,15 @@ pub struct Publication {
 }
 struct LivePublication {
     info: Publication,
-    task: JoinHandle<()>,
+    task: Arc<ListenerTask>,
     cloudflare: Option<Child>,
     logs: Option<JoinHandle<()>>,
     tunnel_id: Option<String>,
     _cloudflare_config: Option<cloudflare::ConfigFile>,
-    _vm_forward: Option<VmForward>,
+    _vm_forward: Option<Arc<VmForward>>,
 }
+struct ListenerTask(JoinHandle<()>);
+impl Drop for ListenerTask { fn drop(&mut self) { self.0.abort(); } }
 struct VmForward(u16, u16);
 impl Drop for VmForward {
     fn drop(&mut self) {
@@ -74,11 +77,65 @@ impl Drop for VmForward {
 }
 impl Drop for LivePublication {
     fn drop(&mut self) {
-        self.task.abort();
         if let Some(logs) = &self.logs {
             logs.abort();
         }
     }
+}
+
+#[tauri::command]
+pub async fn publication_preflight(environment_id: String, port: u16, kind: PublicationKind, host_port: Option<u16>, cloudflare: Option<cloudflare::AccountOptions>, domain: Option<String>, store: State<'_,PlatformStore>, manager: State<'_,WorkspaceManager>) -> Result<Value,String> {
+    let (host_port,cloudflare)=if let Some(domain)=domain {
+        if kind!=PublicationKind::Cloudflare || cloudflare.is_some(){return Err("A saved domain requires kind cloudflare and cannot be combined with inline account options".into())}
+        let (options,saved_port)=cloudflare::domain_account(&store,&domain)?;
+        if host_port.is_some_and(|p|p!=saved_port){return Err("The requested host port differs from the saved domain's tunnel port".into())}
+        (Some(saved_port),Some(options))
+    }else{(host_port,cloudflare)};
+    publication_plan(&environment_id,port,&kind,host_port,cloudflare,&store,&manager).await
+}
+async fn publication_plan(environment_id: &str, port: u16, kind: &PublicationKind, host_port: Option<u16>, cloudflare: Option<cloudflare::AccountOptions>, store: &PlatformStore, manager: &WorkspaceManager) -> Result<Value,String> {
+    if port==0 || port==7443 || host_port.is_some_and(|p|p==0||p==7443) { return Err("Choose nonzero application and host ports; 7443 is reserved".into()) }
+    let state=store.snapshot()?;
+    if !state.environments.iter().any(|e|e.id==environment_id) { return Err("Environment not found".into()) }
+    if cloudflare.is_some() && *kind!=PublicationKind::Cloudflare { return Err("Cloudflare options require a Cloudflare publication".into()) }
+    let account=cloudflare.map(|options|cloudflare::Account::resolve(environment_id,port,host_port,options)).transpose()?;
+    let routes=manager.publications.lock().await;
+    if let Some(account)=&account {
+        if let Some(owner)=routes.values().find(|p|p.tunnel_id.as_deref()==Some(account.tunnel_id.as_str()) && (p.info.environment_id!=environment_id || p.info.port!=port)) {
+            return Ok(json!({"allowed":false,"action":"conflict","code":"DOMAIN_IN_USE","owner":owner.info,"unrelatedPublicationsPreserved":true}));
+        }
+    }
+    let existing=routes.values().find(|p|p.info.environment_id==environment_id && p.info.port==port && &p.info.kind==kind).map(|p|p.info.clone());
+    if let Some(existing)=&existing {
+        let live=&routes[&existing.id];
+        let route_matches=existing.cloudflare_account==account.is_some() && account.as_ref().is_none_or(|a|live.tunnel_id.as_deref()==Some(a.tunnel_id.as_str())&&existing.urls==vec![a.public_url()]) && host_port.is_none_or(|h|h==existing.host_port);
+        if route_matches&&existing.status=="active"{return Ok(json!({"allowed":true,"action":"reusePublication","existing":existing,"unrelatedPublicationsPreserved":true}))}
+    }
+    if let Some(host)=host_port {
+        if let Some(owner)=routes.values().find(|p|p.info.host_port==host) {
+            let compatible=owner.info.environment_id==environment_id && owner.info.port==port && matches!(owner.info.kind,PublicationKind::Loopback|PublicationKind::Cloudflare) && matches!(kind,PublicationKind::Loopback|PublicationKind::Cloudflare);
+            return Ok(json!({"allowed":compatible,"action":if !compatible{"conflict"}else if existing.is_some(){"replaceOwnedRoute"}else{"reuseListener"},"code":if compatible{Value::Null}else{json!("PORT_IN_USE")},"hostPort":host,"owner":owner.info,"existing":existing,"rollbackSupported":compatible&&existing.is_some(),"unrelatedPublicationsPreserved":true}));
+        }
+        drop(routes);
+        let address=if matches!(kind,PublicationKind::Loopback|PublicationKind::Cloudflare){"127.0.0.1"}else{"0.0.0.0"};
+        if TcpListener::bind((address,host)).await.is_err() { return Ok(json!({"allowed":false,"action":"conflict","code":"PORT_IN_USE","hostPort":host,"owner":{"type":"externalProcess","processIds":listener_process_ids(host).await},"existing":existing,"unrelatedPublicationsPreserved":true})); }
+    }
+    Ok(json!({"allowed":true,"action":if existing.is_some(){"replaceOwnedRoute"}else{"create"},"existing":existing,"rollbackSupported":existing.is_some(),"hostPort":host_port,"unrelatedPublicationsPreserved":true}))
+}
+async fn listener_process_ids(port:u16)->Vec<u32> {
+    #[cfg(windows)] let mut command=tokio::process::Command::new(std::env::var_os("SystemRoot").map(PathBuf::from).unwrap_or_else(||PathBuf::from("C:/Windows")).join("System32/netstat.exe"));
+    #[cfg(windows)] command.args(["-ano","-p","TCP"]);
+    #[cfg(unix)] let mut command=tokio::process::Command::new("ss");
+    #[cfg(unix)] command.args(["-ltnp","sport","=",&format!(":{port}")]);
+    background(&mut command);
+    let Ok(Ok(output))=tokio::time::timeout(Duration::from_secs(5),command.output()).await else{return vec![]};
+    let text=String::from_utf8_lossy(&output.stdout);
+    let mut ids=Vec::new();
+    for line in text.lines().take(8192) {
+        #[cfg(windows)] { let fields=line.split_whitespace().collect::<Vec<_>>(); if fields.len()>=5 && fields[1].rsplit(':').next()==Some(port.to_string().as_str()) && fields[3]=="LISTENING" { if let Ok(id)=fields[4].parse(){ids.push(id)} } }
+        #[cfg(unix)] { for part in line.split("pid=").skip(1) { if let Some(id)=part.split(',').next().and_then(|id|id.parse().ok()){ids.push(id)} } }
+    }
+    ids.sort();ids.dedup();ids
 }
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -88,6 +145,8 @@ pub struct HostShare {
     pub path: String,
     pub read_only: bool,
     pub mount_path: Option<String>,
+    // A capability, not metadata. Only the explicit credential operation exports it.
+    #[serde(skip_serializing)]
     pub guest_url: String,
 }
 struct LiveShare {
@@ -105,6 +164,7 @@ pub struct WorkspaceManager {
     publications: Mutex<HashMap<String, LivePublication>>,
     setup_tunnels: Mutex<HashMap<String, cloudflare::SetupTunnel>>,
     shares: Mutex<HashMap<String, LiveShare>>,
+    folder_operations: Mutex<HashMap<String,Arc<Mutex<()>>>>,
     terminals: Mutex<HashMap<String, TerminalLease>>,
     pub(crate) operations: Mutex<()>,
     local_ports_key: Mutex<String>,
@@ -148,6 +208,7 @@ impl WorkspaceManager {
             publications: Mutex::new(HashMap::new()),
             setup_tunnels: Mutex::new(HashMap::new()),
             shares: Mutex::new(HashMap::new()),
+            folder_operations: Mutex::new(HashMap::new()),
             terminals: Mutex::new(HashMap::new()),
             operations: Mutex::new(()),
             local_ports_key: Mutex::new(String::new()),
@@ -456,7 +517,7 @@ pub async fn list_environment_services(
     list_services(&environment_id, &store, &runtime, &manager).await
 }
 
-async fn list_services(
+pub(crate) async fn list_services(
     environment_id: &str,
     store: &PlatformStore,
     runtime: &RuntimeManager,
@@ -485,10 +546,22 @@ async fn list_services(
             }
         }
     }
-    let mut publications = manager
-        .publications
-        .lock()
-        .await
+    let publications=publication_metadata(environment_id,store,manager).await?;
+    let shares = manager.host_shares_for(&environment_id).await;
+    Ok(json!({"services":services,"publications":publications,"shares":shares,"notice":notice}))
+}
+
+/// Compact publication state without contacting the guest or listing its processes.
+pub(crate) async fn publication_metadata(environment_id:&str,store:&PlatformStore,manager:&WorkspaceManager)->Result<Vec<Publication>,String>{
+    let state=store.snapshot()?;
+    let env=state.environments.iter().find(|env|env.id==environment_id).ok_or("Environment not found")?;
+    let mut routes=manager.publications.lock().await;
+    for route in routes.values_mut().filter(|route|route.info.environment_id==environment_id){
+        if route.cloudflare.as_mut().is_some_and(|child|child.try_wait().ok().flatten().is_some()) {
+            route.info.status="error".into();route.info.message="Cloudflare Tunnel disconnected; inspect and reconnect this publication".into();route.info.urls.clear();
+        }
+    }
+    let mut publications = routes
         .values()
         .filter(|p| p.info.environment_id == environment_id)
         .map(|p| p.info.clone())
@@ -511,8 +584,66 @@ async fn list_services(
             cloudflare_account: saved.domain.is_some() || saved.remembered_account,
         });
     }
-    let shares = manager.host_shares_for(&environment_id).await;
-    Ok(json!({"services":services,"publications":publications,"shares":shares,"notice":notice}))
+    Ok(publications)
+}
+
+#[tauri::command]
+pub async fn host_share_credentials(share_id: String,window:WebviewWindow, manager: State<'_, WorkspaceManager>) -> Result<Value, String> {
+    if window.label()!="main"{return Err("Retrieve the private folder link from the main Yougori window or its same-user CLI".into())}
+    host_share_credential_data(&share_id,&manager).await
+}
+pub(crate) async fn host_share_credential_data(share_id:&str, manager:&WorkspaceManager)->Result<Value,String>{
+    let shares = manager.shares.lock().await;
+    let share = shares.get(share_id).ok_or("Shared folder is no longer connected")?;
+    Ok(json!({"shareId":share_id,"guestUrl":share.info.guest_url,"sensitive":true,"lifetime":"until the folder is disconnected or the engine stops"}))
+}
+
+#[derive(Serialize,Deserialize)]
+struct LogCursor { offset: usize, anchor: String, #[serde(default)] anchor_bytes:usize }
+fn log_window(text:&str,cursor:Option<&str>,limit:usize,tail:usize)->Result<Value,String>{
+    use base64::Engine;
+    use sha2::{Digest,Sha256};
+    let previous=cursor.map(|c| {
+        if c.len()>512{return Err("Log cursor is invalid".to_string())}
+        let bytes=base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(c).map_err(|_|"Log cursor is invalid")?;
+        serde_json::from_slice::<LogCursor>(&bytes).map_err(|_|"Log cursor is invalid".to_string())
+    }).transpose()?;
+    let mut rotated=false;
+    let mut start=if let Some(previous)=previous{
+        let bytes=previous.anchor_bytes;
+        if bytes>128{return Err("Log cursor is invalid".into())}
+        let matches=|end:usize|end>=bytes&&text.as_bytes().get(end-bytes..end).is_some_and(|part|format!("{:x}",Sha256::digest(part))==previous.anchor);
+        if matches(previous.offset){previous.offset}else{
+            rotated=true;
+            (bytes..=text.len()).rev().find(|end|matches(*end)).unwrap_or_else(||text.len().saturating_sub(tail))
+        }
+    }else{text.len().saturating_sub(tail)};
+    while start<text.len()&&!text.is_char_boundary(start){start+=1}
+    let mut end=(start+limit).min(text.len());while end>start&&!text.is_char_boundary(end){end-=1}
+    let bytes=end.min(128);
+    let next=LogCursor{offset:end,anchor:format!("{:x}",Sha256::digest(&text.as_bytes()[end-bytes..end])),anchor_bytes:bytes};
+    let next_cursor=base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(serde_json::to_vec(&next).map_err(|e|e.to_string())?);
+    Ok(json!({"stdout":&text[start..end],"nextCursor":next_cursor,"truncated":end<text.len(),"rotated":rotated,"bytes":end-start,"outcome":"read"}))
+}
+#[tauri::command]
+pub async fn get_environment_log_window(environment_id:String,cursor:Option<String>,limit:Option<usize>,tail:Option<usize>,store:State<'_,PlatformStore>,runtime:State<'_,RuntimeManager>)->Result<Value,String>{
+    let limit=limit.unwrap_or(16*1024);let tail=tail.unwrap_or(16*1024);
+    if !(1..=64*1024).contains(&limit)||tail>256*1024{return Err("Log limit must be 1–65536 bytes and tail at most 262144 bytes".into())}
+    let env=store.snapshot()?.environments.into_iter().find(|e|e.id==environment_id).ok_or("Environment not found")?;
+    let values=bound_secret_values(&env,&runtime)?;
+    let text=tokio::time::timeout(Duration::from_secs(20),crate::commands::workloads::get_environment_logs(environment_id,store,runtime)).await.map_err(|_|"Log read timed out; the environment remains unchanged")??;
+    let text=mask_secret_output(&text,&values,true);
+    log_window(&text,cursor.as_deref(),limit,tail)
+}
+pub(crate) fn bound_secret_values(environment:&Environment,runtime:&RuntimeManager)->Result<Vec<String>,String>{
+    let options=runtime.workload_options(runtime_id(environment))?;
+    let mut values=options.environment.into_iter().filter_map(|(name,value)|{let upper=name.to_ascii_uppercase();(!value.is_empty()&&["TOKEN","PASSWORD","SECRET","API_KEY"].iter().any(|marker|upper.contains(marker))).then_some(value)}).collect::<Vec<_>>();
+    for reference in options.secret_environment.values(){let value=crate::projects::secrets::resolve(reference).map_err(|_|format!("Protected output masking is unavailable for reference {reference}; output was withheld"))?;if !value.is_empty(){values.push(value)}}
+    values.sort_by_key(|value|std::cmp::Reverse(value.len()));values.dedup();Ok(values)
+}
+/// Equal-byte masking keeps guest/log cursors stable. Withhold unfinished tail prefixes.
+pub(crate) fn mask_secret_output(text:&str,values:&[String],withhold_partial:bool)->String{
+    crate::guest_execution::mask_protected_text(text,values,withhold_partial)
 }
 
 #[tauri::command]
@@ -706,20 +837,32 @@ async fn publish_service_with_intent(
     let account = cloudflare
         .map(|options| cloudflare::Account::resolve(&environment_id, port, host_port, options))
         .transpose()?;
-    if let Some(existing) = manager.publications.lock().await.values().find(|p| {
-        p.info.environment_id == environment_id && p.info.port == port && p.info.kind == kind
-    }) {
-        if existing.info.cloudflare_account != account.is_some()
+    let host_port=host_port.or_else(||account.as_ref().map(cloudflare::Account::host_port));
+    let previous = {
+    let mut routes=manager.publications.lock().await;
+    let existing_id=routes.values().find(|p|p.info.environment_id==environment_id&&p.info.port==port&&p.info.kind==kind).map(|p|p.info.id.clone());
+    if let Some(id)=existing_id {
+        let existing=&routes[&id];
+        if existing.info.status!="active" || existing.info.cloudflare_account != account.is_some()
             || account.as_ref().is_some_and(|account| {
                 existing.tunnel_id.as_deref() != Some(account.tunnel_id.as_str())
                     || existing.info.urls != vec![account.public_url()]
-                    || host_port != Some(existing.info.host_port)
-            })
+                    || host_port.is_some_and(|p|p!=existing.info.host_port)
+            }) || host_port.is_some_and(|port|port!=existing.info.host_port)
         {
-            return Err("Disconnect the current Cloudflare publication before changing its account or route".into());
+            // The request explicitly changes this environment's route. Hold its live bridge
+            // and tunnel until the replacement succeeds; errors restore this exact object.
+            routes.remove(&id)
+        }else{
+            return Ok(existing.info.clone());
         }
-        return Ok(existing.info.clone());
-    }
+    }else{None}
+    };
+    // Reconnect a saved service using its stable identity after engine interruption.
+    // The old saved intent remains intact until a replacement has actually succeeded.
+    let resumed_id=store.snapshot()?.saved_environment_services.into_iter().find(|saved|saved.environment_id==environment_id&&saved.port==port&&saved.kind==kind).map(|saved|saved.id);
+    let prior_intent=previous.as_ref().and_then(|p|store.snapshot().ok()?.saved_environment_services.into_iter().find(|s|s.id==p.info.id));
+    let result=async {
     if let Some(account) = &account {
         if manager.publications.lock().await.values().any(|p| {
             p.tunnel_id.as_deref() == Some(account.tunnel_id.as_str())
@@ -727,21 +870,35 @@ async fn publish_service_with_intent(
             return Err("This Cloudflare tunnel is already connected in Yougori. Use a dedicated tunnel for each published service.".into());
         }
     }
-    let agent = runtime.workspace_endpoint(&env).await.ok();
+    // A localhost bridge to the same guest port is compatible with an account tunnel.
+    // Share its lease instead of tearing down a working listener to bind it again.
+    let reused = if let Some(previous)=previous.as_ref().filter(|p|Some(p.info.host_port)==host_port) {
+        Some((previous.task.clone(),previous._vm_forward.clone()))
+    }else if let Some(host)=host_port {
+        let routes=manager.publications.lock().await;
+        if let Some(owner)=routes.values().find(|p|p.info.host_port==host) {
+            if owner.info.environment_id!=environment_id || owner.info.port!=port || !matches!(owner.info.kind,PublicationKind::Loopback|PublicationKind::Cloudflare) || !matches!(kind,PublicationKind::Loopback|PublicationKind::Cloudflare) {
+                return Err(format!("Host port {host} is owned by publication {} on environment {} (guest port {}). This unrelated connection was preserved; use publication_preflight to inspect the conflict.",owner.info.id,owner.info.environment_id,owner.info.port));
+            }
+            Some((owner.task.clone(),owner._vm_forward.clone()))
+        }else{None}
+    }else{None};
+    let agent = if reused.is_none(){runtime.workspace_endpoint(&env).await.ok()}else{None};
     let cloud = if env.kind == EnvironmentKind::Cloud { Some(runtime.cloud.service_target(&env.id, port).await?) } else { None };
-    let vm_forward = if agent.is_none() && env.kind == EnvironmentKind::FullVm {
+    let vm_forward = if let Some((_,forward))=&reused { forward.clone() } else if agent.is_none() && env.kind == EnvironmentKind::FullVm {
         let (qmp, port) = runtime.forward_workspace_vm_port(&env, port).await?;
-        Some(VmForward(qmp, port))
+        Some(Arc::new(VmForward(qmp, port)))
     } else {
         None
     };
-    if agent.is_none() && vm_forward.is_none() && cloud.is_none() {
+    if reused.is_none() && agent.is_none() && vm_forward.is_none() && cloud.is_none() {
         return Err("This environment cannot expose services".into());
     }
     if let Some(account) = &account {
         // Release the setup placeholder before binding this environment's bridge.
         cloudflare::finish_setup(manager, account).await?;
     }
+    let (host_port, task) = if let Some((task,_))=reused {(host_port.unwrap(),task)}else {
     let listener = TcpListener::bind((
         if matches!(kind, PublicationKind::Cloudflare | PublicationKind::Loopback) {
             "127.0.0.1"
@@ -756,7 +913,7 @@ async fn publish_service_with_intent(
     let local_only = kind == PublicationKind::Local;
     let id = runtime_id(&env).to_owned();
     let forwarded_port = vm_forward.as_ref().map(|f| f.1);
-    let task = tokio::spawn(async move {
+    let task = Arc::new(ListenerTask(tokio::spawn(async move {
         let mut clients = tokio::task::JoinSet::new();
         loop {
             tokio::select! {
@@ -778,10 +935,12 @@ async fn publish_service_with_intent(
                 _=clients.join_next(),if !clients.is_empty()=>{}
             }
         }
-    });
+    })));
+    (host_port,task)
+    };
     let mut live = LivePublication {
         info: Publication {
-            id: restore_id.unwrap_or_else(|| format!("pub-{}", Uuid::new_v4().simple())),
+            id: restore_id.or_else(||previous.as_ref().map(|p|p.info.id.clone())).or(resumed_id).unwrap_or_else(|| format!("pub-{}", Uuid::new_v4().simple())),
             environment_id,
             port,
             kind: kind.clone(),
@@ -861,6 +1020,14 @@ async fn publish_service_with_intent(
         }
     }
     Ok(info)
+    }.await;
+    if result.is_err() {
+        if let Some(previous)=previous {
+            manager.publications.lock().await.insert(previous.info.id.clone(),previous);
+            if let Some(intent)=prior_intent { store.mutate(|state|{state.saved_environment_services.retain(|saved|saved.id!=intent.id);state.saved_environment_services.push(intent);Ok(())}).map_err(|_|"The previous live publication was restored but its saved intent needs reconciliation")?; }
+        }
+    }
+    result
 }
 
 /// Reconnect the non-secret service settings saved for a node.
@@ -939,7 +1106,8 @@ async fn attach_folder(
     runtime: &RuntimeManager,
     manager: &WorkspaceManager,
 ) -> Result<HostShare, String> {
-    let _operation = manager.operations.lock().await;
+    let lock={let mut locks=manager.folder_operations.lock().await;locks.retain(|_,lock|Arc::strong_count(lock)>1);locks.entry(environment_id.clone()).or_default().clone()};
+    let _operation = lock.lock().await;
     let env = environment(&store, &environment_id)?;
     if env.kind == EnvironmentKind::Cloud { return Err("Cloud nodes use connection-owned shared folders, not direct My PC mounts".into()); }
     let folder = PathBuf::from(path)

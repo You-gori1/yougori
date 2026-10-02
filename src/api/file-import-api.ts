@@ -2,10 +2,15 @@ import { Channel, invoke, isTauri } from "@tauri-apps/api/core"
 import type { DragDropEvent } from "@tauri-apps/api/webview"
 
 export interface FileCopyProgress {
-  phase: "scanning" | "preparing" | "copying" | "finishing"
+  phase: "scanning" | "preparing" | "archiving" | "connecting" | "copying" | "sending" | "extracting" | "verifying" | "finishing"
   completedBytes: number
   totalBytes: number
   scannedEntries?: number
+  transferId?: string
+  sentBytes?: number
+  confirmedBytes?: number
+  lastProgressAt?: string
+  waitingFor?: string
 }
 export interface FileCopyResult {
   destination: string
@@ -19,6 +24,10 @@ export interface FileCopyResult {
 export interface ImportedDrive { id: string; attached: boolean; bytes: number }
 
 export const fileImportApi = {
+  async cancel(environmentId: string, transferId?: string): Promise<{ cancelRequested: boolean }> {
+    if (!isTauri()) throw new Error("File transfer cancellation requires the Yougori desktop app.")
+    return invoke("cancel_file_transfer", { environmentId, transferId })
+  },
   async drives(environmentId: string): Promise<ImportedDrive[]> {
     if (!isTauri()) return []
     return invoke("list_imported_drives", { environmentId })

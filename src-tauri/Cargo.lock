@@ -6318,6 +6318,7 @@ dependencies = [
  "bytes",
  "futures-core",
  "futures-sink",
+ "futures-util",
  "libc",
  "pin-project-lite",
  "tokio",
@@ -7804,7 +7805,7 @@ dependencies = [
 
 [[package]]
 name = "yougori"
-version = "1.0.5"
+version = "1.0.6"
 dependencies = [
  "age",
  "base64 0.22.1",
@@ -7854,7 +7855,7 @@ dependencies = [
 
 [[package]]
 name = "yougori-cli"
-version = "1.0.5"
+version = "1.0.6"
 dependencies = [
  "base64 0.22.1",
  "crossterm",
@@ -7889,7 +7890,7 @@ dependencies = [
 
 [[package]]
 name = "yougori-vault"
-version = "1.0.5"
+version = "1.0.6"
 dependencies = [
  "age",
  "axum",

@@ -2,6 +2,8 @@ use super::*;
 
 pub(crate) async fn run_neocloud_model(model: String, environment_id: String, port: Option<u16>, app: AppHandle) -> Result<Value, String> {
     let model = normalize_model(&model)?;
+    let compatibility=super::preflight::preflight(&model).await?;
+    if compatibility["supported"]!=true{return Err(compatibility["reason"].as_str().unwrap_or("Unsupported model runner").into())}
     if port == Some(0) { return Err("Invalid API port".into()); }
     let store = app.state::<PlatformStore>();
     let runtime = app.state::<RuntimeManager>();
@@ -19,13 +21,17 @@ pub(crate) async fn run_neocloud_model(model: String, environment_id: String, po
     }
     let id = env.runtime_id.as_deref().unwrap_or(&env.id);
     let mut options = runtime.workload_options(id)?;
-    let token = options.environment.get("YOUGORI_MODEL_TOKEN").cloned()
+    let token = crate::projects::secrets::variable(&options,"YOUGORI_MODEL_TOKEN").ok()
         .unwrap_or_else(|| format!("{}{}", uuid::Uuid::new_v4().simple(), uuid::Uuid::new_v4().simple()));
     // Persist credentials before launching: a lost response must not orphan the API key.
-    options.environment.insert("YOUGORI_MODEL_TOKEN".into(), token.clone());
+    let reference=options.secret_environment.get("YOUGORI_MODEL_TOKEN").cloned().unwrap_or_else(||format!("model-api-{}",uuid::Uuid::new_v4().simple()));
+    crate::projects::secrets::store(&reference,&token)?;
+    options.environment.remove("YOUGORI_MODEL_TOKEN");
+    options.secret_environment.insert("YOUGORI_MODEL_TOKEN".into(),reference);
+    options.environment.insert("YOUGORI_MODEL_REVISION".into(),compatibility["revision"].as_str().unwrap_or("").into());
     runtime.save_workload_options(id, &options)?;
     let result = runtime.cloud.session(&environment_id).await?.request("model/run",
-        json!({"model":model,"token":token,"source":include_str!("../model_server.py")})).await?;
+        json!({"model":model,"token":token,"revision":compatibility["revision"],"source":include_str!("../model_server.py")})).await?;
     options.environment.insert("YOUGORI_MODEL".into(), model.clone());
     runtime.save_workload_options(id, &options)?;
     store.mutate(|state| {
@@ -68,7 +74,7 @@ pub(crate) async fn stop_model(environment_id: String, app: AppHandle) -> Result
         if !runtime.cloud.connected(&environment_id).await {
             crate::commands::set_environment_status(environment_id.clone(), EnvironmentStatus::Running, app.state(), app.state()).await?;
         }
-        runtime.cloud.session(&environment_id).await?.request("model/stop", json!({"token":options.environment.get("YOUGORI_MODEL_TOKEN")})).await?;
+        runtime.cloud.session(&environment_id).await?.request("model/stop", json!({"token":crate::projects::secrets::variable(&options,"YOUGORI_MODEL_TOKEN")?})).await?;
         return Ok(json!({"id":environment_id,"stopped":true,"podStillRunning":true}));
     }
     crate::commands::set_environment_status(environment_id.clone(), EnvironmentStatus::Stopped, app.state(), app.state()).await?;

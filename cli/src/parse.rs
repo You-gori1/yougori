@@ -49,10 +49,10 @@ pub const HELP: &str = r#"Yougori CLI — local runtime control
   terminal create|read|write|resize|close|install
   microvm apps|open                Built-in guest application sessions
   window list|focus|close|title|capture
-  settings get|set
-  jobs list|get|wait JOB_ID
-  skills print|install [--path SKILL_DIRECTORY]
-  schema [METHOD]                 Complete backend method catalog and examples
+  settings get|set|patch --file PATCH_WITH_REVISION.json
+  jobs list|get|wait|cancel|result JOB_ID
+  skills print [--topic TOPIC|--all]|status|install [--path SKILL_DIRECTORY]
+  schema [METHOD|--topic TOPIC] [--all]  Compact index; exact definitions on demand
   call METHOD --file request.json  Any catalog method (use --file - for stdin)
 
 Create an environment:
@@ -214,6 +214,10 @@ pub fn parse(
         .unwrap_or(3600);
     if !(1..=86400).contains(&timeout) {
         return Err("--timeout must be between 1 and 86400 seconds".into());
+    }
+    if args.get(0).is_some_and(|a|a=="call") && args.get(1).is_some_and(|a|a=="set_deployment_secret")
+        && (flags.contains_key("json") || flags.contains_key("value")) {
+        return Err("Application secrets must be supplied through --file - or a private JSON file, never shell arguments".into());
     }
     let input = match (flags.remove("json"), flags.remove("file")) {
         (Some(_), Some(_)) => return Err("Use either --json or --file, not both".into()),
@@ -674,10 +678,17 @@ pub fn parse(
             "import_local_backup"
         }
         ("settings", "get") => {
-            select = Some(("settings".into(), None));
-            "get_platform_state"
+            "get_settings_snapshot"
         }
         ("settings", "set") => "update_settings",
+        ("settings", "patch") => "patch_settings",
+        ("app", "startup-report") => "get_startup_report",
+        ("env" | "environment", "recover-report") => { positional = Some("environmentId"); set_explicit(&mut params,"confirmed",json!(confirmed))?; "recover_environment_runtime_report" },
+        ("env" | "environment", "execution-output") => { positional = Some("environmentId"); "guest_execution_output" },
+        ("env" | "environment", "cancel-execution") => { positional = Some("environmentId"); "cancel_guest_execution" },
+        ("env" | "environment", "release-execution") => { positional = Some("environmentId"); "release_guest_execution" },
+        ("ports", "preflight") => { positional = Some("environmentId"); "publication_preflight" },
+        ("share", "credentials") => { positional = Some("shareId"); "host_share_credentials" },
         ("gpu", "status") => "get_cuda_runtime_status",
         ("gpu", "setup") => "install_cuda_runtime",
         ("gpu", "test") => {
@@ -723,6 +734,9 @@ pub fn parse(
             positional = Some("jobId");
             "jobs_get"
         }
+        ("jobs", "cancel") => { positional = Some("jobId"); "jobs_cancel" },
+        ("jobs", "result") => { positional = Some("jobId"); "jobs_result" },
+        ("env" | "environment", "cancel-transfer") => { positional = Some("environmentId"); "cancel_file_transfer" },
         _ => {
             return Err(format!(
                 "Unknown command '{group} {action}'. Run yougori help."
@@ -979,12 +993,18 @@ mod tests {
             let args = vec![
                 "call".into(),
                 method.name.into(),
-                "--json".into(),
-                method.example.to_string(),
+                "--file".into(),
+                "request.json".into(),
                 "--dry-run".into(),
             ];
-            assert!(parse(&args, |_| unreachable!()).is_ok(), "{}", method.name);
+            assert!(parse(&args, |_| Ok(method.example.clone())).is_ok(), "{}", method.name);
         }
+    }
+    #[test]
+    fn protected_deployment_values_never_accept_shell_argument_input() {
+        assert!(run(&["call","set_deployment_secret","--json",r#"{"name":"x","value":"private"}"#,"--yes"]).unwrap_err().contains("never shell arguments"));
+        let request=parse(&["call","set_deployment_secret","--file","-","--yes"].map(str::to_owned),|_|Ok(json!({"name":"x","value":"private"}))).unwrap();
+        assert_eq!(request.request.method,"set_deployment_secret");
     }
     #[test]
     fn no_guest_output_is_parsed_as_instructions() {

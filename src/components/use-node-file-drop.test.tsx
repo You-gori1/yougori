@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest"
-import { act, cleanup, render, renderHook, screen, waitFor } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react"
 import { createRef } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { PhysicalPosition } from "@tauri-apps/api/dpi"
@@ -10,7 +10,7 @@ import { fileDropIssue, useNodeFileDrop } from "@/components/use-node-file-drop"
 import { NodeFileCopyStatus } from "@/components/node-file-copy-status"
 import type { Environment } from "@/types/platform"
 
-vi.mock("@/api/file-import-api", () => ({ fileImportApi: { listen: vi.fn(), copy: vi.fn() } }))
+vi.mock("@/api/file-import-api", () => ({ fileImportApi: { listen: vi.fn(), copy: vi.fn(), cancel: vi.fn() } }))
 const environment = { id: "node-one", name: "Project", kind: "container", provider: "yougoriOci", status: "running" } as Environment
 const copied: FileCopyResult = { destination: "/yougori-import-example", files: 2, bytes: 42, skippedLinks: 0, delivery: "directory" }
 let callback: (event: DragDropEvent) => void
@@ -32,11 +32,46 @@ beforeEach(() => {
   Object.defineProperty(window, "devicePixelRatio", { configurable: true, value: 2 })
   vi.mocked(fileImportApi.listen).mockImplementation(async handler => { callback = handler; return stop })
   vi.mocked(fileImportApi.copy).mockResolvedValue(copied)
+  vi.mocked(fileImportApi.cancel).mockResolvedValue({ cancelRequested: true })
 })
 afterEach(() => { cleanup(); container.current?.remove(); vi.useRealTimers() })
 const send = (type: "enter" | "drop", paths = ["C:\\Projects\\my project"]) => act(() => callback({ type, paths, position: new PhysicalPosition(600, 400) }))
 
 describe("native files dropped onto graph nodes", () => {
+  it("shows transport diagnostics and cancels only its transfer while waiting for the actual outcome", async () => {
+    let report!: (progress: FileCopyProgress) => void
+    let reject!: (error: Error) => void
+    vi.mocked(fileImportApi.copy).mockImplementation((_id, _paths, progress) => { report = progress; return new Promise((_done, fail) => { reject = fail }) })
+    function Fixture() { const drop = useNodeFileDrop(container, [environment]); return <NodeFileCopyStatus copy={drop.copies[environment.id]} /> }
+    render(<Fixture />)
+    send("drop")
+    act(() => report({ phase: "sending", completedBytes: 25, totalBytes: 100, sentBytes: 25, confirmedBytes: 12, transferId: "copy-selected", lastProgressAt: new Date().toISOString(), waitingFor: "guest extraction" }))
+    expect(screen.getByRole("status")).toHaveTextContent("Sending files")
+    expect(screen.getByRole("status")).toHaveTextContent("Sent 25 B · Confirmed by environment 12 B")
+    expect(screen.getByRole("status")).toHaveTextContent("Waiting for guest extraction")
+    fireEvent.click(screen.getByRole("button", { name: "Cancel copy" }))
+    expect(fileImportApi.cancel).toHaveBeenCalledExactlyOnceWith(environment.id, "copy-selected")
+    expect(screen.getByRole("button", { name: "Cancelling…" })).toBeDisabled()
+    send("drop")
+    expect(fileImportApi.copy).toHaveBeenCalledTimes(1)
+    await act(async () => reject(new Error("YOUGORI_OPERATION_CANCELLED: Partial guest data retained for inspection")))
+    expect(screen.getByRole("alert")).toHaveTextContent("Copy cancelled")
+    expect(screen.getByRole("alert")).toHaveTextContent("Partial guest data retained")
+    expect(screen.getByRole("alert")).toHaveTextContent("copy is incomplete")
+    expect(screen.queryByText("Files copied")).not.toBeInTheDocument()
+  })
+  it("keeps copying when cancellation fails and allows cancellation retry", async () => {
+    vi.mocked(fileImportApi.copy).mockImplementation(() => new Promise(() => undefined))
+    vi.mocked(fileImportApi.cancel).mockRejectedValueOnce(new Error("Cancellation could not reach the engine"))
+    function Fixture() { const drop = useNodeFileDrop(container, [environment]); return <NodeFileCopyStatus copy={drop.copies[environment.id]} /> }
+    render(<Fixture />)
+    send("drop")
+    fireEvent.click(screen.getByRole("button", { name: "Cancel copy" }))
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Cancellation could not reach"))
+    expect(screen.getByRole("button", { name: "Cancel copy" })).toBeEnabled()
+    expect(screen.getByRole("status")).toHaveTextContent("Preparing copy")
+    expect(screen.queryByText("Copy cancelled")).not.toBeInTheDocument()
+  })
   it("removes imported names and destinations exactly 15 seconds after success", async()=>{
     vi.useFakeTimers()
     const {result}=renderHook(()=>useNodeFileDrop(container,[environment]))

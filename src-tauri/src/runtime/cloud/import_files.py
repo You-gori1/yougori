@@ -13,6 +13,7 @@ import shutil
 import sys
 import tarfile
 import tempfile
+import time
 
 
 class CheckedStream:
@@ -55,6 +56,8 @@ def receive(config):
     seen = set()
     files = 0
     copied = 0
+    confirmed = 0
+    last_progress = time.monotonic()
     stream = CheckedStream(sys.stdin.buffer, archive_bytes)
     try:
         with tarfile.open(fileobj=stream, mode='r|') as archive:
@@ -96,6 +99,10 @@ def receive(config):
                                 while offset < len(block):
                                     offset += os.write(output, block[offset:])
                                 remaining -= len(block)
+                                confirmed += len(block)
+                                if time.monotonic() - last_progress >= 0.25:
+                                    print('yougori-import-progress ' + json.dumps({'confirmedBytes': confirmed}, separators=(',', ':')), flush=True)
+                                    last_progress = time.monotonic()
                             os.fchmod(output, 0o700 if member.mode & 0o100 else 0o600)
                             os.fsync(output)
                         finally:

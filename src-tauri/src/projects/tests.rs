@@ -14,6 +14,10 @@ fn model_real_gpu_chat_and_api() {
 }
 #[cfg(windows)]
 fn run_case(model: bool) {
+    // Exercise the standard Tokio stack: boxed reconciliation must not rely on the app's larger stack.
+    let async_runtime=tokio::runtime::Builder::new_multi_thread().enable_all().thread_stack_size(2*1024*1024).build().unwrap();
+    tauri::async_runtime::set(async_runtime.handle().clone());
+    std::mem::forget(async_runtime);
     use crate::{backup::BackupManager, workspace::WorkspaceManager};
     use std::sync::{Arc, Mutex};
     let data = tempfile::tempdir().unwrap();
@@ -53,9 +57,9 @@ fn run_case(model: bool) {
                 let path = directory.path().to_owned();
                 let tested = tokio::spawn(async move {
                     if model {
-                        exercise_model(&test_app).await
+                        Box::pin(exercise_model(&test_app)).await
                     } else {
-                        exercise(&test_app, &path).await
+                        Box::pin(exercise(&test_app, &path)).await
                     }
                 })
                 .await
@@ -170,9 +174,18 @@ async fn exercise_model(app: &AppHandle) -> Result<(), String> {
 }
 #[cfg(windows)]
 async fn exercise(app: &AppHandle, root: &Path) -> Result<(), String> {
+    let boundary=project_action("unused".into(),"apply".into(),app.clone());
+    let reconciliation=reconcile_project_action("unused".into(),"apply".into(),app.clone());
+    let workload=run_workload(json!({}),false,app.clone());
+    eprintln!("Project future sizes: boundary {} bytes, reconciliation {} bytes, workload {} bytes",std::mem::size_of_val(&boundary),std::mem::size_of_val(&reconciliation),std::mem::size_of_val(&workload));
+    assert!(std::mem::size_of_val(&boundary)<8*1024,"Project entry point must remain boxed");
+    assert!(std::mem::size_of_val(&reconciliation)<256*1024,"Split or box large reconciliation stages instead of increasing thread stacks");
+    assert!(std::mem::size_of_val(&workload)<256*1024,"Split or box large workload stages instead of increasing thread stacks");
+    drop((boundary,reconciliation,workload));
     let shared = root.join("files");
     std::fs::create_dir(&shared).map_err(|e| e.to_string())?;
     std::fs::write(shared.join("source.txt"), "before\n").map_err(|e| e.to_string())?;
+    let code=root.join("code");std::fs::create_dir(&code).map_err(|e|e.to_string())?;std::fs::write(code.join("code.txt"),"code-before\n").map_err(|e|e.to_string())?;
     let image = "quay.io/libpod/alpine:latest";
     let compose=format!("name: integration\nservices:\n  database:\n    image: {image}\n    cpus: 1\n    mem_limit: 512MB\n    command: [/bin/sh, -c, 'printf startup > /data/startup; exec sleep 2147483647']\n    volumes: [data:/data]\n  frontend:\n    image: {image}\n    cpus: 1\n    mem_limit: 512MB\n    command: [sleep, '2147483647']\n    environment: {{VALUE: 'literal space and quote'}}\n    depends_on: [database]\n    volumes: ['./files:/workspace']\nvolumes: {{data: {{}}}}\n");
     let compose_path = root.join("compose.yaml");
@@ -201,6 +214,10 @@ async fn exercise(app: &AppHandle, root: &Path) -> Result<(), String> {
         e.storage = json!(6);
         e.internet = false;
     }
+    p.environments.get_mut("frontend").unwrap().files.push(manifest::FileSource{source:code.to_string_lossy().into_owned(),target:"/app-source".into()});
+    p.environments.get_mut("frontend").unwrap().setup=Some(manifest::Setup{python_minimum:None,pip:vec![],verify_command:Some("test -f /app-source/code.txt".into())});
+    p.environments.get_mut("frontend").unwrap().entrypoint=Some(manifest::Command::Args(vec!["/bin/sh".into(),"-c".into()]));
+    p.environments.get_mut("frontend").unwrap().command=Some(manifest::Command::Args(vec!["exec sleep 2147483647".into()]));
     let host_listener = std::net::TcpListener::bind("127.0.0.1:0").map_err(|e| e.to_string())?;
     let host_port = host_listener
         .local_addr()
@@ -278,6 +295,13 @@ async fn exercise(app: &AppHandle, root: &Path) -> Result<(), String> {
         .into_iter()
         .map(|c| c.id)
         .collect::<Vec<_>>();
+    // Simulate accepted activation/publication with output lost before the durable acknowledgement.
+    // Apply must adopt these identities without creating another copy, node or route.
+    let runtime=app.state::<RuntimeManager>();let project_key=key(&file.canonicalize().map_err(|e|e.to_string())?);
+    let mut saved=registry(&runtime)?.projects[&project_key].clone();
+    let file_key=format!("{front}//app-source");let copied_destination=saved.files[&file_key].destination.clone();
+    saved.files.get_mut(&file_key).unwrap().active=false;
+    let service_key=format!("{db}/loopback/8080/{host_port}");saved.bindings.retain(|binding|serde_json::to_value(binding).unwrap()["key"]!=service_key);saved.pending.insert(format!("service:{service_key}"),"accepted".into());save_record(&runtime,&project_key,&saved)?;
     let again = project_action(path.clone(), "apply".into(), app.clone()).await?;
     assert_eq!(again["environments"], result["environments"]);
     assert_eq!(
@@ -289,11 +313,27 @@ async fn exercise(app: &AppHandle, root: &Path) -> Result<(), String> {
             .collect::<Vec<_>>(),
         connection_ids
     );
+    let reconciled=registry(&runtime)?.projects[&project_key].clone();assert_eq!(reconciled.files[&file_key].destination,copied_destination);assert!(reconciled.files[&file_key].active);assert!(reconciled.pending.is_empty());
+    let files=call(app,"execute_environment_command",exec(front,"cat /app-source/code.txt")).await?;assert_eq!(files["stdout"],"code-before\n");
+    eprintln!("Project integration: repair managed guest drift and interrupted startup without duplicate nodes");
+    call(app,"execute_environment_command",exec(front,"printf guest-drift > /app-source/code.txt")).await?;
+    let drifted=project_action(path.clone(),"apply".into(),app.clone()).await?;
+    assert_eq!(drifted["environments"],result["environments"]);
+    let repaired=call(app,"execute_environment_command",exec(front,"cat /app-source/code.txt")).await?;assert_eq!(repaired["stdout"],"code-before\n");
+    status(app,front,false).await?;
+    let mut interrupted=registry(&runtime)?.projects[&project_key].clone();interrupted.staging.insert(front.into(),true);save_record(&runtime,&project_key,&interrupted)?;
+    let mut temporary=runtime.workload_options(front)?;temporary.args=Some(vec!["sleep".into(),"2147483647".into()]);temporary.entrypoint=Some(vec![]);runtime.save_workload_options(front,&temporary)?;runtime.update_workload_configuration(&node(app,front)?).await?;
+    assert!(restore_interrupted_staging(front,&app.state::<PlatformStore>(),&runtime).await?);
+    assert!(!restore_interrupted_staging(front,&app.state::<PlatformStore>(),&runtime).await?);
+    assert_eq!(runtime.workload_options(front)?.args,p.environments["frontend"].options(&p.project)?.args);
+    assert!(!registry(&runtime)?.projects[&project_key].staging.contains_key(front));
+    let recovered=project_action(path.clone(),"apply".into(),app.clone()).await?;assert_eq!(recovered["environments"],result["environments"]);
     p.environments
         .get_mut("frontend")
         .unwrap()
         .environment
         .insert("VALUE".into(), "updated".into());
+    std::fs::write(code.join("code.txt"),"code-after\n").map_err(|e|e.to_string())?;
     std::fs::write(&file, manifest::to_yaml(&p)?).map_err(|e| e.to_string())?;
     project_action(path.clone(), "apply".into(), app.clone()).await?;
     let updated = call(
@@ -303,6 +343,7 @@ async fn exercise(app: &AppHandle, root: &Path) -> Result<(), String> {
     )
     .await?;
     assert_eq!(updated["stdout"], "updatedafter");
+    let files=call(app,"execute_environment_command",exec(front,"cat /app-source/code.txt")).await?;assert_eq!(files["stdout"],"code-after\n");
     let kept = call(
         app,
         "execute_environment_command",
@@ -331,6 +372,14 @@ async fn exercise(app: &AppHandle, root: &Path) -> Result<(), String> {
             .is_err(),
         "Removed project port still accepts connections"
     );
+    eprintln!("Project integration: retiring declarations releases only managed links and stops only owned nodes");
+    p.environments.get_mut("frontend").unwrap().files.clear();
+    std::fs::write(&file,manifest::to_yaml(&p)?).map_err(|e|e.to_string())?;
+    project_action(path.clone(),"apply".into(),app.clone()).await?;
+    let detached=call(app,"execute_environment_command",exec(front,&format!("test ! -e /app-source && test -f '{copied_destination}/code.txt'"))).await?;assert_eq!(detached["exitCode"],0);
+    p.environments.remove("frontend");p.connections.retain(|connection|connection.endpoints().map(|(a,b)|a!="frontend"&&b!="frontend").unwrap_or(false));
+    std::fs::write(&file,manifest::to_yaml(&p)?).map_err(|e|e.to_string())?;
+    let retired=project_action(path.clone(),"apply".into(),app.clone()).await?;assert!(retired["environments"].get("frontend").is_none());assert_eq!(node(app,front)?.status,EnvironmentStatus::Stopped);
     project_action(path.clone(), "down".into(), app.clone()).await?;
     assert!(app
         .state::<PlatformStore>()
@@ -432,4 +481,26 @@ fn project_cloud_identity_resolves_file_names_with_spaces_and_preserves_public_k
     let public_key = format!("{kind} {} project key", base64::engine::general_purpose::STANDARD.encode(bytes));
     assert_eq!(resolve(&public_key).unwrap().environments["server"].cloud.as_ref().unwrap()["identityFile"], public_key);
     assert!(resolve("ssh-ed25519 invalid! comment").is_err());
+}
+
+#[tokio::test]async fn project_coordination_is_scoped_and_registry_commits_merge_other_projects(){
+    let first=project_lock("project-test-a").unwrap();let same=project_lock("project-test-a").unwrap();let other=project_lock("project-test-b").unwrap();
+    let _guard=first.lock().await;assert!(same.try_lock().is_err());assert!(other.try_lock().is_ok());
+    let data=tempfile::tempdir().unwrap();let runtime=RuntimeManager::new(Path::new(env!("CARGO_MANIFEST_DIR")),data.path()).unwrap();
+    let mut a:Record=serde_json::from_value(json!({"path":"project-a/yougori.yaml","project":"project-a"})).unwrap();let b:Record=serde_json::from_value(json!({"path":"project-b/yougori.yaml","project":"project-b"})).unwrap();
+    save_record(&runtime,"a",&a).unwrap();save_record(&runtime,"b",&b).unwrap();a.pending.insert("accepted-copy".into(),"accepted".into());save_record(&runtime,"a",&a).unwrap();
+    let current=registry(&runtime).unwrap();assert_eq!(current.projects.len(),2);assert_eq!(current.projects["b"].path,b.path);assert_eq!(current.projects["a"].pending["accepted-copy"],"accepted");
+    let duplicate:Record=serde_json::from_value(json!({"path":"other/yougori.yaml","project":"project-a"})).unwrap();assert!(save_record(&runtime,"other",&duplicate).is_err());assert_eq!(registry(&runtime).unwrap().projects.len(),2);
+}
+
+#[tokio::test]async fn interrupted_project_recovery_preserves_unowned_or_running_runtimes(){
+    let data=tempfile::tempdir().unwrap();let runtime=RuntimeManager::new(Path::new(env!("CARGO_MANIFEST_DIR")),data.path()).unwrap();let store=PlatformStore::load(data.path().join("state.json")).unwrap();
+    assert!(!restore_interrupted_staging("missing",&store,&runtime).await.unwrap());
+    let record:Record=serde_json::from_value(json!({"path":"project/yougori.yaml","project":"project","ids":{"api":"owned-id"},"staging":{"owned-id":true},"applied":{"api":{"type":"container","image":"alpine:latest"}}})).unwrap();save_record(&runtime,"project-key",&record).unwrap();
+    let environment:crate::models::Environment=serde_json::from_value(json!({"id":"owned-id","name":"api","kind":"container","status":"running","runtime":"alpine:latest","provider":"yougoriOci","createdAt":"2026-01-01T00:00:00Z","description":"another owner","cpuUsage":0,"memoryUsageGb":0,"storageDeltaGb":0,"networkRxMbps":0,"resourcePolicy":{"cpu":{"min":1,"preferred":1,"max":1,"current":1},"memoryGb":{"min":1,"preferred":1,"max":1,"current":1},"priority":"normal","dynamic":false}})).unwrap();
+    store.mutate(|state|{state.environments.push(environment);Ok(())}).unwrap();
+    assert!(restore_interrupted_staging("owned-id",&store,&runtime).await.unwrap_err().contains("ownership"));
+    store.mutate(|state|{state.environments[0].description="Yougori project project-key / api".into();Ok(())}).unwrap();
+    assert!(restore_interrupted_staging("owned-id",&store,&runtime).await.unwrap_err().contains("running runtime was preserved"));
+    assert!(registry(&runtime).unwrap().projects["project-key"].staging.contains_key("owned-id"));assert_eq!(store.snapshot().unwrap().environments[0].status,EnvironmentStatus::Running);
 }

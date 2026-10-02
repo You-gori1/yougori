@@ -1,6 +1,6 @@
 [package]
 name = "yougori"
-version = "1.0.5"
+version = "1.0.6"
 description = "A local environment platform"
 authors = ["Yougori"]
 license = "AGPL-3.0-only"
@@ -59,7 +59,7 @@ object_store = { version = "0.14.1", features = ["aws", "azure", "gcp"] }
 tokio = { version = "1", features = ["fs", "io-util", "macros", "net", "process", "rt-multi-thread", "sync", "time"] }
 url = "2"
 reqwest = { version = "0.13", default-features = false, features = ["json", "stream", "rustls"] }
-tokio-util = { version = "0.7", features = ["io", "io-util"] }
+tokio-util = { version = "0.7", features = ["io", "io-util", "rt"] }
 smoltcp = { version = "0.12", default-features = false, features = ["std", "medium-ethernet", "proto-ipv4", "socket-tcp"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]

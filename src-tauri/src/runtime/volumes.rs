@@ -13,6 +13,15 @@ struct Volume {
 mod tests {
     use super::*;
 
+    fn recovery_environment(id: &str) -> crate::models::Environment {
+        serde_json::from_value(serde_json::json!({
+            "id":id,"name":"Recovery fixture","kind":"container","provider":"yougoriCuda","status":"stopped",
+            "runtime":"docker.io/library/ubuntu:24.04","description":"Disposable recovery routing test","createdAt":"test",
+            "cpuUsage":0,"memoryUsageGb":0,"storageDeltaGb":0,"networkRxMbps":0,
+            "resourcePolicy":{"cpu":{"min":1,"preferred":1,"max":1,"current":0},"memoryGb":{"min":1,"preferred":1,"max":1,"current":0},"priority":"normal","dynamic":true}
+        })).unwrap()
+    }
+
     fn assign(manager: &RuntimeManager, parent: &Path, id: &str) -> Result<PathBuf, String> {
         let identity = uuid::Uuid::new_v4().to_string();
         let directory = parent.canonicalize().map_err(|e| e.to_string())?.join(&identity);
@@ -51,6 +60,60 @@ mod tests {
         assert!(restored.new_storage_on_drive(Some(second.path().to_str().unwrap())).is_err());
         let disks = sysinfo::Disks::new_with_refreshed_list();
         assert_eq!(super::super::storage::host_drives(&disks).len(), disks.list().iter().filter(|d| d.total_space() > 0).count());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn recovery_uses_saved_provider_on_the_original_drive_and_never_falls_back() -> Result<(), String> {
+        let local = tempfile::tempdir().unwrap();
+        let second = tempfile::tempdir().unwrap();
+        let resources = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let manager = RuntimeManager::new(resources, local.path())?;
+        let directory = assign(&manager, second.path(), "env-recovery-routing")?;
+        let mut environment = recovery_environment("env-recovery-routing");
+        environment.id = "env-recovery-routing".into();
+        environment.runtime_id = None;
+        environment.kind = crate::models::EnvironmentKind::Container;
+        environment.provider = Some(crate::models::RuntimeProviderKind::YougoriCuda);
+        manager.register_container_provider(&environment.id, &crate::models::RuntimeProviderKind::YougoriCuda)?;
+        let report = manager.recover_environment_report(&environment).await?;
+        assert_eq!(report.provider, crate::models::RuntimeProviderKind::YougoriCuda);
+        assert_eq!(report.storage_root, directory.join("runtime").display().to_string());
+        assert!(report.disk_path.starts_with(&directory.display().to_string()));
+        assert!(!report.ready_to_start); // no CUDA installation; never report fake success.
+        environment.provider = Some(crate::models::RuntimeProviderKind::YougoriOci);
+        let report = manager.recover_environment_report(&environment).await?;
+        assert!(!report.ready_to_start);
+        assert!(report.error.unwrap().contains("runtime route differ"));
+        let absent = directory.with_extension("offline");
+        fs::rename(&directory, &absent).map_err(|e|e.to_string())?;
+        assert!(manager.recover_environment_report(&environment).await.unwrap_err().contains("Storage drive is unavailable"));
+        assert!(!local.path().join("runtime/appliance/system.qcow2").exists());
+        Ok(())
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    #[ignore = "uses a fresh disposable volume on D: to verify CUDA recovery routing; does not install or stop WSL"]
+    async fn cuda_recovery_on_d_reports_the_original_provider_and_storage() -> Result<(), String> {
+        let local = tempfile::tempdir().unwrap();
+        let drive = tempfile::Builder::new().prefix("yougori-recovery-test-").tempdir_in("D:/").map_err(|e|e.to_string())?;
+        let manager = RuntimeManager::new(Path::new(env!("CARGO_MANIFEST_DIR")), local.path())?;
+        let directory = assign(&manager, drive.path(), "env-d-recovery")?;
+        let mut environment = recovery_environment("env-d-recovery");
+        environment.id = "env-d-recovery".into();
+        environment.runtime_id = None;
+        environment.kind = crate::models::EnvironmentKind::Container;
+        environment.provider = Some(crate::models::RuntimeProviderKind::YougoriCuda);
+        manager.register_container_provider(&environment.id, &crate::models::RuntimeProviderKind::YougoriCuda)?;
+        let report = manager.recover_environment_report(&environment).await?;
+        assert_eq!(report.provider, crate::models::RuntimeProviderKind::YougoriCuda);
+        assert_eq!(report.storage_root, directory.join("runtime").display().to_string());
+        assert!(report.storage_root.trim_start_matches("\\\\?\\").to_ascii_lowercase().starts_with("d:"));
+        assert!(!report.ready_to_start);
+        assert!(!report.ownership_released);
+        assert!(!local.path().join("runtime/cuda/runtime-owner.lock").exists());
+        assert!(!directory.join("runtime/cuda/distribution/ext4.vhdx").exists());
         Ok(())
     }
 
@@ -164,6 +227,14 @@ impl Volumes {
 }
 
 impl RuntimeManager {
+    /// Coordination keys for all registered pools, including an unavailable
+    /// drive. Listing these paths does not load a runtime or redirect storage.
+    pub(crate) fn storage_pool_roots(&self) -> Vec<PathBuf> {
+        let mut roots = std::collections::BTreeSet::from([self.data_root.clone()]);
+        roots.extend(self.volumes.routes.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).entries.values().map(|volume| volume.directory.join("runtime")));
+        roots.into_iter().collect()
+    }
+
     fn volume(&self, id: &str) -> Result<Option<Volume>, String> {
         super::vm::validate_runtime_identifier("storage route", id)?;
         Ok(self.volumes.routes.lock().map_err(|_| "Storage routing lock unavailable")?.entries.get(id).cloned())

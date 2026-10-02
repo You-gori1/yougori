@@ -8,7 +8,10 @@ pub fn get_storage_location(runtime: State<'_, RuntimeManager>) -> String { runt
 /// silently abandoned; use verified backup/export and restore to change its drive.
 #[tauri::command]
 pub async fn set_storage_location(path: String, app: AppHandle, store: State<'_, PlatformStore>, runtime: State<'_, RuntimeManager>) -> Result<(), String> {
-    let _serial = CONTAINER_POLICY_OPERATIONS.lock().await;
+    let mut _storage_guards = Vec::new();
+    for provider in [RuntimeProviderKind::YougoriOci, RuntimeProviderKind::YougoriCuda] {
+        _storage_guards.push(container_policy_lock(runtime.storage_root(), &provider).await.lock_owned().await);
+    }
     let selected = std::path::PathBuf::from(path);
     if !selected.is_absolute() { return Err("Choose an absolute folder path on your preferred drive".into()); }
     let selected = selected.canonicalize().map_err(|e|format!("Choose an existing folder: {e}"))?;
@@ -35,9 +38,12 @@ pub async fn set_storage_location(path: String, app: AppHandle, store: State<'_,
 
 #[tauri::command]
 pub async fn reclaim_storage(store: State<'_, PlatformStore>, runtime: State<'_, RuntimeManager>) -> Result<EnvironmentDeletionResult, String> {
-    let _serial = CONTAINER_POLICY_OPERATIONS.lock().await;
     let mut cleanup = StorageCleanupResult::default();
     for provider in [RuntimeProviderKind::YougoriOci, RuntimeProviderKind::YougoriCuda] {
+        let mut _pool_guards = Vec::new();
+        for root in runtime.storage_pool_roots() {
+            _pool_guards.push(container_policy_lock(&root, &provider).await.lock_owned().await);
+        }
         match runtime.reclaim_container_storage(&provider).await {
             Ok(result) => {
                 cleanup.reclaimed_disk_bytes = cleanup.reclaimed_disk_bytes.saturating_add(result.reclaimed_disk_bytes);
@@ -81,9 +87,11 @@ pub async fn get_storage_allocation(environment_id: Option<String>, new_vm: Opti
 #[tauri::command]
 pub async fn expand_environment_storage(environment_id: String, capacity_gb: f64, store: State<'_, PlatformStore>, runtime: State<'_, RuntimeManager>) -> Result<StorageAllocation, String> {
     crate::runtime::storage::storage_bytes(capacity_gb)?;
-    let _serial = CONTAINER_POLICY_OPERATIONS.lock().await;
+    let network_lock = environment_network_lock(&environment_id).await;
+    let _environment_guard = network_lock.lock().await;
     let state = store.snapshot()?;
     let environment = state.environments.iter().find(|e| e.id == environment_id).ok_or("Environment not found")?;
+    let _serial = environment_container_policy_guard(&runtime, environment).await?;
     match provider(environment) {
         RuntimeProviderKind::YougoriOci | RuntimeProviderKind::YougoriCuda => {
             let allocation = runtime.set_container_storage(runtime_id(environment), capacity_gb).await?;

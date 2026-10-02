@@ -4,8 +4,10 @@ use serde_json::{json,Value};
 #[tauri::command]
 pub async fn get_environment_logs(environment_id:String,store:State<'_,PlatformStore>,runtime:State<'_,RuntimeManager>)->Result<String,String>{
     let env=store.snapshot()?.environments.into_iter().find(|e|e.id==environment_id).ok_or("Environment not found")?;
+    let values=crate::workspace::bound_secret_values(&env,&runtime)?;
+    let result=async{
     if crate::peer_sharing::is_shared(&env){return serde_json::from_value(crate::peer_sharing::remote(&env,"console",json!({})).await?).map_err(|e|e.to_string())}
-    if env.kind == EnvironmentKind::Cloud && runtime.workload_options(runtime_id(&env))?.environment.contains_key("YOUGORI_MODEL_TOKEN") {
+    if env.kind == EnvironmentKind::Cloud && runtime.workload_options(runtime_id(&env))?.environment.contains_key("YOUGORI_MODEL") {
         return serde_json::from_value(runtime.cloud.session(&env.id).await?.request("model/logs", json!({})).await?).map_err(|e|e.to_string());
     }
     if env.status == EnvironmentStatus::Provisioning && env.provider == Some(RuntimeProviderKind::YougoriCuda) && env.description.starts_with("Hugging Face · ") {
@@ -35,6 +37,8 @@ pub async fn get_environment_logs(environment_id:String,store:State<'_,PlatformS
         },
         _=>Err("This environment does not expose runtime logs".into())
     }
+    }.await?;
+    Ok(crate::workspace::mask_secret_output(&result,&values,true))
 }
 #[tauri::command]
 pub async fn manage_oci_images(action:String,image:Option<String>,runtime:State<'_,RuntimeManager>)->Result<Value,String>{

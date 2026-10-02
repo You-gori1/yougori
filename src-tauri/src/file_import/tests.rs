@@ -78,7 +78,7 @@ fn archive_progress_counts_source_bytes_and_reports_completion_after_flush() {
     assert!(progress.len() >= 2);
     assert_eq!(progress.first().unwrap().completed_bytes, 0);
     assert_eq!(progress.last().unwrap().completed_bytes, plan.bytes);
-    assert!(progress.iter().all(|p| p.phase == "preparing" && p.total_bytes == plan.bytes && p.completed_bytes <= plan.bytes));
+    assert!(progress.iter().all(|p| p.phase == "archiving" && p.total_bytes == plan.bytes && p.completed_bytes <= plan.bytes));
     assert!(progress.windows(2).all(|p| p[0].completed_bytes <= p[1].completed_bytes));
     assert!(fs::metadata(archive).unwrap().len() > plan.bytes); // tar headers aren't source bytes
 }
@@ -265,4 +265,14 @@ fn a_folders_yougoriignore_leaves_matching_files_behind() {
     assert!(listed.contains("main.js") && listed.contains("important.log"));
     assert!(!listed.contains("node_modules") && !listed.contains("debug.log") && !listed.contains("SECRET"));
     assert!(!listed.contains("\".env\""));
+}
+
+#[test]
+fn cancelled_archive_preserves_sources_and_does_not_start_another_environment_transfer() {
+    let root=tempfile::tempdir().unwrap();let source=root.path().join("large.bin");fs::write(&source,vec![7;512*1024]).unwrap();
+    let plan=plan_copy(&[source.to_string_lossy().into_owned()]).unwrap();
+    let first=transfers::begin("env-cancelled-archive-test").unwrap();let second=transfers::begin("env-independent-archive-test").unwrap();
+    let token=first.transfer.clone();let cancelled=token.clone();
+    let result=write_archive_cancellable(&plan,&root.path().join("archive.tar"),move|_|{cancelled.cancellation.cancel();},Some(token));
+    assert!(result.unwrap_err().contains("YOUGORI_OPERATION_CANCELLED"));assert_eq!(fs::read(&source).unwrap(),vec![7;512*1024]);assert!(second.transfer.check().is_ok());
 }

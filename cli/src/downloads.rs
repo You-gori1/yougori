@@ -1,5 +1,5 @@
 //! A foreground lease keeps downloads tied to the CLI that created the link.
-use crate::{client, public::call};
+use crate::{client, public::call, wire::Response};
 use serde_json::json;
 use std::{io::{IsTerminal, Write}, time::{Duration, SystemTime, UNIX_EPOCH}};
 
@@ -28,7 +28,7 @@ fn owner() -> String {
 
 pub async fn run(args: &[String]) -> Result<(), String> {
     let (environment, domain, dry) = options(args)?;
-    if dry { println!("{}", json!({"ok":true,"result":{"dryRun":true,"environment":environment,"domain":domain,"foreground":true}})); return Ok(()); }
+    if dry { println!("{}", machine_output(json!({"dryRun":true,"environment":environment,"domain":domain,"foreground":true}))); return Ok(()); }
     client::start(None).await?;
     let state = call("get_platform_state", json!({})).await?;
     let matches: Vec<_> = state["environments"].as_array().ok_or("Invalid environment list")?.iter()
@@ -41,7 +41,7 @@ pub async fn run(args: &[String]) -> Result<(), String> {
     let terminal = std::io::stdout().is_terminal();
     if terminal {
         println!("Download link: {}\nDownloads (all time): {}\nKeep this CLI open. Ctrl+C turns this link off; the environment stays stopped.", result["url"].as_str().unwrap_or(""), result["downloads"]);
-    } else { println!("{}", json!({"ok":true,"result":result})); }
+    } else { println!("{}", machine_output(result.clone())); }
     std::io::stdout().flush().map_err(|e| e.to_string())?;
     // Use the same cancellation path on Unix and Windows. A killed process is
     // also detected by the engine's process identity and bounded lease.
@@ -69,6 +69,10 @@ pub async fn run(args: &[String]) -> Result<(), String> {
     outcome?; stopped?; Ok(())
 }
 
+fn machine_output(result: serde_json::Value) -> String {
+    serde_json::to_string(&Response::success(result)).unwrap()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -87,5 +91,13 @@ mod tests {
         let one = owner(); let two = owner(); assert_ne!(one, two);
         assert_eq!(one.len(), 36);
         assert_eq!(one.chars().filter(|&c| c == '-').count(), 4);
+    }
+    #[test]
+    fn download_results_use_the_versioned_machine_contract() {
+        let result = json!({"url":"https://copies.example.com","downloads":4});
+        let output: serde_json::Value = serde_json::from_str(&machine_output(result.clone())).unwrap();
+        assert_eq!(output["version"], crate::wire::VERSION);
+        assert_eq!(output["ok"], true);
+        assert_eq!(output["result"], result);
     }
 }

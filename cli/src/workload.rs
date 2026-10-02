@@ -7,6 +7,8 @@ pub struct Options {
     #[serde(default)]
     pub environment: BTreeMap<String, String>,
     #[serde(default)]
+    pub secret_environment: BTreeMap<String, String>,
+    #[serde(default)]
     pub hosts: BTreeMap<String, String>,
     /// None preserves the image CMD; Some([]) clears it.
     #[serde(default)]
@@ -53,6 +55,9 @@ pub fn identifier(name: &str) -> bool {
 }
 impl Options {
     pub fn validate(&self) -> Result<(), String> {
+        if self.secret_environment.len() > 128 || self.secret_environment.iter().any(|(name, reference)| !identifier(reference) || self.environment.contains_key(name) || name.is_empty() || name.len() > 256 || !name.bytes().enumerate().all(|(i,b)| b == b'_' || b.is_ascii_alphabetic() || (i > 0 && b.is_ascii_digit()))) {
+            return Err("Secret bindings require unique environment variable names and OS-vault references; do not specify their values in environment".into());
+        }
         if self.hosts.len() > 256
             || self
                 .hosts

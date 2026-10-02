@@ -20,11 +20,49 @@ async function openDialog() {
   await act(async () => { listener.current!() })
   return screen.findByRole("dialog")
 }
-it("confirms full shutdown without offering background mode", async () => {
+it("offers background mode alongside full shutdown", async () => {
   await openDialog()
-  expect(screen.queryByRole("button", { name: "Keep running" })).toBeNull()
+  expect(screen.getByRole("button", { name: "Close app, keep environments running" })).toBeEnabled()
   fireEvent.click(screen.getByRole("button", { name: "Stop environments and quit" }))
   await waitFor(() => expect(invoke).toHaveBeenCalledExactlyOnceWith("finish_app_close", { keepRunning: false }))
+})
+it("closes the dashboard without stopping environments and can be used again after reopening", async () => {
+  await openDialog()
+  fireEvent.click(screen.getByRole("button", { name: "Close app, keep environments running" }))
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+  expect(invoke).toHaveBeenCalledExactlyOnceWith("finish_app_close", { keepRunning: true })
+  await act(async () => { listener.current!() })
+  expect(screen.getByRole("dialog", { name: "Environments are still active" })).toBeVisible()
+  fireEvent.click(screen.getByRole("button", { name: "Stop environments and quit" }))
+  await waitFor(() => expect(invoke).toHaveBeenLastCalledWith("finish_app_close", { keepRunning: false }))
+  expect(invoke).toHaveBeenCalledTimes(2)
+})
+
+it("keeps background close errors visible and allows retrying", async () => {
+  invoke.mockRejectedValueOnce(new Error("Could not hide the dashboard"))
+  await openDialog()
+  fireEvent.click(screen.getByRole("button", { name: "Close app, keep environments running" }))
+  expect(await screen.findByRole("alert")).toHaveTextContent("Could not hide the dashboard")
+  fireEvent.click(screen.getByRole("button", { name: "Close app, keep environments running" }))
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+  expect(invoke).toHaveBeenCalledTimes(2)
+  expect(invoke).toHaveBeenLastCalledWith("finish_app_close", { keepRunning: true })
+})
+
+it("prevents repeated close requests while the windows are hiding", async () => {
+  let finish!: () => void
+  invoke.mockImplementation(() => new Promise<void>(resolve => { finish = resolve }))
+  await openDialog()
+  fireEvent.click(screen.getByRole("button", { name: "Close app, keep environments running" }))
+  const progress = screen.getByRole("dialog", { name: "Closing Yougori…" })
+  fireEvent.keyDown(progress, { key: "Escape" })
+  await act(async () => { nativeListener.current!(); listener.current!() })
+  expect(progress).toBeVisible()
+  expect(screen.getByText("Closing the windows. Your environments will keep running.")).toBeVisible()
+  expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull()
+  expect(invoke).toHaveBeenCalledTimes(1)
+  await act(async () => { finish() })
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
 })
 it("allows cancelling without stopping environments", async () => {
   await openDialog()

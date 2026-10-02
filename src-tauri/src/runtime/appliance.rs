@@ -208,7 +208,7 @@ impl RuntimeManager {
             return Err("Not enough free space on the Yougori drive for this container storage limit.".into());
         }
         let request = ProvisionRequest {
-            options: self.prepare_workload_binds(id).await?,
+            options: Box::pin(self.prepare_workload_binds(id)).await?,
             storage_bytes,
             original_id: None,
             id,
@@ -219,9 +219,7 @@ impl RuntimeManager {
             network_access,
             gpu_access,
         };
-        let _: serde_json::Value = self
-            .agent_post("/v1/containers/provision", &request)
-            .await?;
+        let _: serde_json::Value = Box::pin(self.agent_post("/v1/containers/provision", &request)).await?;
         Ok(())
     }
 
@@ -232,7 +230,7 @@ impl RuntimeManager {
         self.register_container_provider(id, &self.container_provider(old_id)?)?;
         self.save_workload_options(id, &self.workload_options(old_id)?)?;
         let request = ProvisionRequest {
-            options: self.prepare_workload_binds(id).await?,
+            options: Box::pin(self.prepare_workload_binds(id)).await?,
             storage_bytes: super::storage::storage_bytes(environment.storage_limit_gb.unwrap_or(20.0))?,
             original_id: Some(old_id), id, image: &environment.runtime,
             command: environment.container_command.as_deref().unwrap_or_default(),
@@ -252,7 +250,7 @@ impl RuntimeManager {
     ) -> Result<(), String> {
         if let Some(engine) = self.storage_runtime(id)? { return Box::pin(engine.container_action(id, action, network_access)).await; }
 
-        if matches!(action, "start" | "resume") { self.prepare_workload_binds(id).await?; }
+        if matches!(action, "start" | "resume") { Box::pin(self.prepare_workload_binds(id)).await?; }
         let _lease = self.appliance_operations.read().await;
         // Mark starts conservatively before sending: a timed-out request may
         // have started a process, so resizing must wait for an explicit stop.
@@ -331,7 +329,7 @@ impl RuntimeManager {
             .agent_post(
                 "/v1/containers/configuration",
                 &ConfigurationRequest {
-                    options: self.prepare_workload_binds(id).await?,
+                    options: Box::pin(self.prepare_workload_binds(id)).await?,
                     id,
                     network_access,
                     gpu_access,
@@ -917,6 +915,7 @@ let result:serde_json::Value=self.agent_post("/v1/containers/logs",&serde_json::
     async fn prepare_appliance_overlay_once(&self) -> Result<bool, String> {
         self.check_external_appliance(false).await?;
         let _prepare_trace = PerfSpan::new("appliance overlay preparation");
+        validate_previous_appliance_disk(&self.data_root)?;
         let overlay = self.data_root.join("appliance/system.qcow2");
         let marker_path = self
             .data_root
@@ -1439,9 +1438,38 @@ fn appliance_base_changed(recorded_digest: Option<&str>, current_digest: &str) -
     recorded_digest != Some(current_digest)
 }
 
+fn validate_previous_appliance_disk(root:&std::path::Path) -> Result<(),String> {
+    let directory = root.join("appliance");
+    let disk = directory.join("system.qcow2");
+    match fs::symlink_metadata(&disk) {
+        Ok(metadata) if metadata.is_file() && !metadata.file_type().is_symlink() => Ok(()),
+        Ok(_) => Err("Container durable disk is redirected or not a regular file; it was not replaced".into()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            if ["appliance-overlay-state.json","appliance-overlay-state.previous.json","appliance-base.sha256"].iter().any(|name|fs::symlink_metadata(directory.join(name)).is_ok()) {
+                Err(format!("{} A previous container pool is recorded, but its durable disk is missing. Restore the original system.qcow2; no empty replacement was created",super::recovery::MISSING_OCI_STORAGE))
+            } else {Ok(())}
+        },
+        Err(error) => Err(format!("Cannot verify container durable disk: {error}")),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn absent_previous_appliance_disk_is_never_treated_as_a_fresh_pool() {
+        let data = tempfile::tempdir().unwrap();
+        fs::create_dir(data.path().join("appliance")).unwrap();
+        assert!(validate_previous_appliance_disk(data.path()).is_ok());
+        for name in ["appliance-overlay-state.json","appliance-overlay-state.previous.json","appliance-base.sha256"] {
+            let marker = data.path().join("appliance").join(name);
+            fs::write(&marker,b"existing pool evidence").unwrap();
+            assert!(validate_previous_appliance_disk(data.path()).unwrap_err().contains(super::super::recovery::MISSING_OCI_STORAGE));
+            assert!(!data.path().join("appliance/system.qcow2").exists());
+            assert_eq!(fs::read(&marker).unwrap(),b"existing pool evidence");
+            fs::remove_file(marker).unwrap();
+        }
+    }
 
     #[test]
     fn appliance_check_only_accepts_clean_or_leaked_clusters() {

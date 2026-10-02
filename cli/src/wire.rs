@@ -3,7 +3,7 @@ use serde_json::Value;
 use std::io;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
-pub const VERSION: u32 = 1;
+pub const VERSION: u32 = 2;
 pub const MAX_REQUEST: usize = 1024 * 1024;
 pub const MAX_RESPONSE: usize = 32 * 1024 * 1024;
 
@@ -24,7 +24,7 @@ fn empty_params() -> Value {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct Response {
     pub version: u32,
     pub ok: bool,
@@ -32,6 +32,54 @@ pub struct Response {
     pub result: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error_details: Option<ErrorDetails>,
+}
+
+/// Protocol-v2 machine details retain the human-readable error. Responses allow
+/// future additive fields; request parameters remain strict. The engine sends a
+/// legacy-shaped upgrade error to v1 clients instead of incompatible details.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ErrorDetails {
+    pub code: String,
+    pub affected_resource: Option<String>,
+    pub retryable: bool,
+    pub outcome: String,
+}
+
+impl ErrorDetails {
+    pub fn from_message(message: &str) -> Self {
+        let lower = message.to_ascii_lowercase();
+        let (code, retryable, outcome) = if message.starts_with("[YOUGORI_DURABLE_STORAGE_MISSING]") {
+            ("durable_storage_missing",false,"not_started")
+        } else if message.starts_with("YOUGORI_UNSUPPORTED_EXECUTION_CAPABILITY") {
+            ("unsupported_capability",false,"not_started")
+        } else if message.starts_with("YOUGORI_OPERATION_CANCELLED") {
+            ("operation_cancelled",false,"cancelled")
+        } else if message.starts_with("YOUGORI_OPERATION_INTERRUPTED") {
+            ("operation_interrupted",false,"reconciliation_required")
+        } else if lower.contains("timed out") || lower.contains("outcome may be unknown") || lower.contains("connection ended") {
+            ("outcome_unknown", false, "unknown")
+        } else if lower.contains("cancelled") || lower.contains("canceled") {
+            ("operation_cancelled", false, "cancelled")
+        } else if lower.contains("interrupted") {
+            ("operation_interrupted", false, "reconciliation_required")
+        } else if lower.contains("protocol mismatch") || lower.contains("does not support") {
+            ("incompatible_engine", false, "not_started")
+        } else if lower.contains("cannot reach") {
+            ("engine_unavailable", true, "not_submitted")
+        } else if lower.contains("another live owner") || lower.contains("already in use") || lower.contains("revision") && lower.contains("conflict") {
+            ("resource_conflict", false, "not_started")
+        } else if lower.contains("permission") || lower.contains("requires --yes") || lower.contains("ownership") {
+            ("permission_denied", false, "not_started")
+        } else if lower.starts_with("usage:") || lower.contains("unknown parameter") || lower.contains("missing parameter") || lower.contains("must be") || lower.contains("unknown command") || lower.contains("unknown method") {
+            ("invalid_request", false, "not_started")
+        } else if lower.contains("not found") {
+            ("resource_not_found", false, "not_started")
+        } else { ("operation_failed", false, "failed") };
+        Self { code: code.into(), affected_resource: None, retryable, outcome: outcome.into() }
+    }
 }
 impl Response {
     pub fn success(result: Value) -> Self {
@@ -40,14 +88,21 @@ impl Response {
             ok: true,
             result: Some(result),
             error: None,
+            error_details: None,
         }
     }
     pub fn failure(error: impl Into<String>) -> Self {
+        let error = error.into();
+        let details = ErrorDetails::from_message(&error);
+        Self::failure_with_details(error, details)
+    }
+    pub fn failure_with_details(error: impl Into<String>, details: ErrorDetails) -> Self {
         Self {
             version: VERSION,
             ok: false,
             result: None,
             error: Some(error.into()),
+            error_details: Some(details),
         }
     }
 }
@@ -193,6 +248,20 @@ pub fn private_socket_directory() -> io::Result<std::path::PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn machine_errors_distinguish_unknown_outcomes_and_decode_legacy_responses() {
+        let old: Response = serde_json::from_value(serde_json::json!({"version":1,"ok":false,"error":"old"})).unwrap();
+        assert!(old.error_details.is_none());
+        let failure = Response::failure("Yougori control request timed out. The outcome may be unknown");
+        let details = failure.error_details.unwrap();
+        assert_eq!(details.code, "outcome_unknown");
+        assert!(!details.retryable);
+        assert_eq!(details.outcome, "unknown");
+        assert_eq!(ErrorDetails::from_message("Usage: yougori rm ENV --yes").code, "invalid_request");
+        assert_eq!(ErrorDetails::from_message("YOUGORI_OPERATION_INTERRUPTED: cleanup timed out").outcome,"reconciliation_required");
+        let future:Response=serde_json::from_value(serde_json::json!({"version":VERSION,"ok":true,"result":{},"futureAdditiveField":true})).unwrap();
+        assert!(future.ok);
+    }
     #[test]
     fn bounded_frames_roundtrip_and_reject_oversize() {
         tokio::runtime::Builder::new_current_thread()

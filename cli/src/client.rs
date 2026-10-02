@@ -1,6 +1,8 @@
 use crate::wire::{self, Request, Response};
 use serde_json::{json, Value};
 use std::{
+    cell::RefCell,
+    future::Future,
     path::{Path, PathBuf},
     sync::atomic::{AtomicBool, Ordering},
     time::{Duration, Instant},
@@ -9,7 +11,71 @@ use std::{
 /// Interactive screens show their own progress; notes on stderr would break their layout.
 pub static QUIET: AtomicBool = AtomicBool::new(false);
 
+tokio::task_local! {
+    static ERROR_CAUSE: RefCell<Option<(String, wire::ErrorDetails)>>;
+}
+
+/// Preserve the engine's machine contract across the CLI's existing human-error
+/// context. The scope is one command, never shared between tasks or invocations.
+pub async fn capture_errors<T>(future: impl Future<Output = Result<T, String>>) -> Result<T, Response> {
+    ERROR_CAUSE.scope(RefCell::new(None), async {
+        let result = future.await;
+        result.map_err(|error| {
+            let cause = ERROR_CAUSE.with(|slot| slot.borrow_mut().take());
+            // Context wrappers may add the method/job ID. An unrelated local
+            // failure must not inherit details from an earlier swallowed call.
+            match cause.filter(|(message, _)| !message.is_empty() && error.contains(message)) {
+                Some((_, details)) => Response::failure_with_details(error, details),
+                None => Response::failure(error),
+            }
+        })
+    }).await
+}
+
+fn clear_error_cause() {
+    let _ = ERROR_CAUSE.try_with(|slot| slot.borrow_mut().take());
+}
+fn error_cause(error: String, details: wire::ErrorDetails) -> String {
+    let _ = ERROR_CAUSE.try_with(|slot| *slot.borrow_mut() = Some((error.clone(), details)));
+    error
+}
+
 pub async fn call_at(endpoint: &str, request: &Request) -> Result<Value, String> {
+    clear_error_cause();
+    let response=exchange_at(endpoint,request).await?;
+    if response.version != wire::VERSION {
+        return Err("CLI/engine protocol mismatch. Update both Yougori and its CLI.".into());
+    }
+    if response.ok {
+        Ok(response.result.unwrap_or(Value::Null))
+    } else {
+        let error = engine_error(&request.method, response.error.unwrap_or_else(|| "Yougori operation failed".into()));
+        let details = response.error_details.unwrap_or_else(|| wire::ErrorDetails::from_message(&error));
+        Err(error_cause(error, details))
+    }
+}
+
+/// Discovery alone can inspect a legacy engine. Mutations never use this
+/// fallback: mismatched protocols require updating both installed components.
+pub async fn engine_identity()->Result<Value,String>{
+    let endpoint=wire::endpoint().map_err(|e|e.to_string())?;
+    engine_identity_at(&endpoint).await
+}
+async fn engine_identity_at(endpoint:&str)->Result<Value,String>{
+    let mut req=request("app_status",json!({}));
+    let mut response=exchange_at(endpoint,&req).await?;
+    if response.version==1 && response.version!=wire::VERSION{
+        req.version=1;
+        response=exchange_at(endpoint,&req).await?;
+    }
+    if !response.ok{return Err(response.error.unwrap_or_else(||"Cannot inspect the running engine".into()));}
+    let mut identity=response.result.unwrap_or(json!({}));
+    identity["protocolVersion"]=response.version.into();
+    identity["protocolCompatible"]=(response.version==wire::VERSION).into();
+    Ok(identity)
+}
+
+async fn exchange_at(endpoint: &str, request: &Request) -> Result<Response, String> {
     #[cfg(windows)]
     let mut stream = {
         let deadline = Instant::now() + Duration::from_secs(5);
@@ -49,16 +115,7 @@ pub async fn call_at(endpoint: &str, request: &Request) -> Result<Value, String>
     }).await.map_err(|_|"Yougori control request timed out. The outcome may be unknown; inspect jobs and state before repeating a mutation.")?.map_err(|e|format!("Yougori connection ended: {e}. Inspect jobs/state before repeating a mutation."))?;
     let response: Response =
         serde_json::from_slice(&reply).map_err(|_| "Invalid Yougori control response")?;
-    if response.version != wire::VERSION {
-        return Err("CLI/engine protocol mismatch. Update both Yougori and its CLI.".into());
-    }
-    if response.ok {
-        Ok(response.result.unwrap_or(Value::Null))
-    } else {
-        Err(engine_error(&request.method, response
-            .error
-            .unwrap_or_else(|| "Yougori operation failed".into())))
-    }
+    Ok(response)
 }
 
 fn engine_error(method: &str, error: String) -> String {
@@ -140,18 +197,29 @@ async fn wait_job_observed(endpoint: &str, id: &str, seconds: u64, wait: u64, mu
         }
         match job["status"].as_str() {
             Some("complete") => return Ok(job["result"].clone()),
-            Some("failed") => {
-                return Err(format!(
+            Some("failed" | "cancelled" | "interrupted") => {
+                let error = format!(
                     "{}: {} (job {id})",
                     job["method"].as_str().unwrap_or("Operation"),
                     job["error"].as_str().unwrap_or("Operation failed")
-                ))
+                );
+                let details = serde_json::from_value::<wire::ErrorDetails>(job["errorDetails"].clone()).unwrap_or_else(|_| {
+                    let mut details = wire::ErrorDetails::from_message(&error);
+                    details.affected_resource = Some(format!("job:{id}"));
+                    if let Some(outcome) = job["outcome"].as_str() { details.outcome = outcome.into(); }
+                    else if job["status"] == "cancelled" { details.code = "operation_cancelled".into(); details.outcome = "cancelled".into(); }
+                    else if job["status"] == "interrupted" { details.code = "operation_interrupted".into(); details.outcome = "reconciliation_required".into(); }
+                    details
+                });
+                return Err(error_cause(error, details))
             }
             Some("running" | "queued") => {}
             _ => return Err("Invalid job status from Yougori".into()),
         }
         if started.elapsed() >= Duration::from_secs(seconds) {
-            return Err(format!("Still running: {id}. The operation was NOT cancelled. Check 'yougori jobs get {id}' before retrying."));
+            return Err(error_cause(format!("Still running: {id}. The operation was NOT cancelled. Check 'yougori jobs get {id}' before retrying."), wire::ErrorDetails {
+                code: "job_wait_timeout".into(), affected_resource: Some(format!("job:{id}")), retryable: false, outcome: "running".into(),
+            }));
         }
         if last_progress.elapsed() >= Duration::from_secs(5) && !QUIET.load(Ordering::Relaxed) {
             eprintln!(
@@ -381,21 +449,240 @@ pub async fn quit() -> Result<Value, String> {
     let mut quit = request("app_quit", json!({}));
     quit.confirmed = true;
     let result = call(&quit).await?;
+    let pid = result["enginePid"].as_u64().filter(|pid| *pid > 0 && *pid <= u32::MAX as u64).map(|pid| pid as u32);
     let deadline = Instant::now() + Duration::from_secs(90);
     loop {
         tokio::time::sleep(Duration::from_millis(500)).await;
-        if call(&request("app_status", json!({}))).await.is_err() {
-            return Ok(result);
+        let endpoint_available = matches!(tokio::time::timeout(Duration::from_secs(2),call(&request("app_status", json!({})))).await,Ok(Ok(_)));
+        let present = pid.and_then(process_present);
+        if present == Some(false) || (!endpoint_available && present.is_none()) {
+            return Ok(shutdown_receipt_result(result, present == Some(false), endpoint_available).await);
         }
         if Instant::now() >= deadline {
-            return Err("Yougori accepted the shutdown request but is still running. Check the desktop before starting another instance.".into());
+            return Err(error_cause("Yougori accepted shutdown, but its owned process did not stop within 90 seconds. Inspect the persisted shutdown report before retrying.".into(),wire::ErrorDetails{code:"shutdown_deadline".into(),affected_resource:None,retryable:false,outcome:"requires_reconciliation".into()}));
         }
     }
+}
+
+async fn bounded_receipt(work: impl FnOnce() -> Value + Send + 'static, timeout: Duration) -> Option<Value> {
+    let (sender, receiver) = tokio::sync::oneshot::channel();
+    // A blocked filesystem read must not become a Tokio blocking worker whose
+    // runtime destructor waits indefinitely after the CLI's deadline expires.
+    let worker = std::thread::Builder::new().name("yougori-shutdown-receipt".into()).spawn(move || { let _ = sender.send(work()); }).ok()?;
+    drop(worker);
+    tokio::time::timeout(timeout, receiver).await.ok()?.ok()
+}
+
+async fn shutdown_receipt_result(acknowledgement: Value, stopped_verified: bool, endpoint_available: bool) -> Value {
+    let original=acknowledgement.clone();
+    if let Some(result)=bounded_receipt(move||shutdown_result(acknowledgement,stopped_verified,endpoint_available),Duration::from_secs(2)).await { return result; }
+    let mut result=original;
+    result["engineStopped"] = if stopped_verified {json!(true)} else {Value::Null};
+    result["controlEndpointAvailable"] = json!(endpoint_available);
+    result["requiresReconciliation"] = json!(true);
+    result["cleanupOutcome"] = json!("unverified");
+    result["recoveryAction"] = json!("The shutdown receipt could not be read within two seconds. Inspect it or the next native startup report; guest cleanup remains unverified.");
+    result
+}
+
+fn shutdown_result(mut acknowledgement: Value, stopped_verified: bool, endpoint_available: bool) -> Value {
+    acknowledgement["engineStopped"] = if stopped_verified { json!(true) } else { Value::Null };
+    acknowledgement["controlEndpointAvailable"] = json!(endpoint_available);
+    let report = acknowledgement["shutdownReportPath"].as_str().zip(acknowledgement["shutdownRunId"].as_str()).and_then(|(path,id)| {
+        let metadata = std::fs::symlink_metadata(path).ok()?;
+        if !metadata.is_file() || metadata.file_type().is_symlink() || metadata.len() > 65536 { return None; }
+        use std::io::Read;
+        let mut bytes=Vec::new();
+        std::fs::File::open(path).ok()?.take(65537).read_to_end(&mut bytes).ok()?;
+        if bytes.len()>65536 {return None;}
+        let report:Value = serde_json::from_slice(&bytes).ok()?;
+        (report["shutdownRunId"].as_str() == Some(id) && report["requiresReconciliation"].is_boolean() && report["stages"].is_array()).then_some(report)
+    });
+    if let Some(report) = report {
+        acknowledgement["requiresReconciliation"] = json!(!stopped_verified || report["requiresReconciliation"] == true);
+        acknowledgement["cleanupOutcome"] = json!(if report["requiresReconciliation"] == true {"incomplete"} else {"verified"});
+        acknowledgement["shutdownReport"] = report;
+    } else {
+        acknowledgement["requiresReconciliation"] = json!(true);
+        acknowledgement["cleanupOutcome"] = json!("unverified");
+        acknowledgement["recoveryAction"] = json!("Inspect the shutdown report or the next native startup report; endpoint closure alone does not verify that environments stopped.");
+    }
+    acknowledgement
+}
+
+#[cfg(windows)]
+fn process_present(pid: u32) -> Option<bool> {
+    use windows_sys::Win32::{Foundation::{CloseHandle,GetLastError},System::Threading::{OpenProcess,GetExitCodeProcess,PROCESS_QUERY_LIMITED_INFORMATION}};
+    unsafe {
+        let process=OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION,0,pid);
+        if process.is_null() { return match GetLastError() { 87|1168 => Some(false), _ => None }; }
+        let mut code=0;
+        let ok=GetExitCodeProcess(process,&mut code);
+        CloseHandle(process);
+        if ok==0 {None} else {Some(code==259)}
+    }
+}
+#[cfg(unix)]
+fn process_present(pid: u32) -> Option<bool> {
+    if pid > i32::MAX as u32 { return None; }
+    let result=unsafe {libc::kill(pid as i32,0)};
+    if result==0 {
+        #[cfg(target_os="linux")]
+        if std::fs::read_to_string(format!("/proc/{pid}/stat")).ok().and_then(|text|text.rsplit_once(") ").map(|(_,tail)|tail.starts_with('Z')))==Some(true) {return Some(false);}
+        Some(true)
+    } else {match std::io::Error::last_os_error().raw_os_error() {Some(libc::ESRCH)=>Some(false),Some(libc::EPERM)=>Some(true),_=>None}}
 }
 
 #[cfg(test)]
 mod macos_path_tests {
     use super::*;
+    #[tokio::test]
+    async fn a_stalled_receipt_does_not_block_cli_runtime_shutdown() {
+        let begin=Instant::now();
+        let result=bounded_receipt(||{std::thread::sleep(Duration::from_millis(300));json!({"late":true})},Duration::from_millis(30)).await;
+        assert!(result.is_none());
+        assert!(begin.elapsed()<Duration::from_millis(200));
+    }
+    #[test]
+    fn shutdown_receipt_preserves_incomplete_cleanup_and_rejects_stale_reports() {
+        let folder=tempfile::tempdir().unwrap();let path=folder.path().join("shutdown.json");
+        std::fs::write(&path,json!({"shutdownRunId":"current","requiresReconciliation":true,"stages":[{"stage":"owned_runtimes","status":"deadline_exceeded"}]}).to_string()).unwrap();
+        let result=shutdown_result(json!({"shutdownRequested":true,"shutdownReportPath":path,"shutdownRunId":"current"}),true,false);
+        assert_eq!(result["engineStopped"],true);assert_eq!(result["requiresReconciliation"],true);assert_eq!(result["cleanupOutcome"],"incomplete");
+        assert_eq!(result["shutdownReport"]["stages"][0]["status"],"deadline_exceeded");
+        let stale=shutdown_result(json!({"shutdownRequested":true,"shutdownReportPath":path,"shutdownRunId":"another-instance"}),true,false);
+        assert_eq!(stale["cleanupOutcome"],"unverified");assert_eq!(stale["requiresReconciliation"],true);assert!(stale["shutdownReport"].is_null());
+    }
+    #[test]
+    fn endpoint_closure_without_an_owned_process_or_receipt_does_not_verify_shutdown() {
+        let result=shutdown_result(json!({"shutdownRequested":true}),false,false);
+        assert!(result["engineStopped"].is_null());assert!(result["stopped"].is_null());
+        assert_eq!(result["cleanupOutcome"],"unverified");assert_eq!(result["requiresReconciliation"],true);
+        assert_eq!(process_present(std::process::id()),Some(true));
+    }
+    #[test]
+    fn owned_process_liveness_distinguishes_exit_from_endpoint_closure() {
+        #[cfg(windows)]
+        let mut command = {
+            use std::os::windows::process::CommandExt;
+            let mut command = std::process::Command::new("powershell.exe");
+            command.args(["-NoProfile", "-NonInteractive", "-Command", "Start-Sleep -Seconds 20"]).creation_flags(0x08000000);
+            command
+        };
+        #[cfg(unix)]
+        let mut command = {
+            let mut command = std::process::Command::new("sleep");
+            command.arg("20");
+            command
+        };
+        let mut child = command.stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).spawn().unwrap();
+        let pid = child.id();
+        let alive = process_present(pid);
+        child.kill().unwrap();
+        child.wait().unwrap();
+        assert_eq!(alive, Some(true));
+        assert_eq!(process_present(pid), Some(false));
+    }
+    #[test]
+    fn shutdown_requires_the_current_receipt_and_confirmed_engine_exit() {
+        let folder=tempfile::tempdir().unwrap();let path=folder.path().join("shutdown.json");
+        std::fs::write(&path,json!({"shutdownRunId":"current","requiresReconciliation":false,"stages":[]}).to_string()).unwrap();
+        let result=shutdown_result(json!({"shutdownReportPath":path,"shutdownRunId":"current"}),true,false);
+        assert_eq!(result["cleanupOutcome"],"verified");assert_eq!(result["requiresReconciliation"],false);
+        let unknown=shutdown_result(json!({"shutdownReportPath":path,"shutdownRunId":"current"}),false,false);
+        assert_eq!(unknown["requiresReconciliation"],true);assert!(unknown["engineStopped"].is_null());
+    }
+    fn resource_details() -> wire::ErrorDetails {
+        wire::ErrorDetails { code: "transfer_inactive".into(), affected_resource: Some("environment:fixture".into()), retryable: false, outcome: "partial_copy_retained".into() }
+    }
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn legacy_engine_identity_is_inspectable_but_mutations_never_retry_old_protocol() {
+        use tokio::net::windows::named_pipe::ServerOptions;
+        let endpoint = format!("{}-legacy-identity-{}", wire::endpoint().unwrap(), std::process::id());
+        let mut server = ServerOptions::new().first_pipe_instance(true).create(&endpoint).unwrap();
+        let address = endpoint.clone();
+        let worker = tokio::spawn(async move {
+            for index in 0..3 {
+                server.connect().await.unwrap();
+                let req: Request = serde_json::from_slice(&wire::read_frame(&mut server,wire::MAX_REQUEST).await.unwrap()).unwrap();
+                assert_eq!(req.version, if index == 1 { 1 } else { wire::VERSION });
+                assert_eq!(req.method, if index == 2 { "set_environment_status" } else { "app_status" });
+                let mut reply = if index == 1 { Response::success(json!({"version":"1.0.4","engineOnly":true})) } else { Response::failure("Update CLI and engine together") };
+                reply.version = 1;
+                let next = if index < 2 { Some(ServerOptions::new().create(&address).unwrap()) } else { None };
+                wire::write_frame(&mut server,&serde_json::to_vec(&reply).unwrap(),wire::MAX_RESPONSE).await.unwrap();
+                let mut ack = [0]; let _ = tokio::io::AsyncReadExt::read(&mut server,&mut ack).await;
+                if let Some(next) = next { server = next; }
+            }
+        });
+        let identity = engine_identity_at(&endpoint).await.unwrap();
+        assert_eq!(identity["version"],"1.0.4"); assert_eq!(identity["protocolVersion"],1); assert_eq!(identity["protocolCompatible"],false);
+        let error = call_at(&endpoint,&request("set_environment_status",json!({}))).await.unwrap_err();
+        assert!(error.contains("protocol mismatch"));
+        worker.await.unwrap();
+    }
+    #[tokio::test]
+    async fn structured_cause_is_command_scoped_and_not_reused_for_unrelated_errors() {
+        let response = capture_errors::<()>(async {
+            let _swallowed = error_cause("A transfer failed".into(), resource_details());
+            Err("Usage: an unrelated local command".into())
+        }).await.unwrap_err();
+        assert_eq!(response.error_details.unwrap().code, "invalid_request");
+        let response = capture_errors::<()>(async {
+            let _swallowed = error_cause("A transfer failed".into(), resource_details());
+            clear_error_cause(); // A subsequent successful call clears earlier failures.
+            Err("A transfer failed".into())
+        }).await.unwrap_err();
+        assert_eq!(response.error_details.unwrap().code, "operation_failed");
+        let first = capture_errors::<()>(async { Err(error_cause("A transfer failed".into(), resource_details())) }).await.unwrap_err();
+        assert_eq!(first.error_details.unwrap().outcome, "partial_copy_retained");
+        let second = capture_errors::<()>(async { Err("A transfer failed".into()) }).await.unwrap_err();
+        assert_eq!(second.error_details.unwrap().outcome, "failed");
+    }
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn engine_and_job_machine_errors_survive_cli_context_without_reclassification() {
+        use tokio::net::windows::named_pipe::ServerOptions;
+        for mode in ["engine", "job", "cancelled", "interrupted", "wait_timeout"] {
+            let endpoint = format!("{}-structured-error-{}-{mode}", wire::endpoint().unwrap(), std::process::id());
+            let mut server = ServerOptions::new().first_pipe_instance(true).create(&endpoint).unwrap();
+            let details = resource_details();
+            let response = match mode {
+                "engine" => Response::failure_with_details("Press Stop to reconcile", details.clone()),
+                "job" => Response::success(json!({"status":"failed","method":"copy_files_to_environment","error":"Press Stop to reconcile","outcome":"partial_copy_retained","errorDetails":details})),
+                "cancelled" | "interrupted" => Response::success(json!({"status":mode,"method":"copy_files_to_environment","error":"Guest staging remains"})),
+                _ => Response::success(json!({"status":"running","method":"copy_files_to_environment"})),
+            };
+            let worker = tokio::spawn(async move {
+                server.connect().await.unwrap();
+                wire::read_frame(&mut server, wire::MAX_REQUEST).await.unwrap();
+                wire::write_frame(&mut server, &serde_json::to_vec(&response).unwrap(), wire::MAX_RESPONSE).await.unwrap();
+                let mut ack = [0];
+                let _ = tokio::io::AsyncReadExt::read(&mut server, &mut ack).await;
+            });
+            let result = capture_errors::<Value>(async {
+                if mode == "engine" {
+                    call_at(&endpoint, &request("copy_files_to_environment",json!({}))).await.map_err(|e| format!("Could not copy: {e}"))
+                } else {
+                    wait_job_at(&endpoint, "fixture-job", if mode == "wait_timeout" { 0 } else { 5 }).await
+                }
+            }).await.unwrap_err();
+            worker.await.unwrap();
+            let actual = result.error_details.unwrap();
+            match mode {
+                "engine" | "job" => {
+                    assert_eq!(actual.code, "transfer_inactive");
+                    assert_eq!(actual.affected_resource.as_deref(), Some("environment:fixture"));
+                    assert_eq!(actual.outcome, "partial_copy_retained");
+                    assert!(!actual.retryable);
+                }
+                "cancelled" => assert_eq!(actual.outcome, "cancelled"),
+                "interrupted" => assert_eq!(actual.outcome, "reconciliation_required"),
+                _ => { assert_eq!(actual.code, "job_wait_timeout"); assert_eq!(actual.outcome, "running"); assert_eq!(actual.affected_resource.as_deref(), Some("job:fixture-job")); },
+            }
+        }
+    }
     #[cfg(windows)]
     #[tokio::test]
     async fn copy_progress_crosses_job_transport_and_older_engines_still_work() {

@@ -14,7 +14,8 @@ pub(crate) mod gpu;
 mod branch;
 mod native_sandbox;
 mod guest_job;
-mod recovery;
+pub(crate) mod recovery;
+mod shutdown;
 #[cfg(test)]
 mod container_smoke_tests;
 mod vm;
@@ -308,98 +309,10 @@ impl RuntimeManager {
     }
 
     pub async fn shutdown_all(&self) {
-        for engine in self.loaded_storage_runtimes() { Box::pin(engine.shutdown_all()).await; }
-        self.cloud.shutdown().await;
-        if let Err(error) = self.cuda.shutdown().await {
-            eprintln!("CUDA runtime shutdown: {error}. Its disk was not forcibly detached.");
+        let report = self.shutdown_all_report().await;
+        if report["complete"] != true {
+            eprintln!("Runtime shutdown needs reconciliation: {}", report);
         }
-        let _exclusive = self.appliance_operations.write().await;
-        if let Some(mut appliance) = self.appliance.lock().await.take() {
-            let _ = self
-                .client
-                .post(format!(
-                    "{}/v1/system/shutdown",
-                    appliance.endpoint.base_url
-                ))
-                .bearer_auth(&appliance.endpoint.token)
-                .timeout(std::time::Duration::from_secs(3))
-                .send()
-                .await;
-            let stopped_cleanly =
-                tokio::time::timeout(std::time::Duration::from_secs(10), appliance.child.wait())
-                    .await
-                    .is_ok_and(|result| result.is_ok());
-            if !stopped_cleanly {
-                let _ = appliance.child.kill().await;
-                let _ = appliance.child.wait().await;
-            } else {
-                // A cleanly stopped appliance has a consistent overlay. Recording its new
-                // metadata lets the next launch skip qemu-img entirely.
-                let _ = self.record_appliance_overlay_state();
-            }
-        }
-        let mut vms = self.vms.lock().await;
-        let mut processes = vms.drain().map(|(_, process)| process).collect::<Vec<_>>();
-        drop(vms);
-        let mut prepared = Vec::with_capacity(processes.len());
-        for vm in processes.drain(..) {
-            let _ = vm::qmp_execute_bounded(
-                vm.qmp_port,
-                "cont",
-                None,
-                std::time::Duration::from_secs(2),
-            )
-            .await;
-            let clean_micro_shutdown_requested = if vm.is_micro_vm {
-                match vm.micro_endpoint.as_ref() {
-                    Some(endpoint) => self.request_micro_vm_shutdown(endpoint).await.is_ok(),
-                    None => false,
-                }
-            } else {
-                let _ = vm::qmp_execute_bounded(
-                    vm.qmp_port,
-                    "system_powerdown",
-                    None,
-                    std::time::Duration::from_secs(3),
-                )
-                .await;
-                false
-            };
-            prepared.push((vm, clean_micro_shutdown_requested));
-        }
-        for (mut vm, clean_micro_shutdown_requested) in prepared {
-            let graceful_timeout = if vm.is_micro_vm {
-                if clean_micro_shutdown_requested {
-                    std::time::Duration::from_secs(8)
-                } else {
-                    std::time::Duration::ZERO
-                }
-            } else {
-                std::time::Duration::from_secs(12)
-            };
-            let stopped_cleanly = !graceful_timeout.is_zero()
-                && tokio::time::timeout(graceful_timeout, vm.child.wait())
-                    .await
-                    .is_ok_and(|result| result.is_ok());
-            if !stopped_cleanly {
-                vm::quiesce_and_flush_vm(vm.qmp_port, vm.is_micro_vm).await;
-                let _ = vm::qmp_execute_bounded(
-                    vm.qmp_port,
-                    "quit",
-                    None,
-                    std::time::Duration::from_secs(2),
-                )
-                .await;
-                if tokio::time::timeout(std::time::Duration::from_secs(3), vm.child.wait())
-                    .await
-                    .is_err()
-                {
-                    let _ = vm.child.kill().await;
-                    let _ = vm.child.wait().await;
-                }
-            }
-        }
-        self.shutdown_all_native_sandboxes().await;
     }
 }
 

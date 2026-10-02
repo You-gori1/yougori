@@ -11,6 +11,7 @@ use crate::models::PlatformState;
 pub struct PlatformStore {
     path: PathBuf,
     state: Mutex<PlatformState>,
+    pub(crate) resource_admission: std::sync::Arc<crate::commands::resource_admission::HostResourceAdmission>,
 }
 
 impl PlatformStore {
@@ -40,6 +41,16 @@ impl PlatformStore {
         for job in state.duplication_jobs.values_mut() {
             if job.status == "running" { job.status = "interrupted".into(); job.error = Some("Yougori closed during this copy. Resume the saved operation to inspect its existing resources.".into()); }
         }
+        if let Some(report) = &mut state.startup_report {
+            if report.status == "running" {
+                report.status = "interrupted".into();
+                for environment in report.environments.iter_mut().filter(|environment| environment.status == "pending") {
+                    environment.status = "interrupted".into();
+                    environment.error = Some("Engine restarted before this startup stage was verified".into());
+                    environment.recovery_action = Some("Native startup will reconcile the verified provider and original storage before retrying".into());
+                }
+            }
+        }
         for environment in &mut state.environments {
             if environment.kind == crate::models::EnvironmentKind::Cloud {
                 environment.status = crate::models::EnvironmentStatus::Stopped;
@@ -54,6 +65,7 @@ impl PlatformStore {
         let store = Self {
             path,
             state: Mutex::new(state),
+            resource_admission: Default::default(),
         };
         store.persist()?;
         Ok(store)
@@ -71,11 +83,12 @@ impl PlatformStore {
             .map_err(|_| "Platform state is unavailable".to_string())
     }
 
-    pub fn replace(&self, state: PlatformState) -> Result<PlatformState, String> {
+    pub fn replace(&self, mut state: PlatformState) -> Result<PlatformState, String> {
         let mut current = self
             .state
             .lock()
             .map_err(|_| "Platform state is unavailable".to_string())?;
+        state.settings_revision = next_settings_revision(&current, &state)?;
         persist_state(&self.path, &state)?;
         *current = state.clone();
         Ok(state)
@@ -91,6 +104,7 @@ impl PlatformStore {
             .map_err(|_| "Platform state is unavailable".to_string())?;
         let mut candidate = current.clone();
         operation(&mut candidate)?;
+        candidate.settings_revision = next_settings_revision(&current, &candidate)?;
         persist_state(&self.path, &candidate)?;
         *current = candidate.clone();
         Ok(candidate)
@@ -106,6 +120,7 @@ impl PlatformStore {
             .map_err(|_| "Platform state is unavailable".to_string())?;
         let mut candidate = current.clone();
         operation(&mut candidate)?;
+        candidate.settings_revision = next_settings_revision(&current, &candidate)?;
         *current = candidate.clone();
         Ok(candidate)
     }
@@ -120,6 +135,11 @@ impl PlatformStore {
             .map_err(|_| "Platform state is unavailable".to_string())?;
         persist_state(&self.path, &state)
     }
+}
+
+fn next_settings_revision(current: &PlatformState, next: &PlatformState) -> Result<u64, String> {
+    if current.settings == next.settings { return Ok(current.settings_revision); }
+    current.settings_revision.checked_add(1).ok_or_else(|| "Settings revision exhausted".into())
 }
 
 const MAX_STATE_BYTES: u64 = 32 * 1024 * 1024;
@@ -226,6 +246,37 @@ mod tests {
                 .len(),
             expected
         );
+    }
+
+    #[test]
+    fn settings_revision_changes_only_with_settings_and_survives_restart() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("state.json");
+        let store = PlatformStore::load(path.clone()).unwrap();
+        let initial = store.snapshot().unwrap();
+        store.mutate(|state| { state.host.hostname = "host-renamed".into(); Ok(()) }).unwrap();
+        assert_eq!(store.snapshot().unwrap().settings_revision, initial.settings_revision);
+        store.mutate(|state| { state.settings.keep_awake = !state.settings.keep_awake; Ok(()) }).unwrap();
+        assert_eq!(store.snapshot().unwrap().settings_revision, initial.settings_revision + 1);
+        drop(store);
+        assert_eq!(PlatformStore::load(path).unwrap().snapshot().unwrap().settings_revision, initial.settings_revision + 1);
+    }
+
+    #[test]
+    fn interrupted_native_startup_keeps_its_failed_stage_after_restart() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("state.json");
+        let store = PlatformStore::load(path.clone()).unwrap();
+        store.mutate(|state| {
+            state.startup_report = Some(crate::lifecycle::StartupReport { started_at:"earlier".into(), completed_at:None, status:"running".into(), trigger:"engineLaunch".into(), starts_before_sign_in:false, service_registration:None, environments:vec![crate::lifecycle::StartupEnvironmentReport { environment_id:"test".into(), provider:crate::models::RuntimeProviderKind::YougoriCuda, storage_root:Some("D:/original/runtime".into()), stage:"publication".into(), status:"pending".into(), recovery:None, readiness:None, error:None, recovery_action:None }] });
+            Ok(())
+        }).unwrap();
+        drop(store);
+        let recovered = PlatformStore::load(path).unwrap().snapshot().unwrap().startup_report.unwrap();
+        assert_eq!(recovered.status, "interrupted");
+        assert_eq!(recovered.environments[0].stage, "publication");
+        assert_eq!(recovered.environments[0].status, "interrupted");
+        assert_eq!(recovered.environments[0].storage_root.as_deref(), Some("D:/original/runtime"));
     }
 
     #[test]

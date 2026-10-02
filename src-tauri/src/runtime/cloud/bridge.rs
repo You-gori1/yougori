@@ -228,6 +228,7 @@ mod tests {
                 bridge,
                 info: Value::Null,
                 share_helper_ready: Arc::new(tokio::sync::Mutex::new(false)),
+                termination: Default::default(),
             },
             rx,
             events,

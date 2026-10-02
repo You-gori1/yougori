@@ -11,11 +11,13 @@ mod host_terminal;
 mod node_context_menu;
 mod workspace;
 mod guest_apps;
+mod guest_execution;
 mod guest_keyboard;
 mod models;
 mod runtime;
 mod scheduler;
 mod lifecycle;
+mod shutdown;
 #[cfg(all(desktop, not(feature = "engine-only")))]
 mod tray;
 mod peer_sharing;
@@ -160,26 +162,67 @@ pub(crate) fn require_windows(what: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Stops guests, terminals and the vault exactly once, however the engine quits.
+struct ShutdownState {
+    id: String,
+    stopped: std::sync::atomic::AtomicBool,
+    exit: std::sync::atomic::AtomicU8,
+}
+
+impl Default for ShutdownState {
+    fn default() -> Self {
+        Self { id: uuid::Uuid::new_v4().to_string(), stopped: Default::default(), exit: Default::default() }
+    }
+}
+
+pub(crate) fn shutdown_run_id(app: &AppHandle) -> String {
+    shutdown_state(app).id.clone()
+}
+
+fn shutdown_state(app: &AppHandle) -> std::sync::Arc<ShutdownState> {
+    if let Some(state) = app.try_state::<std::sync::Arc<ShutdownState>>() {
+        return state.inner().clone();
+    }
+    // StateManager admits only one value of this type, including concurrent
+    // first callers. Read back the admitted value instead of a losing candidate.
+    app.manage(std::sync::Arc::new(ShutdownState::default()));
+    app.state::<std::sync::Arc<ShutdownState>>().inner().clone()
+}
+
+#[cfg(test)]
+mod shutdown_state_tests {
+    use super::*;
+    use std::sync::{atomic::Ordering, Arc};
+
+    #[test]
+    fn cleanup_and_exit_of_one_instance_do_not_disable_another() {
+        let first = Arc::new(ShutdownState::default());
+        let first_window = first.clone();
+        let second = Arc::new(ShutdownState::default());
+        assert_ne!(first.id, second.id);
+        assert!(!first.stopped.swap(true, Ordering::SeqCst));
+        assert!(first_window.stopped.swap(true, Ordering::SeqCst));
+        first.exit.store(2, Ordering::Release);
+        assert!(!second.stopped.swap(true, Ordering::SeqCst));
+        assert_eq!(second.exit.load(Ordering::Acquire), 0);
+        assert_eq!(first_window.exit.load(Ordering::Acquire), 2);
+    }
+}
+
+/// Stops guests, terminals and the vault once for this app instance.
 fn shutdown_engine(app_handle: &AppHandle) {
-    static STOPPED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-    if STOPPED.swap(true, std::sync::atomic::Ordering::SeqCst) {
+    if shutdown_state(app_handle).stopped.swap(true, std::sync::atomic::Ordering::SeqCst) {
         return;
     }
-    app_handle.state::<host_terminal::HostTerminalManager>().shutdown();
-    tauri::async_runtime::block_on(vault_setup::shutdown(app_handle));
-    let runtime = app_handle.state::<runtime::RuntimeManager>();
-    tauri::async_runtime::block_on(app_handle.state::<environment_download::Downloads>().shutdown());
-    tauri::async_runtime::block_on(app_handle.state::<workspace::WorkspaceManager>().shutdown(&runtime));
-    tauri::async_runtime::block_on(runtime.shutdown_all());
+    let report=tauri::async_runtime::block_on(shutdown::run(app_handle));
+    if report["requiresReconciliation"] == true { eprintln!("Yougori shutdown reached a cleanup deadline; the recorded outcome requires startup reconciliation."); }
 }
 
 // The shutdown above can wait for guest power-down and disk flushes. Keep it off
 // the window event loop so Windows can continue to service the app while it quits.
-static EXIT_SHUTDOWN_STATE: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
 
 fn shutdown_before_exit(app_handle: &AppHandle, api: &tauri::ExitRequestApi, code: Option<i32>) {
     use std::sync::atomic::Ordering;
+    let state = shutdown_state(app_handle);
 
     // Tauri does not allow a restart request to be cancelled. Preserve its
     // existing cleanup path; ordinary close/quit requests use the worker below.
@@ -187,11 +230,11 @@ fn shutdown_before_exit(app_handle: &AppHandle, api: &tauri::ExitRequestApi, cod
         shutdown_engine(app_handle);
         return;
     }
-    if EXIT_SHUTDOWN_STATE.load(Ordering::Acquire) == 2 {
+    if state.exit.load(Ordering::Acquire) == 2 {
         return;
     }
     api.prevent_exit();
-    if EXIT_SHUTDOWN_STATE
+    if state.exit
         .compare_exchange(0, 1, Ordering::AcqRel, Ordering::Acquire)
         .is_err()
     {
@@ -201,13 +244,13 @@ fn shutdown_before_exit(app_handle: &AppHandle, api: &tauri::ExitRequestApi, cod
     let exit_code = code.unwrap_or(0);
     std::thread::spawn(move || {
         shutdown_engine(&app);
-        EXIT_SHUTDOWN_STATE.store(2, Ordering::Release);
+        state.exit.store(2, Ordering::Release);
         app.exit(exit_code);
     });
 }
 
 fn request_main_window_close(app_handle: &AppHandle) {
-    if EXIT_SHUTDOWN_STATE.load(std::sync::atomic::Ordering::Acquire) != 0 {
+    if shutdown_state(app_handle).exit.load(std::sync::atomic::Ordering::Acquire) != 0 {
         return;
     }
     let app = app_handle.clone();
@@ -456,6 +499,7 @@ pub fn run() {
                     }
                 }
             }
+            let startup_recovery_candidates=state.environments.iter().filter(|environment| matches!(environment.status,models::EnvironmentStatus::Running | models::EnvironmentStatus::Paused | models::EnvironmentStatus::Provisioning)).map(|environment|environment.id.clone()).collect();
             commands::vm_creation::recover_interrupted(&mut state);
             commands::factory_reset::recover_interrupted(&mut state);
             for (id,deployment) in &mut state.cloud_deployments {
@@ -528,6 +572,7 @@ pub fn run() {
             automation::start(app.handle(), headless).map_err(std::io::Error::other)?;
             #[cfg(all(desktop, not(feature = "engine-only")))]
             if !headless { tray::install(app.handle())?; }
+            app.manage(lifecycle::StartupRecoveryCandidates(startup_recovery_candidates));
             lifecycle::start(app.handle());
             peer_sharing::start_refresh(app.handle());
             remote_access::start_cleanup(app.handle());
@@ -535,13 +580,14 @@ pub fn run() {
             neocloud::runpod::resume(app.handle());
             let workspace_app = app.handle().clone();
             tauri::async_runtime::spawn(async move {
+                let shutdown=automation::shutdown_signal(&workspace_app);
                 let mut ticks = 0u8;
                 loop {
-                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-                    workspace_app.state::<workspace::WorkspaceManager>().cleanup(
-                        &workspace_app.state::<PlatformStore>(),
-                        &workspace_app.state::<runtime::RuntimeManager>(),
-                    ).await;
+                    tokio::select! { _=shutdown.cancelled()=>break, _=tokio::time::sleep(std::time::Duration::from_secs(2))=>{} }
+                    let workspace=workspace_app.state::<workspace::WorkspaceManager>();
+                    let store=workspace_app.state::<PlatformStore>();
+                    let runtime=workspace_app.state::<runtime::RuntimeManager>();
+                    tokio::select! { _=shutdown.cancelled()=>break, _=workspace.cleanup(&store,&runtime)=>{} }
                     ticks = (ticks + 1) % 6;
                     if ticks == 0 { automation::headless_tick(&workspace_app).await; }
                 }
@@ -692,6 +738,24 @@ pub fn run() {
             duplication::cleanup_environment_duplication,
             commands::get_guest_session,
             commands::execute_environment_command,
+            guest_execution::execute_guest_job,
+            guest_execution::guest_execution_output,
+            guest_execution::cancel_guest_execution,
+            guest_execution::release_guest_execution,
+            file_import::cancel_file_transfer,
+            lifecycle::patch_settings,
+            lifecycle::get_settings_snapshot,
+            lifecycle::get_startup_report,
+            lifecycle::recover_environment_runtime_report,
+            projects::deployment_status,
+            projects::secrets::set_deployment_secret,
+            projects::secrets::delete_deployment_secret,
+            model_runner::preflight::model_preflight,
+            projects::readiness::get_environment_health_check,
+            projects::readiness::set_environment_health_check,
+            workspace::publication_preflight,
+            workspace::host_share_credentials,
+            workspace::get_environment_log_window,
             commands::execute_connected_command,
             commands::list_environment_folders,
             commands::request_connected_files,

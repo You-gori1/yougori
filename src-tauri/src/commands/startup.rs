@@ -22,10 +22,10 @@ pub(crate) async fn update(
     }
     let lock = environment_network_lock(environment_id).await;
     let _environment_serial = lock.lock().await;
-    let _container_serial = CONTAINER_POLICY_OPERATIONS.lock().await;
     let state = store.snapshot()?;
     let environment = state.environments.iter().find(|env| env.id == environment_id)
         .ok_or("Environment not found")?;
+    let _container_serial = environment_container_policy_guard(runtime, environment).await?;
     if environment.kind != EnvironmentKind::Container || !provider(environment).is_container() {
         return Err("Startup commands are available for local containers only".into());
     }

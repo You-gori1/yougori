@@ -24,6 +24,17 @@ async function createTestEnvironment(name: string, overrides: Partial<CreateEnvi
 }
 
 describe("browser platform adapter", () => {
+  it("patches only intended settings and rejects a stale writer without overwriting the first change", async () => {
+    const initial = await platformApi.getState()
+    const first = await platformApi.patchSettings({ keepAwake: true }, initial.settingsRevision ?? 0)
+    expect(first.settings.keepAwake).toBe(true)
+    expect(first.settings.theme).toBe(initial.settings.theme)
+    await expect(platformApi.patchSettings({ snapshotRetention: 42 }, initial.settingsRevision ?? 0)).rejects.toThrow("Settings changed")
+    const after = await platformApi.getState()
+    expect(after.settings.keepAwake).toBe(true)
+    expect(after.settings.snapshotRetention).toBe(initial.settings.snapshotRetention)
+    await expect(platformApi.patchSettings({ dataDirectory: "/other" }, after.settingsRevision ?? 0)).rejects.toThrow("Storage settings")
+  })
   it("edits an existing connection without creating another or changing its ID", async () => {
     const source = await createTestEnvironment("Edit source")
     const target = await createTestEnvironment("Edit target")

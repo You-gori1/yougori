@@ -12,14 +12,24 @@ pub(super) fn capacity(plan: &CopyPlan) -> u64 {
         * 1024
 }
 
+#[cfg(test)]
 pub(super) fn write_drive(
     plan: &CopyPlan,
     destination: &Path,
     progress: impl Fn(CopyProgress),
 ) -> Result<(), String> {
+    write_drive_cancellable(plan, destination, progress, None)
+}
+pub(super) fn write_drive_cancellable(
+    plan: &CopyPlan,
+    destination: &Path,
+    progress: impl Fn(CopyProgress),
+    operation: Option<std::sync::Arc<transfers::Transfer>>,
+) -> Result<(), String> {
     // FAT is readable by Windows and Linux without installing a guest agent.
     // Reject incompatible names before writing anything, including case clashes.
     for entry in plan.entries()? {
+        if let Some(operation) = &operation { operation.check()?; }
         let entry = entry?;
         let path = entry.relative.to_string_lossy().replace('\\', "/");
         if path.split('/').any(|name| {
@@ -55,6 +65,7 @@ pub(super) fn write_drive(
         let mut completed = 0;
         let mut last = Instant::now();
         for entry in plan.entries()? {
+            if let Some(operation) = &operation { operation.check()?; }
             let entry = entry?;
             let name = entry.relative.to_string_lossy().replace('\\', "/");
             if root.open_file(&name).is_ok() || root.open_dir(&name).is_ok() {
@@ -77,6 +88,7 @@ pub(super) fn write_drive(
                         last: &mut last,
                         total: plan.bytes,
                         progress: &progress,
+                        operation: operation.as_deref(),
                     }
                     .take(entry.bytes),
                     &mut output,

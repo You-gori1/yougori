@@ -1,6 +1,7 @@
 """Yougori's single-model CUDA chat/API workload. No remote repository code is executed."""
 import importlib.metadata
 import json
+import hashlib
 import os
 import secrets
 import signal
@@ -11,6 +12,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 MODEL = os.environ["YOUGORI_MODEL"]
+MODEL_REVISION = os.environ.get("YOUGORI_MODEL_REVISION")
 TOKEN = os.environ["YOUGORI_MODEL_TOKEN"]
 STATE = {"status": "installing", "model": MODEL, "error": None}
 GENERATION = threading.Lock()
@@ -120,7 +122,7 @@ def checkpoint():
     """Inspect metadata before downloading weights; never substitute a chat backbone for a custom head."""
     from huggingface_hub import HfApi
     from transformers import AutoConfig, AutoModelForCausalLM
-    metadata = HfApi().model_info(MODEL, timeout=30)
+    metadata = HfApi().model_info(MODEL, revision=MODEL_REVISION, files_metadata=True, timeout=30)
     files = {item.rfilename for item in metadata.siblings or []}
     if {"joint_head_config.json", "joint_head.safetensors"} <= files:
         raise RuntimeError(MODEL + " is a structured decision model with a custom prediction head. "
@@ -132,6 +134,44 @@ def checkpoint():
         raise RuntimeError("The " + config.model_type + " architecture is not supported by Yougori's text chat runner. "
                            "Choose a causal language model with built-in Transformers support and safetensors weights.")
     return config, revision
+
+
+def verified_snapshot(revision):
+    """Download directly into the persistent guest cache and verify pinned weight identities."""
+    from huggingface_hub import HfApi, snapshot_download
+    metadata = HfApi().model_info(MODEL, revision=revision, files_metadata=True, timeout=30)
+    if metadata.sha != revision:
+        raise RuntimeError("Model revision changed during download preflight")
+    root = snapshot_download(MODEL, revision=revision,
+                             allow_patterns=["*.safetensors", "*.json", "*.txt", "*.model", "*.tiktoken"])
+    verified = 0
+    for item in metadata.siblings or []:
+        if not item.rfilename.endswith(".safetensors"):
+            continue
+        path = os.path.join(root, item.rfilename)
+        if not os.path.isfile(path):
+            raise RuntimeError("A pinned safetensors weight file is missing from the persistent model cache")
+        lfs = getattr(item, "lfs", None)
+        expected = (lfs.get("sha256") if isinstance(lfs, dict) else getattr(lfs, "sha256", None)) or getattr(item, "blob_id", None)
+        if not isinstance(expected, str) or len(expected) not in (40, 64):
+            raise RuntimeError("The repository did not provide a verifiable weight checksum")
+        digest = hashlib.sha256() if len(expected) == 64 else hashlib.sha1()
+        size = os.path.getsize(path)
+        if len(expected) == 40:
+            digest.update(("blob " + str(size) + "\0").encode())
+        with open(path, "rb") as file:
+            while True:
+                chunk = file.read(4 * 1024 * 1024)
+                if not chunk:
+                    break
+                digest.update(chunk)
+        if not secrets.compare_digest(digest.hexdigest(), expected):
+            raise RuntimeError("A downloaded model weight failed checksum verification; do not load this checkpoint")
+        verified += 1
+    if not verified:
+        raise RuntimeError("No verified safetensors weights were found")
+    print("Verified " + str(verified) + " safetensors weight files in persistent guest storage at revision " + revision + ".", flush=True)
+    return root
 
 
 def load_model():
@@ -165,19 +205,21 @@ def load_model():
         gpu_count = torch.cuda.device_count()
         print("Checking model compatibility...", flush=True)
         config, revision = checkpoint()
+        verified_snapshot(revision)
         print("Downloading tokenizer for " + MODEL + "...", flush=True)
-        TOKENIZER = AutoTokenizer.from_pretrained(MODEL, revision=revision, trust_remote_code=False)
+        TOKENIZER = AutoTokenizer.from_pretrained(MODEL, revision=revision, trust_remote_code=False, local_files_only=True)
         STATE["status"] = "loading"
         print("Downloading model weights and loading onto the GPU (cached files are reused)...", flush=True)
         NETWORK = AutoModelForCausalLM.from_pretrained(
             MODEL, config=config, revision=revision, trust_remote_code=False, use_safetensors=True,
+            local_files_only=True,
             dtype="auto",
             device_map="balanced" if gpu_count > 1 else {"": 0},
             attn_implementation="eager",
         ).eval()
         gpu_name = torch.cuda.get_device_name(0)
         STATE.update(status="ready", gpu=f"{gpu_count} × {gpu_name}" if gpu_count > 1 else gpu_name,
-                     gpuCount=gpu_count, context=context_window(), stream=True)
+                     gpuCount=gpu_count, context=context_window(), stream=True, weightsVerified=True, revision=revision)
         print("Model ready on " + STATE["gpu"] + ". Chat and API requests are available.", flush=True)
     except Exception as error:
         # Token values and full Python tracebacks never enter the API response.

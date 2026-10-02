@@ -8,7 +8,7 @@ const VAULT_SERVICE: &str = "Yougori.CloudflareTunnel.v1";
 const PREVIOUS_VAULT_SERVICE: &str = "OpenDock.CloudflareTunnel.v1";
 const PUBLIC_PRESET_SCOPE: &str = "public-presets";
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AccountOptions {
     pub hostname: String,

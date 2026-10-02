@@ -1,3 +1,21 @@
+use std::io::IsTerminal;
+
+fn success_output(result: serde_json::Value) -> String {
+    serde_json::to_string_pretty(&crate::wire::Response::success(result)).unwrap()
+}
+
+fn identity_output(path: &str, fingerprint: &str, terminal: bool) -> String {
+    if terminal {
+        format!("Device identity created: {path}\nSHA-256: {fingerprint}\nCompare this fingerprint with the native connection popup. This key authenticates requests; it cannot approve operations.")
+    } else {
+        success_output(serde_json::json!({
+            "path": path,
+            "fingerprint": fingerprint,
+            "canApprove": false,
+        }))
+    }
+}
+
 pub async fn run(args: &[String]) -> Result<i32, String> {
     match args {
         [arg] if arg == "mcp" => local().await,
@@ -10,12 +28,12 @@ pub async fn run(args: &[String]) -> Result<i32, String> {
                 _ => ("open_personal_vault", serde_json::json!({"view":"add"})),
             };
             let result = crate::public::call(method, params).await?;
-            println!("{}", serde_json::to_string_pretty(&serde_json::json!({"ok":true,"result":result})).unwrap());
+            println!("{}", success_output(result));
             Ok(0)
         }
         [command, output, path] if command == "identity" && output == "--output" => {
             let fingerprint=yougori_vault::transport::DeviceKey::create_file(std::path::Path::new(path))?;
-            println!("Device identity created: {path}\nSHA-256: {fingerprint}\nCompare this fingerprint with the native connection popup. This key authenticates requests; it cannot approve operations.");
+            println!("{}", identity_output(path, &fingerprint, std::io::stdout().is_terminal()));
             Ok(0)
         }
         [command, remote, endpoint, pin_flag, pin, identity_flag, identity] if command == "mcp" && remote == "--remote" && pin_flag == "--pin" && identity_flag == "--identity" => {
@@ -26,6 +44,33 @@ pub async fn run(args: &[String]) -> Result<i32, String> {
             Ok(0)
         }
         _ => Err("Usage: yougori vault status | open | approve | add | mcp | identity --output FILE | mcp --remote HOST:49731 --pin SHA256 --identity FILE".into()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ordinary_vault_output_uses_the_machine_contract() {
+        let result = serde_json::json!({"locked": true, "pendingRequests": 2});
+        let value: serde_json::Value = serde_json::from_str(&success_output(result.clone())).unwrap();
+        assert_eq!(value["version"], crate::wire::VERSION);
+        assert_eq!(value["ok"], true);
+        assert_eq!(value["result"], result);
+        assert!(value.get("error").is_none());
+    }
+
+    #[test]
+    fn identity_has_structured_piped_output_and_terminal_guidance() {
+        let value: serde_json::Value = serde_json::from_str(&identity_output("device.json", "abc123", false)).unwrap();
+        assert_eq!(value["version"], crate::wire::VERSION);
+        assert_eq!(value["result"]["path"], "device.json");
+        assert_eq!(value["result"]["fingerprint"], "abc123");
+        assert_eq!(value["result"]["canApprove"], false);
+        let terminal = identity_output("device.json", "abc123", true);
+        assert!(terminal.contains("SHA-256: abc123"));
+        assert!(terminal.contains("cannot approve operations"));
     }
 }
 #[cfg(not(windows))]

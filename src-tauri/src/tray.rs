@@ -12,7 +12,7 @@ fn show_dashboard(app: &AppHandle) {
     }
 }
 
-/// A presence icon while Desktop is open; it never hides the window or prevents exit.
+/// Reopens the dashboard when Desktop's windows are closed and the engine keeps running.
 pub fn install(app: &AppHandle) -> tauri::Result<()> {
     let open = MenuItem::with_id(app, "tray-open", "Open Yougori", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "tray-quit", "Quit Yougori…", true, None::<&str>)?;

@@ -553,7 +553,7 @@ func (s *server) provision(w http.ResponseWriter, r *http.Request) {
 		args = append(args, "--pull", "never")
 	}
 	args = append(args, gpuArgs...)
-	args, err = appendWorkload(args, image, request.Command, request.Options)
+	args, err = appendResolvedWorkload(ctx, namespace, args, image, request.Command, request.Options)
 	if err != nil {
 		writeError(w, 400, err.Error())
 		return
@@ -781,7 +781,7 @@ func (s *server) configuration(w http.ResponseWriter, r *http.Request) {
 			return commandOutput{}, deviceError
 		}
 		args = append(args, deviceArgs...)
-		args, optionErr := appendWorkload(args, temporaryTag, request.Command, options)
+		args, optionErr := appendResolvedWorkload(ctx, namespace, args, temporaryTag, request.Command, options)
 		if optionErr != nil {
 			return commandOutput{}, optionErr
 		}

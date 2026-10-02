@@ -1,5 +1,20 @@
 use super::*;
 
+#[tokio::test]
+async fn provider_coordination_is_scoped_to_the_provider_and_original_storage_pool() {
+    let first = tempfile::tempdir().unwrap();
+    let second = tempfile::tempdir().unwrap();
+    let a = container_policy_lock(first.path(), &RuntimeProviderKind::YougoriOci).await;
+    let same = container_policy_lock(first.path(), &RuntimeProviderKind::YougoriOci).await;
+    let other_provider = container_policy_lock(first.path(), &RuntimeProviderKind::YougoriCuda).await;
+    let other_drive = container_policy_lock(second.path(), &RuntimeProviderKind::YougoriOci).await;
+    assert!(std::sync::Arc::ptr_eq(&a, &same));
+    let _held = a.lock_owned().await;
+    assert!(same.try_lock_owned().is_err());
+    assert!(other_provider.try_lock_owned().is_ok());
+    assert!(other_drive.try_lock_owned().is_ok());
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 #[ignore = "boots a disposable container to verify edited policies against actual cgroups"]
 async fn saved_container_resources_reach_cgroups_on_start_and_live_save() -> Result<(), String> {
@@ -23,7 +38,7 @@ async fn saved_container_resources_reach_cgroups_on_start_and_live_save() -> Res
         env.resource_policy.memory_gb = ResourceRange { min: 5.0, preferred: 6.0, max: 8.0, current: 0.0 };
         let mut state = PlatformState::empty().map_err(|e| e.to_string())?;
         state.environments = vec![env.clone()];
-        prepare_container_start(&state, &env, &runtime).await?;
+        prepare_container_start(&state, &env, &runtime, None).await?;
         runtime.container_action(&id, "start", false).await?;
         let first = runtime.execute_container_command(&id, "cat /sys/fs/cgroup/cpu.max /sys/fs/cgroup/memory.max").await?;
         if first.exit_code != 0 || !first.stdout.contains("400000 100000\n6442450944") {
@@ -36,7 +51,7 @@ async fn saved_container_resources_reach_cgroups_on_start_and_live_save() -> Res
         env.resource_policy.cpu.current = 4.0;
         env.resource_policy.memory_gb.current = 6.0;
         state.environments = vec![env.clone()];
-        prepare_container_start(&state, &env, &runtime).await?;
+        prepare_container_start(&state, &env, &runtime, None).await?;
         let repaired = runtime.execute_container_command(&id, "cat /sys/fs/cgroup/cpu.max /sys/fs/cgroup/memory.max").await?;
         if repaired.exit_code != 0 || !repaired.stdout.contains("400000 100000\n6442450944") {
             return Err(format!("Live save trusted stale applied limits: {}", repaired.stdout));
@@ -46,7 +61,7 @@ async fn saved_container_resources_reach_cgroups_on_start_and_live_save() -> Res
         env.resource_policy.cpu.preferred = 3.5;
         env.resource_policy.memory_gb.preferred = 5.5;
         state.environments = vec![env.clone()];
-        prepare_container_start(&state, &env, &runtime).await?;
+        prepare_container_start(&state, &env, &runtime, None).await?;
         let changed = runtime.execute_container_command(&id, "cat /sys/fs/cgroup/cpu.max /sys/fs/cgroup/memory.max /root/resource-marker").await?;
         if changed.exit_code != 0 || !changed.stdout.contains("350000 100000\n5905580032\nkeep-me") {
             return Err(format!("Live changed limits did not reach cgroups: {}", changed.stdout));

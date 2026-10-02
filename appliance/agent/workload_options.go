@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -17,15 +19,16 @@ type workloadVolume struct {
 	ReadOnly bool   `json:"readOnly"`
 }
 type workloadOptions struct {
-	Environment map[string]string `json:"environment"`
-	Hosts       map[string]string `json:"hosts"`
-	Args        *[]string         `json:"args"`
-	Entrypoint  *[]string         `json:"entrypoint"`
-	WorkingDir  *string           `json:"workingDir"`
-	User        *string           `json:"user"`
-	Volumes     []workloadVolume  `json:"volumes"`
-	Binds       []workloadVolume  `json:"binds"`
-	Restart     string            `json:"restart"`
+	Environment          map[string]string `json:"environment"`
+	ProtectedEnvironment map[string]string `json:"protectedEnvironment,omitempty"`
+	Hosts                map[string]string `json:"hosts"`
+	Args                 *[]string         `json:"args"`
+	Entrypoint           *[]string         `json:"entrypoint"`
+	WorkingDir           *string           `json:"workingDir"`
+	User                 *string           `json:"user"`
+	Volumes              []workloadVolume  `json:"volumes"`
+	Binds                []workloadVolume  `json:"binds"`
+	Restart              string            `json:"restart"`
 }
 
 var workloadName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}$`)
@@ -62,6 +65,18 @@ func (o workloadOptions) arguments() ([]string, error) {
 	sort.Strings(names)
 	for _, k := range names {
 		args = append(args, "--env", k+"="+o.Environment[k])
+	}
+	if len(o.ProtectedEnvironment) > 0 {
+		for name := range o.ProtectedEnvironment {
+			if _, exists := o.Environment[name]; exists {
+				return nil, fmt.Errorf("duplicate protected environment binding")
+			}
+		}
+		path, err := protectedEnvironmentFile(dataRoot, o.ProtectedEnvironment)
+		if err != nil {
+			return nil, err
+		}
+		args = append(args, "--env-file", path)
 	}
 	if len(o.Hosts) > 256 {
 		return nil, fmt.Errorf("too many host aliases")
@@ -128,8 +143,15 @@ func (o workloadOptions) arguments() ([]string, error) {
 		}
 	}
 	if o.Entrypoint != nil {
-		encoded, _ := json.Marshal(*o.Entrypoint)
-		args = append(args, "--entrypoint", string(encoded))
+		executable := ""
+		if len(*o.Entrypoint) > 0 {
+			executable = (*o.Entrypoint)[0]
+			if executable == "" {
+				return nil, fmt.Errorf("entrypoint must begin with an executable or be an empty list")
+			}
+		}
+		// nerdctl's Docker-compatible flag is a single executable, not JSON argv.
+		args = append(args, "--entrypoint", executable)
 	}
 	return args, nil
 }
@@ -143,11 +165,51 @@ func appendWorkload(args []string, image, command string, o workloadOptions) ([]
 		args = append(args, "--entrypoint", "/bin/sh", image, "-lc", command)
 	} else {
 		args = append(args, image)
+		if o.Entrypoint != nil && len(*o.Entrypoint) > 1 {
+			args = append(args, (*o.Entrypoint)[1:]...)
+		}
 		if o.Args != nil {
 			args = append(args, (*o.Args)...)
 		}
 	}
 	return args, nil
+}
+
+// Explicit entrypoint overrides reset nerdctl's inherited CMD. Preserve the OCI
+// distinction between omitted and explicitly empty lists by resolving defaults.
+func appendResolvedWorkload(ctx context.Context, imageNamespace string, args []string, image, command string, o workloadOptions) ([]string, error) {
+	if strings.TrimSpace(command) == "" && ((o.Entrypoint != nil && o.Args == nil) || (o.Entrypoint == nil && o.Args != nil && len(*o.Args) == 0)) {
+		inspect := func() (commandOutput, error) {
+			return run(ctx, "nerdctl", "--namespace", imageNamespace, "image", "inspect", "--format", "{{json .Config}}", image)
+		}
+		output, err := inspect()
+		if err != nil {
+			if _, err = run(ctx, "nerdctl", "--namespace", imageNamespace, "pull", image); err != nil {
+				return nil, err
+			}
+			output, err = inspect()
+		}
+		if err != nil {
+			return nil, err
+		}
+		var config startupImageConfig
+		if json.Unmarshal([]byte(output.Stdout), &config) != nil {
+			return nil, fmt.Errorf("cannot inspect inherited image startup arguments")
+		}
+		o = workloadDefaults(o, config)
+	}
+	return appendWorkload(args, image, command, o)
+}
+func workloadDefaults(o workloadOptions, config startupImageConfig) workloadOptions {
+	if o.Args == nil {
+		args := append([]string{}, config.Cmd...)
+		o.Args = &args
+	}
+	if o.Entrypoint == nil {
+		entrypoint := append([]string{}, config.Entrypoint...)
+		o.Entrypoint = &entrypoint
+	}
+	return o
 }
 func saveWorkload(id string, o workloadOptions) error {
 	root := filepath.Join(dataRoot, "workload-options")
@@ -190,4 +252,45 @@ func readWorkload(id string) (workloadOptions, error) {
 	}
 	err = json.Unmarshal(data, &o)
 	return o, err
+}
+
+func protectedEnvironmentFile(base string, values map[string]string) (string, error) {
+	if len(values) > 128 {
+		return "", fmt.Errorf("too many protected environment bindings")
+	}
+	keys := make([]string, 0, len(values))
+	for name, value := range values {
+		if !variableName.MatchString(name) || value == "" || len(value) > 65536 || strings.ContainsAny(value, "\x00\r\n") {
+			return "", fmt.Errorf("invalid protected environment binding")
+		}
+
+		keys = append(keys, name)
+	}
+	sort.Strings(keys)
+	var text strings.Builder
+	for _, name := range keys {
+		text.WriteString(name + "=" + values[name] + "\n")
+	}
+	root := filepath.Join(base, "workload-secrets")
+	if err := os.MkdirAll(root, 0700); err != nil {
+		return "", fmt.Errorf("cannot prepare protected environment storage")
+	}
+	digest := sha256.Sum256([]byte(text.String()))
+	path := filepath.Join(root, fmt.Sprintf("%x.env", digest))
+	file, err := os.CreateTemp(root, ".secret-")
+	if err != nil {
+		return "", fmt.Errorf("cannot prepare protected environment file")
+	}
+	defer os.Remove(file.Name())
+	if _, err = file.WriteString(text.String()); err == nil {
+		err = file.Sync()
+	}
+	closeErr := file.Close()
+	if err != nil || closeErr != nil {
+		return "", fmt.Errorf("cannot save protected environment file")
+	}
+	if err = os.Rename(file.Name(), path); err != nil {
+		return "", fmt.Errorf("cannot commit protected environment file")
+	}
+	return path, nil
 }

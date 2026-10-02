@@ -57,8 +57,9 @@ node" and keep it selectable. Unassigned domains are available; domains and
 tunnel ports reserved by other nodes/services remain visible but greyed out,
 with the owning node named. Live and saved stopped/reconnecting routes count.
 This applies to local/cloud project setup, model setup and CLI public-access
-menus. Switching public domains replaces only that service's old Cloudflare
-publication before publishing the new route; an unchanged route is reused.
+menus. Switching public domains changes only that service's old Cloudflare
+publication; compatible listeners are reused and a failed replacement restores
+the previous owned listener and saved route. Unrelated publications are preserved.
 Recommended applies the default CPU, memory and ports. For local project
 containers, storage is twice the current project folder's file size, rounded
 up to whole GiB with a 1 GiB minimum. Measurement includes ignored files,
@@ -264,7 +265,13 @@ Each environment supports:
   cpu: fixed cores; memory: fixed GiB number or e.g. 512MB/4GB; gpu: true/false
   storage: whole GiB (minimum 6); storage_drive: optional drive/folder selection
   command, entrypoint: argument list or guest shell string
-  environment: map of names to quoted string values
+  environment: map of names to quoted nonsecret string values
+  secrets: map of environment variable names to protected OS-vault references
+  files: [{source: ./code, target: /app}] managed code copies, separate from data
+  setup: {python_minimum: 3.12, pip: [package==version], verify_command: ...}
+  automatic_start: true selects native sign-in startup (not before sign-in)
+  health: {port: 3000, path: /health, expected_status: 200, timeout_seconds: 10}
+  health also accepts method: POST, body: {...}, bearer_secret: REF, wait_seconds: 120
   working_dir, user, restart: no/always/unless-stopped/on-failure
   ports: guest port, "HOST:GUEST", or {target: 80, published: 8080}
   internet: boolean (default false for YAML)
@@ -284,7 +291,8 @@ microVM PC mounts use the existing My PC sharing controls instead of OCI binds.
 Connections accept "frontend -> database" or {from: frontend, to: database,
 ports: [5432], permissions: [ports]}. They grant explicit private access; internet
 is independent. Container service names resolve over this private network.
-publish maps services to a hostname or {port: 80, hostname: app.example.com,
+publish maps services to {port: 80, domain: SAVED_DOMAIN_ID_OR_HOSTNAME},
+a hostname, or {port: 80, hostname: app.example.com,
 token_env: CLOUDFLARE_API_TOKEN}. Save the account in Desktop, or set the token in
 the engine's environment before starting it. A port without hostname creates an
 explicit public Quick Tunnel. Publishing never invents DNS/account credentials.
@@ -300,9 +308,50 @@ create a replacement. Changing an OCI microVM workload also creates a replacemen
 Removed services/data are preserved for explicit review/removal. down stops owned
 nodes and removes project-owned publications/My PC shares without deleting data.
 Failures identify the affected operation; successfully created nodes remain in
-Desktop. Fix the input or inspect the node and retry; no destructive rollback is
-performed. A failed node is not silently duplicated. This is not a transactional
+Desktop. Fix the input or inspect the node and retry. Publication route replacement
+retains the prior owned listener and saved intent until the new route succeeds;
+a failed replacement restores them. Unrelated publications are preserved. A failed node is not silently duplicated. This is not a transactional
 orchestration system and changing an application while it runs can need downtime.
+
+Verified deployment and protected data
+  yougori deployment status -f yougori.yaml
+  yougori ports preflight ENV --port 3000 --kind cloudflare --domain SAVED_DOMAIN
+  yougori deployment secret set qualification-token --yes
+The secret set command accepts {"value":"..."} only on stdin. Supply that input
+from a protected source, not a shell argument or a committed file. The value lives
+in the OS credential vault. YAML stores reference names. Guest startup receives
+protected values through a private 0600 env file instead of credential argv.
+Ordinary service and folder listings omit bearer-capability guest URLs. Explicit
+`yougori share credentials SHARE_ID --yes` retrieves the private capability.
+
+Managed files use content checksums and a stable guest symlink. Unchanged source
+content is not copied again when the active guest tree still matches; guest edits
+or a broken activation are repaired on apply. Changed code stages in an isolated import directory,
+then atomically changes only the managed symlink. A preexisting unmanaged target
+is preserved and activation fails with a useful explanation. Interrupted activation
+is adopted by its saved identity on the next apply; the old and partial copies remain
+for inspection. Named data volumes are independent of code copies and survive updates.
+Removing a file declaration releases only its managed link and preserves prepared
+data. Removing an environment declaration stops that owned environment and revokes
+its declared access without deleting its disk or unrelated environments.
+Managed code copies support local containers, GPU containers and built-in microVM
+guests. Dependency setup supports local containers and GPU containers. Cloud/full
+VM targets and nested OCI microVM code copies are rejected during manifest validation
+when these features are requested, before creating or modifying a deployment.
+Pin SDK packages and choose an image satisfying python_minimum. Setup checks Python
+before installation, installs only mismatched pinned packages, and runs verify_command.
+Repository-specific decision SDKs belong in this explicit setup instead of generic chat.
+
+Up/apply return executionOutcome: applied separately from ready. Readiness identifies
+saved state, runtime, application response, local HTTP, tunnel, public HTTPS and an
+optional authenticated request. A 530 public response fails public readiness even
+when local HTTP succeeds. Responses and credential values are never included in the
+report; status codes and specific stages explain the failure. The bounded wait_seconds
+allows warming applications to become healthy without recreating their environments.
+Without health, a runtime may be ready while applicationVerified remains false.
+A public URL remains unverified until the configured HTTPS request succeeds.
+Automatic startup restores the saved publication and uses the same health contract;
+its report explicitly distinguishes sign-in startup from before-sign-in operation.
 
 Docker Compose import
   yougori import compose.yaml --dry-run
@@ -395,7 +444,11 @@ additional support. Model weights persist in the environment's named cache volum
 The runner supports text chat from Qwen3.5 checkpoints through Transformers 5.18.0
 and uses the checkpoint's saved precision. Config, tokenizer and weights come from
 the same repository revision. Architecture and custom decision-head checks run
-before downloading weights. Cloudflare/clef includes a custom structured-decision
+before downloading weights. Host compatibility preflight runs before environment
+creation and reports the task, pinned runner dependencies, immutable revision and
+estimated storage/VRAM. Safetensors weights download directly into persistent guest
+storage and are verified against repository LFS SHA256/Git blob identities before
+loading; cached weights are also rechecked. Cloudflare/clef includes a custom structured-decision
 head and needs its own decision runner; running only its backbone as chat would
 discard that head. It is rejected with a specific explanation.
 

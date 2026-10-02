@@ -5,6 +5,8 @@ use tauri::Manager;
 use crate::AppHandle;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 mod neocloud;
+pub(crate) mod preflight;
+pub use preflight::model_preflight;
 pub(crate) use neocloud::{run_neocloud_model, start_model, stop_model};
 pub fn normalize_model(model: &str) -> Result<String, String> {
     let model = model
@@ -65,6 +67,8 @@ impl ModelResources {
 
 pub async fn run_model_with_resources(model: String, port: Option<u16>, resources: Option<ModelResources>, app: AppHandle) -> Result<Value, String> {
     let model = normalize_model(&model)?;
+    let compatibility=preflight::preflight(&model).await?;
+    if compatibility["supported"]!=true{return Err(format!("{}: {}. No environment was created.",model,compatibility["reason"].as_str().unwrap_or("Model compatibility could not be established")))}
     if port == Some(0) {
         return Err("Invalid API port".into());
     }
@@ -74,20 +78,27 @@ pub async fn run_model_with_resources(model: String, port: Option<u16>, resource
         .maximum_gb;
     let state = app.state::<PlatformStore>().snapshot()?;
     let host = state.host;
-    let (cpu, memory, storage) = resources.unwrap_or_default().allocation(host.total_cpu, host.total_memory_gb, available)?;
+    let mut resources=resources.unwrap_or_default();
+    let required_storage=compatibility["resources"]["storageGbRecommended"].as_f64().unwrap_or(20.0).max(12.0);
+    if resources.storage_gb.is_none(){resources.storage_gb=Some(required_storage.max(20.0));}
+    if resources.storage_gb.is_some_and(|s|s<required_storage){return Err(format!("This model needs approximately {required_storage:.0} GB of persistent storage for its weights and runtime. No environment was created."))}
+    let (cpu, memory, storage) = resources.allocation(host.total_cpu, host.total_memory_gb, available)?;
     let token = format!(
         "{}{}",
         uuid::Uuid::new_v4().simple(),
         uuid::Uuid::new_v4().simple()
     );
+    let token_reference=format!("model-api-{}",uuid::Uuid::new_v4().simple());
+    crate::projects::secrets::store(&token_reference,&token)?;
     let name = yougori_cli::public::model_environment_name(&model, state.environments.iter().map(|e| e.name.as_str()));
     let volume = format!("model-{}-models", &uuid::Uuid::new_v4().simple().to_string()[..8]);
     let range = |n: f64| json!({"min":n,"preferred":n,"max":n});
     let command = server_command();
-    let request = json!({"name":name,"kind":"container","provider":"yougoriCuda","autoSetupCuda":true,"runtime":"docker.io/pytorch/pytorch:2.8.0-cuda12.8-cudnn9-runtime","containerCommand":command,"gpuAccess":true,"networkAccess":true,"storageGb":storage,"description":format!("Hugging Face · {model}"),"resourcePolicy":{"cpu":range(cpu),"memoryGb":range(memory),"priority":"normal","dynamic":false},"workload":{"environment":{"YOUGORI_MODEL":model,"YOUGORI_MODEL_TOKEN":token,"HF_HOME":"/root/.cache/huggingface","HF_HUB_DISABLE_TELEMETRY":"1"},"volumes":[{"source":volume,"target":"/root/.cache/huggingface","readOnly":false}]},"ports":port.map(|p|vec![format!("{p}:8000")]).unwrap_or_default()});
+    let request = json!({"name":name,"kind":"container","provider":"yougoriCuda","autoSetupCuda":true,"runtime":"docker.io/pytorch/pytorch:2.8.0-cuda12.8-cudnn9-runtime","containerCommand":command,"gpuAccess":true,"networkAccess":true,"storageGb":storage,"description":format!("Hugging Face · {model}"),"resourcePolicy":{"cpu":range(cpu),"memoryGb":range(memory),"priority":"normal","dynamic":false},"workload":{"environment":{"YOUGORI_MODEL":model,"YOUGORI_MODEL_REVISION":compatibility["revision"],"HF_HOME":"/root/.cache/huggingface","HF_HUB_DISABLE_TELEMETRY":"1"},"secretEnvironment":{"YOUGORI_MODEL_TOKEN":token_reference},"volumes":[{"source":volume,"target":"/root/.cache/huggingface","readOnly":false}]},"ports":port.map(|p|vec![format!("{p}:8000")]).unwrap_or_default()});
     let mut result = crate::projects::run_workload(request, true, app).await?;
     result["model"] = model.into();
     result["status"] = json!("loading");
+    result["preflight"]=compatibility;
     if let Some(port) = port {
         result["apiUrl"] = json!(format!("http://127.0.0.1:{port}/v1"));
         result["apiKey"] = token.into();
@@ -130,12 +141,30 @@ pub(crate) async fn refresh_server(
     }
     let current = env.container_command.as_deref().unwrap_or_default();
     let command = server_command();
-    if env.status != EnvironmentStatus::Stopped
-        || !is_server_command(current)
-        || current == command
-    {
+    if env.status != EnvironmentStatus::Stopped || !is_server_command(current) {
         return Ok(());
     }
+    let mut options=runtime.workload_options(env.runtime_id.as_deref().unwrap_or(&env.id))?;
+    let old=options.clone();
+    if !options.secret_environment.contains_key("YOUGORI_MODEL_TOKEN") {
+        if let Some(token)=options.environment.get("YOUGORI_MODEL_TOKEN").cloned().filter(|value|value.len()==64&&value.bytes().all(|b|b.is_ascii_hexdigit())) {
+            let reference=format!("model-api-{}",uuid::Uuid::new_v4().simple());
+            crate::projects::secrets::store(&reference,&token)?;
+            options.environment.remove("YOUGORI_MODEL_TOKEN");options.secret_environment.insert("YOUGORI_MODEL_TOKEN".into(),reference);
+        }
+    }
+    if !options.environment.contains_key("YOUGORI_MODEL_REVISION") {
+        if let Some(model)=options.environment.get("YOUGORI_MODEL").cloned(){
+            let compatibility=preflight::preflight(&normalize_model(&model)?).await?;
+            if compatibility["supported"]!=true{return Err(format!("{}: {}. The existing environment and data were preserved.",model,compatibility["reason"].as_str().unwrap_or("A dedicated runner is required")))}
+            options.environment.insert("YOUGORI_MODEL_REVISION".into(),compatibility["revision"].as_str().ok_or("Compatibility preflight did not return a pinned revision")?.into());
+        }
+    }
+    if options!=old {
+        runtime.save_workload_options(&env.id,&options)?;
+        if let Err(error)=runtime.update_workload_configuration(env).await{runtime.save_workload_options(&env.id,&old)?;return Err(error)}
+    }
+    if current==command{return Ok(())}
     crate::commands::startup::update(environment_id, &command, store, runtime)
         .await
         .map(|_| ())
@@ -164,11 +193,8 @@ async fn model_connection(
         return Err("Start the model environment first".into());
     }
     let options = runtime.workload_options(env.runtime_id.as_deref().unwrap_or(id))?;
-    let token = options
-        .environment
-        .get("YOUGORI_MODEL_TOKEN")
-        .filter(|s| s.len() == 64 && s.bytes().all(|c| c.is_ascii_hexdigit()))
-        .ok_or("This environment is not a Yougori model workload")?;
+    let token = crate::projects::secrets::variable(&options,"YOUGORI_MODEL_TOKEN")?;
+    if token.len()!=64 || !token.bytes().all(|c|c.is_ascii_hexdigit()) { return Err("This environment is not a Yougori model workload".into()); }
     let encoded = body.map(Value::to_string).unwrap_or_default();
     if encoded.len() > 65536 {
         return Err("Conversation exceeds 64 KiB; start a new chat".into());
@@ -243,7 +269,7 @@ pub async fn model_status(environment_id: String, app: AppHandle) -> Result<Valu
         let runtime = app.state::<RuntimeManager>();
         let session = runtime.cloud.session(&environment_id).await?;
         let options = runtime.workload_options(&environment_id)?;
-        let token = options.environment.get("YOUGORI_MODEL_TOKEN").ok_or("This is not a model environment")?;
+        let token = crate::projects::secrets::variable(&options,"YOUGORI_MODEL_TOKEN")?;
         return session.request("model/status", json!({"token":token})).await;
     }
     model_request(&app, &environment_id, "/health", None).await
@@ -266,10 +292,7 @@ pub async fn model_api(environment_id: String, port: u16, app: AppHandle) -> Res
         .environment
         .get("YOUGORI_MODEL")
         .ok_or("This is not a model environment")?;
-    let token = options
-        .environment
-        .get("YOUGORI_MODEL_TOKEN")
-        .ok_or("Model API credentials unavailable")?;
+    let token = crate::projects::secrets::variable(&options,"YOUGORI_MODEL_TOKEN")?;
     let current = crate::automation::dispatch::dispatch(
         &app,
         "list_environment_services",
@@ -311,10 +334,7 @@ async fn api_status(app: &AppHandle, environment_id: &str) -> Result<Value, Stri
         .environment
         .get("YOUGORI_MODEL")
         .ok_or("This is not a model environment")?;
-    let token = options
-        .environment
-        .get("YOUGORI_MODEL_TOKEN")
-        .ok_or("Model API credentials unavailable")?;
+    let token = crate::projects::secrets::variable(&options,"YOUGORI_MODEL_TOKEN")?;
     let services = crate::automation::dispatch::dispatch(
         app,
         "list_environment_services",

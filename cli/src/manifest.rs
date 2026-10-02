@@ -39,6 +39,17 @@ pub struct Environment {
     pub entrypoint: Option<Command>,
     #[serde(default)]
     pub environment: BTreeMap<String, String>,
+    /// Environment variable -> OS-vault reference. Values never belong in project YAML.
+    #[serde(default)]
+    pub secrets: BTreeMap<String, String>,
+    #[serde(default)]
+    pub files: Vec<FileSource>,
+    #[serde(default)]
+    pub automatic_start: bool,
+    #[serde(default)]
+    pub health: Option<HealthCheck>,
+    #[serde(default)]
+    pub setup: Option<Setup>,
     #[serde(default)]
     pub working_dir: Option<String>,
     #[serde(default)]
@@ -65,6 +76,60 @@ pub struct Environment {
     pub cloud: Option<Value>,
     #[serde(default)]
     pub shared: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct FileSource { pub source: String, pub target: String }
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Setup {
+    #[serde(default)] pub python_minimum: Option<String>,
+    #[serde(default)] pub pip: Vec<String>,
+    #[serde(default)] pub verify_command: Option<String>,
+}
+impl Setup{
+    pub fn validate(&self)->Result<(),String>{
+        if self.python_minimum.as_ref().is_some_and(|v|{let parts=v.split('.').collect::<Vec<_>>();parts.len()!=2||parts.iter().any(|p|p.parse::<u16>().is_err())}) || self.pip.len()>128 || self.pip.iter().any(|requirement|requirement.split_once("==").is_none_or(|(name,version)|name.is_empty()||version.is_empty()||name.len()>128||version.len()>128||!name.bytes().all(|b|b.is_ascii_alphanumeric()||b"_.-[]".contains(&b))||!version.bytes().all(|b|b.is_ascii_alphanumeric()||b"._+-".contains(&b)))) || self.verify_command.as_ref().is_some_and(|s|s.is_empty()||s.contains('\0')||s.len()>32768) || serde_json::to_string(&self.pip).map(|s|s.len()>16384).unwrap_or(true){return Err("Setup accepts python_minimum like 3.12, pinned pip packages name==version, and an optional verification command".into())}
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct HealthCheck {
+    pub port: u16,
+    #[serde(default = "health_path")]
+    pub path: String,
+    #[serde(default = "health_method")]
+    pub method: String,
+    #[serde(default)]
+    pub body: Option<Value>,
+    #[serde(default = "health_status")]
+    pub expected_status: u16,
+    #[serde(default = "health_timeout")]
+    pub timeout_seconds: u64,
+    #[serde(default)]
+    pub bearer_secret: Option<String>,
+    #[serde(default = "health_wait")]
+    pub wait_seconds: u64,
+}
+fn health_path() -> String { "/".into() }
+fn health_method() -> String { "GET".into() }
+fn health_status() -> u16 { 200 }
+fn health_timeout() -> u64 { 10 }
+fn health_wait()->u64{120}
+impl HealthCheck {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.port == 0 || self.port == 7443 || !self.path.starts_with('/') || self.path.starts_with("//") || self.path.len() > 4096 || self.path.chars().any(char::is_control)
+            || !["GET", "HEAD", "POST"].contains(&self.method.as_str()) || !(100..=599).contains(&self.expected_status) || !(1..=60).contains(&self.timeout_seconds)
+            || !(1..=600).contains(&self.wait_seconds) || self.body.as_ref().is_some_and(|v| v.to_string().len() > 65536) || self.bearer_secret.as_ref().is_some_and(|s| !workload::identifier(s)) {
+            return Err("Health check requires a valid application port, local path, GET/HEAD/POST, expected status 100–599, timeout 1–60 seconds, and a vault reference for authentication".into())
+        }
+        if self.body.is_some() && self.method != "POST" { return Err("Only POST health checks accept a body".into()) }
+        Ok(())
+    }
 }
 fn container() -> String {
     "container".into()
@@ -189,6 +254,8 @@ pub enum Publication {
         hostname: Option<String>,
         #[serde(default)]
         token_env: Option<String>,
+        #[serde(default)]
+        domain: Option<String>,
     },
 }
 pub fn gib(value: &Value) -> Result<f64, String> {
@@ -232,6 +299,7 @@ impl Environment {
         let o = Options {
             hosts: BTreeMap::new(),
             environment: self.environment.clone(),
+            secret_environment: self.secrets.clone(),
             args: self.command.as_ref().map(command),
             entrypoint: self.entrypoint.as_ref().map(command),
             working_dir: self.working_dir.clone(),
@@ -350,6 +418,14 @@ impl Project {
                 ));
             }
             e.options(&self.project)?;
+            if let Some(probe) = &e.health { probe.validate()?; }
+            if let Some(setup)=&e.setup{setup.validate()?;if !matches!(e.kind.as_str(),"container"|"gpu"){return Err(format!("{key}: dependency setup currently requires a container"))}}
+            if !e.secrets.is_empty()&&!matches!(e.kind.as_str(),"container"|"gpu"|"microvm"){return Err(format!("{key}: protected application secret bindings require a local container or microVM"))}
+            if e.kind=="microvm"&&e.image.is_empty()&&!e.secrets.is_empty(){return Err(format!("{key}: protected environment bindings require an OCI workload image inside the microVM"))}
+            if !e.files.is_empty() && !matches!(e.kind.as_str(), "container" | "gpu" | "microvm") { return Err(format!("{key}: managed file copies require a container or microVM")); }
+            if e.kind=="microvm" && !e.image.is_empty() && !e.files.is_empty(){return Err(format!("{key}: managed code copies in a nested OCI microVM are not supported; use a container or a built-in microVM guest without an OCI image"))}
+            let mut file_targets = BTreeSet::new();
+            if e.files.len() > 64 || e.files.iter().any(|f| f.source.is_empty() || f.source.contains('\0') || !workload::guest_path(&f.target) || !file_targets.insert(&f.target)) { return Err(format!("{key}: files require at most 64 source paths and unique absolute guest targets")); }
             for mount in &e.volumes {
                 if !workload::guest_path(&mount.target) {
                     return Err(format!("{key}: invalid volume target"));
@@ -407,10 +483,11 @@ impl Project {
             if !self.environments.contains_key(key) {
                 return Err(format!("Unknown published environment {key}"));
             }
-            if let Publication::Detailed { port, .. } = p {
+            if let Publication::Detailed { port, hostname, domain, token_env } = p {
                 if *port == 0 {
                     return Err("Publication port must be nonzero".into());
                 }
+                if domain.as_ref().is_some_and(|name|name.trim().is_empty()||name.len()>253) || (domain.is_some()&&(hostname.is_some()||token_env.is_some())) { return Err("Publication domain uses an existing saved domain; do not combine it with hostname or token_env".into()); }
             }
         }
         self.order()?;
@@ -468,4 +545,60 @@ pub fn read(path: &Path) -> Result<String, String> {
 
 pub fn to_yaml(project: &Project) -> Result<String, String> {
     serde_yaml_ng::to_string(project).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]mod deployment_tests{
+    use super::*;
+    #[test]fn complete_deployment_roundtrips_protected_references_and_pinned_sdk(){
+        let text=r#"project: verified-api
+environments:
+  api:
+    image: python:3.12-slim
+    command: [python, /app/api.py]
+    files: [{source: ./code, target: /app}]
+    volumes: [{source: model-data, target: /models}]
+    secrets: {API_TOKEN: qualification-token}
+    setup:
+      python_minimum: '3.12'
+      pip: [fastapi==0.115.0]
+      verify_command: python -c 'import fastapi'
+    automatic_start: true
+    health:
+      port: 3000
+      path: /qualify
+      method: POST
+      body: {sample: qualification}
+      bearer_secret: qualification-token
+      wait_seconds: 180
+publish:
+  api: {port: 3000, domain: saved-api-domain}
+"#;
+        let project=parse(text).unwrap();let spec=&project.environments["api"];
+        assert_eq!(spec.options("verified-api").unwrap().secret_environment["API_TOKEN"],"qualification-token");
+        assert!(spec.automatic_start);assert_eq!(spec.health.as_ref().unwrap().method,"POST");
+        assert_eq!(parse(&to_yaml(&project).unwrap()).unwrap(),project);
+    }
+    #[test]fn invalid_health_paths_secret_values_and_unpinned_sdks_fail_before_creation(){
+        for path in ["//other.example/health","/health\r\nAuthorization: leaked","health"]{
+            let probe:HealthCheck=serde_json::from_value(json!({"port":3000,"path":path})).unwrap();assert!(probe.validate().is_err());
+        }
+        for requirement in ["fastapi", "git+https://example.com/package", "package==1.0; echo malicious"]{
+            let setup:Setup=serde_json::from_value(json!({"pip":[requirement]})).unwrap();assert!(setup.validate().is_err());
+        }
+        let mut project=parse("project: refs\nenvironments:\n  api:\n    image: alpine:latest\n    secrets: {API_TOKEN: protected-token}\n").unwrap();
+        project.environments.get_mut("api").unwrap().environment.insert("API_TOKEN".into(),"plain-value".into());assert!(project.validate().is_err());
+        project.environments.get_mut("api").unwrap().environment.clear();project.environments.get_mut("api").unwrap().secrets.insert("API_TOKEN".into(),"literal secret with spaces".into());assert!(project.validate().is_err());
+    }
+    #[test]fn unsupported_target_features_are_rejected_during_manifest_preflight(){
+        for kind in ["cloud", "vm", "shared"] {
+            let project:Project=serde_json::from_value(json!({"project":"preflight","environments":{"api":{"type":kind,"source":"guest.qcow2","cloud":{},"shared":"test-invitation","files":[{"source":"./code","target":"/app"}]}}})).unwrap();
+            assert!(project.validate().unwrap_err().contains("managed file copies"),"{kind} must not accept managed copies without a supported guest API");
+            let project:Project=serde_json::from_value(json!({"project":"preflight","environments":{"api":{"type":kind,"source":"guest.qcow2","cloud":{},"shared":"test-invitation","setup":{"python_minimum":"3.12","pip":["fastapi==0.115.0"]}}}})).unwrap();
+            assert!(project.validate().unwrap_err().contains("dependency setup"),"{kind} must not accept local dependency setup");
+        }
+        let built_in:Project=serde_json::from_value(json!({"project":"preflight","environments":{"guest":{"type":"microvm","storage":6,"secrets":{"API_TOKEN":"protected-token"}}}})).unwrap();
+        assert!(built_in.validate().unwrap_err().contains("OCI workload image"));
+        let nested:Project=serde_json::from_value(json!({"project":"preflight","environments":{"guest":{"type":"microvm","image":"alpine:latest","storage":6,"files":[{"source":"./code","target":"/app"}]}}})).unwrap();
+        assert!(nested.validate().unwrap_err().contains("nested OCI microVM"));
+    }
 }

@@ -399,6 +399,7 @@ pub(crate) struct Session {
     pub bridge: mpsc::Sender<Value>,
     pub info: Value,
     share_helper_ready: Arc<tokio::sync::Mutex<bool>>,
+    termination: Arc<Mutex<Option<Result<(), String>>>>,
 }
 impl Session {
     pub async fn request(&self, path: &str, body: Value) -> Result<Value, String> {
@@ -539,10 +540,18 @@ impl Cloud {
             session.close();
         }
     }
-    pub async fn shutdown(&self) {
-        for (_, session) in self.sessions.lock().await.drain() {
-            session.close();
-        }
+    pub async fn shutdown_report(&self) -> Vec<Value> {
+        let sessions: Vec<_> = self.sessions.lock().await.drain().collect();
+        for (_, session) in &sessions { session.close(); }
+        futures_util::future::join_all(sessions.into_iter().map(|(id, session)| async move {
+            let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+            let result = loop {
+                if let Some(result) = session.termination.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).clone() { break result; }
+                if tokio::time::Instant::now() >= deadline { break Err("Owned SSH process did not confirm disconnection before its deadline".to_string()); }
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            };
+            json!({"provider":"cloudSsh","environmentId":id,"scope":"ownedRuntimes","status":if result.is_ok(){"disconnected"}else{"failed"},"postconditionVerified":result.is_ok(),"ownershipReleased":result.is_ok(),"error":result.err().map(|error|crate::lifecycle::safe_diagnostic(&error)),"remotePowerChanged":false})
+        })).await
     }
     pub async fn connect(
         &self,
@@ -592,6 +601,7 @@ impl Cloud {
             bridge: bridge_tx.clone(),
             info: Value::Null,
             share_helper_ready: Arc::new(tokio::sync::Mutex::new(false)),
+            termination: Default::default(),
         };
         let own = id.to_owned();
         let task_session = session.clone();
@@ -661,7 +671,8 @@ impl Cloud {
             };
             tokio::select! { _=stopped=>{}, _=io=>{} }
             let _ = child.kill().await;
-            let _ = child.wait().await;
+            let terminated = child.wait().await.map(|_| ()).map_err(|error| error.to_string());
+            *task_session.termination.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(terminated);
             // Let stderr finish before surfacing useful authentication/setup errors.
             let _ = tokio::time::timeout(Duration::from_millis(100), async {
                 while tasks.join_next().await.is_some() {}

@@ -86,6 +86,7 @@ pub(super) fn validate(method: &str, p: &Value) -> Result<(), String> {
         "execute_environment_command" => {
             let _: ExecuteCommandRequest = arg(p, "request")?;
         }
+        "execute_guest_job" => { let _: crate::guest_execution::GuestJobRequest = arg(p, "request")?; }
         "execute_connected_command" => {
             let _: ExecuteConnectedCommandRequest = arg(p, "request")?;
         }
@@ -108,7 +109,29 @@ pub(crate) fn dispatch<'a>(app: &'a AppHandle, method: &'a str, p: &'a Value) ->
 }
 
 pub(super) fn dispatch_with_progress<'a>(app: &'a AppHandle, method: &'a str, p: &'a Value, progress: std::sync::Arc<dyn Fn(Value) + Send + Sync>) -> std::pin::Pin<Box<dyn std::future::Future<Output=Result<Value,String>> + Send + 'a>> {
-    Box::pin(async move {
+    // Bound each debug poll frame as well as the stored future: a single giant
+    // match allocates temporary stack slots for unrelated handlers.
+    match method {
+        "execute_guest_job" | "guest_execution_output" | "release_guest_execution" | "cancel_guest_execution" | "cancel_file_transfer" | "patch_settings" | "get_settings_snapshot" | "get_startup_report" | "recover_environment_runtime_report" | "model_preflight" | "set_deployment_secret" | "delete_deployment_secret" | "deployment_status" | "get_environment_health_check" | "set_environment_health_check" | "publication_preflight" => dispatch_group_0(app,method,p,progress),
+        "host_share_credentials" | "get_environment_log_window" | "start_environment_download" | "list_environment_downloads" | "keep_environment_downloads_alive" | "stop_environment_download" | "runpod_status" | "runpod_connect" | "runpod_catalog" | "runpod_disconnect" | "runpod_template" | "runpod_search_templates" | "runpod_hub" | "runpod_hub_repo" | "runpod_links" | "runpod_logs" => dispatch_group_1(app,method,p,progress),
+        "runpod_create_endpoint" | "runpod_endpoint_run" | "runpod_action" | "runpod_resources" | "runpod_attach" | "runpod_volume" | "runpod_registry" | "runpod_gpu_offers" | "runpod_create_pod" | "neocloud_providers" | "neocloud_install" | "neocloud_account" | "neocloud_authenticate" | "neocloud_forget_account" | "neocloud_catalog" | "neocloud_discover" => dispatch_group_2(app,method,p,progress),
+        "neocloud_prices" | "neocloud_plan" | "create_neocloud_environment" | "neocloud_action" | "neocloud_recover_id" | "run_model" | "run_neocloud_model" | "start_model" | "stop_model" | "test_cloud_connection" | "duplicate_local_environment" | "duplicate_environment" | "inspect_duplication_source" | "cleanup_environment_duplication" | "model_api" | "model_status" => dispatch_group_3(app,method,p,progress),
+        "model_chat" | "model_chat_begin" | "model_chat_read" | "environment_changes" | "inspect_project" | "discover_projects" | "import_compose" | "project_action" | "run_workload" | "cloud_authenticate" | "deploy_cloud_environment" | "cloud_deployment_action" | "finish_app_close" | "open_isolated_cli" | "grant_isolated_cli_environment" | "delete_cloud_deployment" => dispatch_group_4(app,method,p,progress),
+        "configure_cloud_environment" | "get_environment_logs" | "manage_oci_images" | "create_remote_share" | "start_remote_tunnel" | "stop_remote_tunnel" | "list_remote_shares" | "update_remote_share" | "remove_remote_share" | "connect_remote_share" | "reconnect_remote_share" | "download_remote_folder" | "remote_share_request" | "create_environment_share" | "list_environment_shares" | "revoke_environment_share" => dispatch_group_5(app,method,p,progress),
+        "import_environment_share" | "get_storage_location" | "set_storage_location" | "scan_cloud_host" | "add_cloud_environment" | "get_cloud_connection" | "get_host_terminal_info" | "set_up_agent_access" | "host_terminal_action" | "get_platform_state" | "install_environment_skills" | "get_connection_skills" | "create_environment" | "set_environment_status" | "restart_environment" | "recover_environment_runtime" => dispatch_group_6(app,method,p,progress),
+        "delete_environment" | "factory_reset_environment" | "recover_container_runtime" | "recover_vm_runtime" | "rename_environment" | "update_container_startup_command" | "update_resource_policy" | "configure_resource_limits" | "reclaim_storage" | "get_storage_allocation" | "expand_environment_storage" | "update_container_network" | "update_environment_gpu" | "create_connection" | "set_connection_active" | "delete_connection" => dispatch_group_7(app,method,p,progress),
+        "attach_host_folder" | "detach_host_folder" | "copy_files_to_environment" | "list_imported_drives" | "set_imported_drive_attached" | "list_environment_services" | "get_manual_service_ports" | "set_manual_service_port" | "publish_environment_service" | "list_saved_domains" | "model_usage" | "reset_model_usage" | "list_volumes" | "cloud_options" | "remove_volume" | "copy_files_from_environment" => dispatch_group_8(app,method,p,progress),
+        "copy_files_between_environments" | "model_chat_history" | "save_model_chat_history" | "model_api_status" | "add_saved_domain" | "remember_saved_domain" | "start_saved_domain_tunnel" | "stop_saved_domain_tunnel" | "update_saved_domain" | "remove_saved_domain" | "unpublish_environment_service" | "saved_cloudflare_account" | "forget_cloudflare_account" | "create_snapshot" | "delete_snapshot" | "restore_snapshot" => dispatch_group_9(app,method,p,progress),
+        "export_local_backup" | "import_local_backup" | "add_backup_destination" | "delete_backup_destination" | "run_backup" | "restore_backup" | "update_settings" | "reset_platform_state" | "refresh_host_metrics" | "get_cuda_runtime_status" | "install_cuda_runtime" | "verify_environment_cuda" | "get_shared_gpu_settings" | "set_shared_gpu_selection" | "execute_environment_command" | "execute_connected_command" => dispatch_group_10(app,method,p,progress),
+        "list_environment_folders" | "request_connected_files" | "read_environment_console" | "get_guest_session" | "terminal_action" | "prepare_terminal_installer" | "install_terminal_tool" | "micro_vm_apps" | "open_environment_window" | "open_micro_vm_app_window" | "close_environment_window" | "list_environment_windows" | "focus_environment_window" | "title_environment_window" | "set_guest_keyboard_capture" | "open_workspace_url" | "open_service_window" => dispatch_group_11(app,method,p,progress),
+        "open_personal_vault" | "vault_summary" | "app_show" | "app_quit" => dispatch_group_12(app,method,p,progress),
+        _ => Box::pin(async move { Err(format!("No backend handler for {method}")) }),
+    }
+}
+
+#[allow(unused_variables)]
+fn dispatch_group_0<'a>(app: &'a AppHandle, method: &'a str, p: &'a Value, progress: std::sync::Arc<dyn Fn(Value) + Send + Sync>) -> std::pin::Pin<Box<dyn std::future::Future<Output=Result<Value,String>> + Send + 'a>> {
+    let future=async move {
     let store = app.state::<PlatformStore>();
     let runtime = app.state::<RuntimeManager>();
     let backup = app.state::<BackupManager>();
@@ -124,6 +147,49 @@ pub(super) fn dispatch_with_progress<'a>(app: &'a AppHandle, method: &'a str, p:
             .ok_or_else(|| "Guest window is closed or the label is invalid".to_string())
     };
     match method {
+        "execute_guest_job" => crate::guest_execution::execute_guest_job(a!("request"),store,runtime).await,
+        "guest_execution_output" => crate::guest_execution::guest_execution_output(a!("environmentId"),a!("executionId"),a!("stdoutCursor"),a!("stderrCursor"),a!("limit"),store,runtime).await,
+        "release_guest_execution" => crate::guest_execution::release_guest_execution(a!("environmentId"),a!("executionId"),store,runtime).await,
+        "cancel_guest_execution" => crate::guest_execution::cancel_guest_execution(a!("environmentId"),a!("executionId"),store,runtime).await,
+        "cancel_file_transfer" => { let id:String=a!("environmentId"); Ok(crate::file_import::cancel_transfers(&id, p["transferId"].as_str())) },
+        "patch_settings" => crate::lifecycle::patch_settings(a!("patch"),a!("expectedRevision"),store,runtime,backup).await,
+        "get_settings_snapshot" => crate::lifecycle::get_settings_snapshot(store).await,
+        "get_startup_report" => encoded(crate::lifecycle::get_startup_report(store)?),
+        "recover_environment_runtime_report" => encoded(crate::lifecycle::recover_environment_runtime_report(a!("environmentId"),a!("confirmed"),store,runtime).await?),
+        "model_preflight" => crate::model_runner::model_preflight(a!("model")).await,
+        "set_deployment_secret" => crate::projects::secrets::set_secret(&arg::<String>(p,"name")?,&arg::<String>(p,"value")?),
+        "delete_deployment_secret" => crate::projects::secrets::delete_secret(&arg::<String>(p,"name")?),
+        "deployment_status" => crate::projects::deployment_status(a!("path"),app.clone()).await,
+        "get_environment_health_check" => encoded(crate::projects::get_environment_health_check(a!("environmentId"),runtime)),
+        "set_environment_health_check" => crate::projects::set_environment_health_check(a!("environmentId"),a!("health"),app.clone()),
+        "publication_preflight" => workspace::publication_preflight(a!("environmentId"),a!("port"),a!("kind"),a!("hostPort"),a!("cloudflare"),a!("domain"),store,manager).await,
+        _ => Err(format!("No backend handler for {method}")),
+    }
+    };
+    #[cfg(test)] assert!(std::mem::size_of_val(&future)<256*1024,"Split or box oversized dispatch groups instead of increasing thread stacks");
+    Box::pin(future)
+}
+
+#[allow(unused_variables)]
+fn dispatch_group_1<'a>(app: &'a AppHandle, method: &'a str, p: &'a Value, progress: std::sync::Arc<dyn Fn(Value) + Send + Sync>) -> std::pin::Pin<Box<dyn std::future::Future<Output=Result<Value,String>> + Send + 'a>> {
+    let future=async move {
+    let store = app.state::<PlatformStore>();
+    let runtime = app.state::<RuntimeManager>();
+    let backup = app.state::<BackupManager>();
+    let manager = app.state::<WorkspaceManager>();
+    macro_rules! a {
+        ($key:literal) => {
+            arg(p, $key)?
+        };
+    }
+    let window = || {
+        app.get_webview_window(p["label"].as_str().unwrap_or(""))
+            .filter(|w| w.label().starts_with("environment-env-"))
+            .ok_or_else(|| "Guest window is closed or the label is invalid".to_string())
+    };
+    match method {
+        "host_share_credentials" => workspace::host_share_credential_data(&arg::<String>(p,"shareId")?,&manager).await,
+        "get_environment_log_window" => workspace::get_environment_log_window(a!("environmentId"),a!("cursor"),a!("limit"),a!("tail"),store,runtime).await,
         "start_environment_download" => encoded(app.state::<crate::environment_download::Downloads>().start_generated(a!("request"), p["_downloadGeneration"].as_u64(), app).await?),
         "list_environment_downloads" => encoded(crate::environment_download::list_environment_downloads(app.state(), store).await?),
         "keep_environment_downloads_alive" => encoded(crate::environment_download::keep_environment_downloads_alive(a!("ownerId"), app.state(), store).await?),
@@ -138,6 +204,31 @@ pub(super) fn dispatch_with_progress<'a>(app: &'a AppHandle, method: &'a str, p:
         "runpod_hub_repo" => crate::neocloud::runpod::runpod_hub_repo(a!("id")).await,
         "runpod_links" => crate::neocloud::runpod::runpod_links(a!("environmentId"), store).await,
         "runpod_logs" => crate::neocloud::runpod::runpod_logs(a!("environmentId"), store).await,
+        _ => Err(format!("No backend handler for {method}")),
+    }
+    };
+    #[cfg(test)] assert!(std::mem::size_of_val(&future)<256*1024,"Split or box oversized dispatch groups instead of increasing thread stacks");
+    Box::pin(future)
+}
+
+#[allow(unused_variables)]
+fn dispatch_group_2<'a>(app: &'a AppHandle, method: &'a str, p: &'a Value, progress: std::sync::Arc<dyn Fn(Value) + Send + Sync>) -> std::pin::Pin<Box<dyn std::future::Future<Output=Result<Value,String>> + Send + 'a>> {
+    let future=async move {
+    let store = app.state::<PlatformStore>();
+    let runtime = app.state::<RuntimeManager>();
+    let backup = app.state::<BackupManager>();
+    let manager = app.state::<WorkspaceManager>();
+    macro_rules! a {
+        ($key:literal) => {
+            arg(p, $key)?
+        };
+    }
+    let window = || {
+        app.get_webview_window(p["label"].as_str().unwrap_or(""))
+            .filter(|w| w.label().starts_with("environment-env-"))
+            .ok_or_else(|| "Guest window is closed or the label is invalid".to_string())
+    };
+    match method {
         "runpod_create_endpoint" => encoded(crate::neocloud::runpod::runpod_create_endpoint(a!("request"), app.clone(), store).await?),
         "runpod_endpoint_run" => crate::neocloud::runpod::runpod_endpoint_run(a!("environmentId"), a!("input"), store).await,
         "runpod_action" => encoded(crate::neocloud::runpod::runpod_action(a!("environmentId"), a!("action"), a!("confirmation"), app.clone(), store, runtime).await?),
@@ -154,6 +245,31 @@ pub(super) fn dispatch_with_progress<'a>(app: &'a AppHandle, method: &'a str, p:
         "neocloud_forget_account" => encoded(crate::neocloud::neocloud_forget_account(a!("provider"))?),
         "neocloud_catalog" => crate::neocloud::neocloud_catalog(a!("provider"), a!("product"), a!("location")).await,
         "neocloud_discover" => crate::neocloud::neocloud_discover(a!("provider"), a!("location")).await,
+        _ => Err(format!("No backend handler for {method}")),
+    }
+    };
+    #[cfg(test)] assert!(std::mem::size_of_val(&future)<256*1024,"Split or box oversized dispatch groups instead of increasing thread stacks");
+    Box::pin(future)
+}
+
+#[allow(unused_variables)]
+fn dispatch_group_3<'a>(app: &'a AppHandle, method: &'a str, p: &'a Value, progress: std::sync::Arc<dyn Fn(Value) + Send + Sync>) -> std::pin::Pin<Box<dyn std::future::Future<Output=Result<Value,String>> + Send + 'a>> {
+    let future=async move {
+    let store = app.state::<PlatformStore>();
+    let runtime = app.state::<RuntimeManager>();
+    let backup = app.state::<BackupManager>();
+    let manager = app.state::<WorkspaceManager>();
+    macro_rules! a {
+        ($key:literal) => {
+            arg(p, $key)?
+        };
+    }
+    let window = || {
+        app.get_webview_window(p["label"].as_str().unwrap_or(""))
+            .filter(|w| w.label().starts_with("environment-env-"))
+            .ok_or_else(|| "Guest window is closed or the label is invalid".to_string())
+    };
+    match method {
         "neocloud_prices" => crate::neocloud::neocloud_prices(a!("provider"), a!("product"), a!("offer"), a!("location"), a!("hours"), a!("maxHourly"), a!("minVramGb"), a!("limit")).await,
         "neocloud_plan" => crate::neocloud::neocloud_plan(a!("request")),
         "create_neocloud_environment" => encoded(crate::neocloud::create_neocloud_environment(a!("request"), a!("costAcknowledged"), store).await?),
@@ -170,6 +286,31 @@ pub(super) fn dispatch_with_progress<'a>(app: &'a AppHandle, method: &'a str, p:
         "cleanup_environment_duplication" => encoded(crate::duplication::cleanup_environment_duplication(a!("operationId"),store,runtime).await?),
         "model_api" => crate::model_runner::model_api(a!("environmentId"),a!("port"),app.clone()).await,
         "model_status" => crate::model_runner::model_status(a!("environmentId"),app.clone()).await,
+        _ => Err(format!("No backend handler for {method}")),
+    }
+    };
+    #[cfg(test)] assert!(std::mem::size_of_val(&future)<256*1024,"Split or box oversized dispatch groups instead of increasing thread stacks");
+    Box::pin(future)
+}
+
+#[allow(unused_variables)]
+fn dispatch_group_4<'a>(app: &'a AppHandle, method: &'a str, p: &'a Value, progress: std::sync::Arc<dyn Fn(Value) + Send + Sync>) -> std::pin::Pin<Box<dyn std::future::Future<Output=Result<Value,String>> + Send + 'a>> {
+    let future=async move {
+    let store = app.state::<PlatformStore>();
+    let runtime = app.state::<RuntimeManager>();
+    let backup = app.state::<BackupManager>();
+    let manager = app.state::<WorkspaceManager>();
+    macro_rules! a {
+        ($key:literal) => {
+            arg(p, $key)?
+        };
+    }
+    let window = || {
+        app.get_webview_window(p["label"].as_str().unwrap_or(""))
+            .filter(|w| w.label().starts_with("environment-env-"))
+            .ok_or_else(|| "Guest window is closed or the label is invalid".to_string())
+    };
+    match method {
         "model_chat" => crate::model_runner::model_chat(a!("environmentId"),a!("messages"),a!("maxTokens"),a!("temperature"),app.clone()).await,
         "model_chat_begin" => crate::model_runner::model_chat_begin(a!("environmentId"),a!("messages"),a!("maxTokens"),a!("temperature"),app.clone()).await,
         "model_chat_read" => crate::model_runner::model_chat_read(a!("requestId"),a!("offset"),a!("stop")),
@@ -186,6 +327,31 @@ pub(super) fn dispatch_with_progress<'a>(app: &'a AppHandle, method: &'a str, p:
         "open_isolated_cli" => encoded(crate::isolated_cli::open_isolated_cli(app.clone(),store,runtime).await?),
         "grant_isolated_cli_environment" => crate::isolated_cli::grant_isolated_cli_environment(a!("environmentId"),a!("permission"),app.clone()).await,
         "delete_cloud_deployment" => encoded(crate::cloud_deployment::delete_cloud_deployment(a!("environmentId"),a!("confirmation"),store,runtime).await?),
+        _ => Err(format!("No backend handler for {method}")),
+    }
+    };
+    #[cfg(test)] assert!(std::mem::size_of_val(&future)<256*1024,"Split or box oversized dispatch groups instead of increasing thread stacks");
+    Box::pin(future)
+}
+
+#[allow(unused_variables)]
+fn dispatch_group_5<'a>(app: &'a AppHandle, method: &'a str, p: &'a Value, progress: std::sync::Arc<dyn Fn(Value) + Send + Sync>) -> std::pin::Pin<Box<dyn std::future::Future<Output=Result<Value,String>> + Send + 'a>> {
+    let future=async move {
+    let store = app.state::<PlatformStore>();
+    let runtime = app.state::<RuntimeManager>();
+    let backup = app.state::<BackupManager>();
+    let manager = app.state::<WorkspaceManager>();
+    macro_rules! a {
+        ($key:literal) => {
+            arg(p, $key)?
+        };
+    }
+    let window = || {
+        app.get_webview_window(p["label"].as_str().unwrap_or(""))
+            .filter(|w| w.label().starts_with("environment-env-"))
+            .ok_or_else(|| "Guest window is closed or the label is invalid".to_string())
+    };
+    match method {
         "configure_cloud_environment" => encoded(commands::cloud::configure_cloud_environment(a!("environmentId"),a!("request"),store,runtime).await?),
         "get_environment_logs" => encoded(commands::workloads::get_environment_logs(a!("environmentId"),store,runtime).await?),
         "manage_oci_images" => commands::workloads::manage_oci_images(a!("action"),a!("image"),runtime).await,
@@ -210,6 +376,31 @@ pub(super) fn dispatch_with_progress<'a>(app: &'a AppHandle, method: &'a str, p:
         "create_environment_share" => encoded(crate::peer_sharing::create_environment_share(a!("environmentId"),a!("address"),a!("permission"),app.clone(),store,app.state::<crate::peer_sharing::Sharing>()).await?),
         "list_environment_shares" => encoded(crate::peer_sharing::list_environment_shares(app.state::<crate::peer_sharing::Sharing>()).await?),
         "revoke_environment_share" => encoded(crate::peer_sharing::revoke_environment_share(a!("shareId"),app.clone(),app.state::<crate::peer_sharing::Sharing>()).await?),
+        _ => Err(format!("No backend handler for {method}")),
+    }
+    };
+    #[cfg(test)] assert!(std::mem::size_of_val(&future)<256*1024,"Split or box oversized dispatch groups instead of increasing thread stacks");
+    Box::pin(future)
+}
+
+#[allow(unused_variables)]
+fn dispatch_group_6<'a>(app: &'a AppHandle, method: &'a str, p: &'a Value, progress: std::sync::Arc<dyn Fn(Value) + Send + Sync>) -> std::pin::Pin<Box<dyn std::future::Future<Output=Result<Value,String>> + Send + 'a>> {
+    let future=async move {
+    let store = app.state::<PlatformStore>();
+    let runtime = app.state::<RuntimeManager>();
+    let backup = app.state::<BackupManager>();
+    let manager = app.state::<WorkspaceManager>();
+    macro_rules! a {
+        ($key:literal) => {
+            arg(p, $key)?
+        };
+    }
+    let window = || {
+        app.get_webview_window(p["label"].as_str().unwrap_or(""))
+            .filter(|w| w.label().starts_with("environment-env-"))
+            .ok_or_else(|| "Guest window is closed or the label is invalid".to_string())
+    };
+    match method {
         "import_environment_share" => encoded(crate::peer_sharing::import_environment_share(a!("invitation"),store).await?),
         "get_storage_location" => encoded(commands::storage::get_storage_location(runtime)),
         "set_storage_location" => encoded(commands::storage::set_storage_location(a!("path"), app.clone(), store, runtime).await?),
@@ -230,7 +421,14 @@ pub(super) fn dispatch_with_progress<'a>(app: &'a AppHandle, method: &'a str, p:
                 .await?,
         ),
         "create_environment" => {
-            encoded(commands::create_environment(a!("request"), app.clone(), store, runtime).await?)
+            let request:CreateEnvironmentRequest=a!("request");
+            let make_future=||commands::create_environment(request,app.clone(),store,runtime);
+            #[cfg(test)]{
+                fn future_bytes<F>(_:&impl FnOnce()->F)->usize{std::mem::size_of::<F>()}
+                let bytes=future_bytes(&make_future);
+                assert!(bytes<256*1024,"Split or box oversized provisioning stages instead of increasing thread stacks ({bytes} bytes)");
+            }
+            encoded(Box::pin(make_future()).await?)
         }
         "set_environment_status" => encoded(
             commands::set_environment_status(a!("environmentId"), a!("status"), store, runtime)
@@ -251,28 +449,32 @@ pub(super) fn dispatch_with_progress<'a>(app: &'a AppHandle, method: &'a str, p:
                     .await?,
             )
         }
-        "recover_environment_runtime" => {
-            let id: String = a!("environmentId");
-            let env = store
-                .snapshot()?
-                .environments
-                .into_iter()
-                .find(|e| e.id == id)
-                .ok_or("Environment not found")?;
-            if env
-                .provider
-                .as_ref()
-                .is_some_and(RuntimeProviderKind::is_container)
-                || env.kind == EnvironmentKind::Container
-            {
-                encoded(
-                    commands::recover_container_runtime(id, a!("confirmed"), store, runtime)
-                        .await?,
-                )
-            } else {
-                encoded(commands::recover_vm_runtime(id, a!("confirmed"), store, runtime).await?)
-            }
-        }
+        "recover_environment_runtime" => encoded(crate::lifecycle::recover_environment_runtime_report(a!("environmentId"),a!("confirmed"),store,runtime).await?),
+        _ => Err(format!("No backend handler for {method}")),
+    }
+    };
+    #[cfg(test)] assert!(std::mem::size_of_val(&future)<256*1024,"Split or box oversized dispatch groups instead of increasing thread stacks");
+    Box::pin(future)
+}
+
+#[allow(unused_variables)]
+fn dispatch_group_7<'a>(app: &'a AppHandle, method: &'a str, p: &'a Value, progress: std::sync::Arc<dyn Fn(Value) + Send + Sync>) -> std::pin::Pin<Box<dyn std::future::Future<Output=Result<Value,String>> + Send + 'a>> {
+    let future=async move {
+    let store = app.state::<PlatformStore>();
+    let runtime = app.state::<RuntimeManager>();
+    let backup = app.state::<BackupManager>();
+    let manager = app.state::<WorkspaceManager>();
+    macro_rules! a {
+        ($key:literal) => {
+            arg(p, $key)?
+        };
+    }
+    let window = || {
+        app.get_webview_window(p["label"].as_str().unwrap_or(""))
+            .filter(|w| w.label().starts_with("environment-env-"))
+            .ok_or_else(|| "Guest window is closed or the label is invalid".to_string())
+    };
+    match method {
         "delete_environment" => encoded(
             commands::delete_environment(
                 a!("environmentId"),
@@ -368,6 +570,31 @@ pub(super) fn dispatch_with_progress<'a>(app: &'a AppHandle, method: &'a str, p:
         "delete_connection" => {
             encoded(commands::delete_connection(a!("connectionId"), store, runtime).await?)
         }
+        _ => Err(format!("No backend handler for {method}")),
+    }
+    };
+    #[cfg(test)] assert!(std::mem::size_of_val(&future)<256*1024,"Split or box oversized dispatch groups instead of increasing thread stacks");
+    Box::pin(future)
+}
+
+#[allow(unused_variables)]
+fn dispatch_group_8<'a>(app: &'a AppHandle, method: &'a str, p: &'a Value, progress: std::sync::Arc<dyn Fn(Value) + Send + Sync>) -> std::pin::Pin<Box<dyn std::future::Future<Output=Result<Value,String>> + Send + 'a>> {
+    let future=async move {
+    let store = app.state::<PlatformStore>();
+    let runtime = app.state::<RuntimeManager>();
+    let backup = app.state::<BackupManager>();
+    let manager = app.state::<WorkspaceManager>();
+    macro_rules! a {
+        ($key:literal) => {
+            arg(p, $key)?
+        };
+    }
+    let window = || {
+        app.get_webview_window(p["label"].as_str().unwrap_or(""))
+            .filter(|w| w.label().starts_with("environment-env-"))
+            .ok_or_else(|| "Guest window is closed or the label is invalid".to_string())
+    };
+    match method {
         "attach_host_folder" => encoded(
             workspace::attach_host_folder(
                 a!("environmentId"),
@@ -434,6 +661,31 @@ pub(super) fn dispatch_with_progress<'a>(app: &'a AppHandle, method: &'a str, p:
             encoded(crate::file_export::remove_named_volume(&name, &store, &runtime).await?)
         }
         "copy_files_from_environment" => encoded(crate::file_export::copy_files_from_environment(a!("environmentId"), a!("path"), a!("destination"), store, runtime).await?),
+        _ => Err(format!("No backend handler for {method}")),
+    }
+    };
+    #[cfg(test)] assert!(std::mem::size_of_val(&future)<256*1024,"Split or box oversized dispatch groups instead of increasing thread stacks");
+    Box::pin(future)
+}
+
+#[allow(unused_variables)]
+fn dispatch_group_9<'a>(app: &'a AppHandle, method: &'a str, p: &'a Value, progress: std::sync::Arc<dyn Fn(Value) + Send + Sync>) -> std::pin::Pin<Box<dyn std::future::Future<Output=Result<Value,String>> + Send + 'a>> {
+    let future=async move {
+    let store = app.state::<PlatformStore>();
+    let runtime = app.state::<RuntimeManager>();
+    let backup = app.state::<BackupManager>();
+    let manager = app.state::<WorkspaceManager>();
+    macro_rules! a {
+        ($key:literal) => {
+            arg(p, $key)?
+        };
+    }
+    let window = || {
+        app.get_webview_window(p["label"].as_str().unwrap_or(""))
+            .filter(|w| w.label().starts_with("environment-env-"))
+            .ok_or_else(|| "Guest window is closed or the label is invalid".to_string())
+    };
+    match method {
         "copy_files_between_environments" => encoded(crate::file_export::copy_files_between_environments(a!("sourceId"), a!("targetId"), a!("path"), store, runtime).await?),
         "model_chat_history" => encoded(crate::model_runner::model_chat_history(a!("environmentId"), store)?),
         "save_model_chat_history" => encoded(crate::model_runner::save_model_chat_history(a!("environmentId"), a!("history"), app.clone(), store)?),
@@ -496,6 +748,31 @@ pub(super) fn dispatch_with_progress<'a>(app: &'a AppHandle, method: &'a str, p:
         "restore_snapshot" => {
             encoded(commands::restore_snapshot(a!("snapshotId"), store, runtime).await?)
         }
+        _ => Err(format!("No backend handler for {method}")),
+    }
+    };
+    #[cfg(test)] assert!(std::mem::size_of_val(&future)<256*1024,"Split or box oversized dispatch groups instead of increasing thread stacks");
+    Box::pin(future)
+}
+
+#[allow(unused_variables)]
+fn dispatch_group_10<'a>(app: &'a AppHandle, method: &'a str, p: &'a Value, progress: std::sync::Arc<dyn Fn(Value) + Send + Sync>) -> std::pin::Pin<Box<dyn std::future::Future<Output=Result<Value,String>> + Send + 'a>> {
+    let future=async move {
+    let store = app.state::<PlatformStore>();
+    let runtime = app.state::<RuntimeManager>();
+    let backup = app.state::<BackupManager>();
+    let manager = app.state::<WorkspaceManager>();
+    macro_rules! a {
+        ($key:literal) => {
+            arg(p, $key)?
+        };
+    }
+    let window = || {
+        app.get_webview_window(p["label"].as_str().unwrap_or(""))
+            .filter(|w| w.label().starts_with("environment-env-"))
+            .ok_or_else(|| "Guest window is closed or the label is invalid".to_string())
+    };
+    match method {
         "export_local_backup" => encoded(
             local_backup::export_local_backup(a!("environmentId"), a!("folder"), store, runtime)
                 .await?,
@@ -555,6 +832,31 @@ pub(super) fn dispatch_with_progress<'a>(app: &'a AppHandle, method: &'a str, p:
         "execute_connected_command" => {
             encoded(commands::execute_connected_command(a!("request"), store, runtime).await?)
         }
+        _ => Err(format!("No backend handler for {method}")),
+    }
+    };
+    #[cfg(test)] assert!(std::mem::size_of_val(&future)<256*1024,"Split or box oversized dispatch groups instead of increasing thread stacks");
+    Box::pin(future)
+}
+
+#[allow(unused_variables)]
+fn dispatch_group_11<'a>(app: &'a AppHandle, method: &'a str, p: &'a Value, progress: std::sync::Arc<dyn Fn(Value) + Send + Sync>) -> std::pin::Pin<Box<dyn std::future::Future<Output=Result<Value,String>> + Send + 'a>> {
+    let future=async move {
+    let store = app.state::<PlatformStore>();
+    let runtime = app.state::<RuntimeManager>();
+    let backup = app.state::<BackupManager>();
+    let manager = app.state::<WorkspaceManager>();
+    macro_rules! a {
+        ($key:literal) => {
+            arg(p, $key)?
+        };
+    }
+    let window = || {
+        app.get_webview_window(p["label"].as_str().unwrap_or(""))
+            .filter(|w| w.label().starts_with("environment-env-"))
+            .ok_or_else(|| "Guest window is closed or the label is invalid".to_string())
+    };
+    match method {
         "list_environment_folders" => {
             encoded(commands::list_environment_folders(a!("environmentId"), a!("path"), store, runtime).await?)
         }
@@ -661,6 +963,31 @@ pub(super) fn dispatch_with_progress<'a>(app: &'a AppHandle, method: &'a str, p:
         "open_workspace_url" => encoded(workspace::open_workspace_url(a!("url"))?),
         "open_service_window" => encoded(workspace::open_service_window(a!("environmentId"),a!("url"),app.clone(),store).await?),
         // Vault decisions stay in the focused dashboard: the CLI can only bring it forward.
+        _ => Err(format!("No backend handler for {method}")),
+    }
+    };
+    #[cfg(test)] assert!(std::mem::size_of_val(&future)<256*1024,"Split or box oversized dispatch groups instead of increasing thread stacks");
+    Box::pin(future)
+}
+
+#[allow(unused_variables)]
+fn dispatch_group_12<'a>(app: &'a AppHandle, method: &'a str, p: &'a Value, progress: std::sync::Arc<dyn Fn(Value) + Send + Sync>) -> std::pin::Pin<Box<dyn std::future::Future<Output=Result<Value,String>> + Send + 'a>> {
+    let future=async move {
+    let store = app.state::<PlatformStore>();
+    let runtime = app.state::<RuntimeManager>();
+    let backup = app.state::<BackupManager>();
+    let manager = app.state::<WorkspaceManager>();
+    macro_rules! a {
+        ($key:literal) => {
+            arg(p, $key)?
+        };
+    }
+    let window = || {
+        app.get_webview_window(p["label"].as_str().unwrap_or(""))
+            .filter(|w| w.label().starts_with("environment-env-"))
+            .ok_or_else(|| "Guest window is closed or the label is invalid".to_string())
+    };
+    match method {
         "open_personal_vault" => {
             let view: Option<String> = a!("view");
             let view = view.unwrap_or_else(|| "home".into());
@@ -723,16 +1050,19 @@ pub(super) fn dispatch_with_progress<'a>(app: &'a AppHandle, method: &'a str, p:
         "app_quit" => {
             // Complete the acknowledgement before the event loop exits. The
             // normal ExitRequested handler gracefully tears down all runtimes.
+            let acknowledgement = json!({"shutdownRequested":true,"enginePid":std::process::id(),"shutdownRunId":crate::shutdown_run_id(app),"shutdownReportPath":app.state::<PlatformStore>().data_folder("operations").join("shutdown.json")});
             let app = app.clone();
             tauri::async_runtime::spawn(async move {
                 tokio::time::sleep(std::time::Duration::from_secs(2)).await;
                 crate::exit_engine(&app, 0);
             });
-            Ok(json!({"shutdownRequested":true}))
+            Ok(acknowledgement)
         }
         _ => Err(format!("No backend handler for {method}")),
     }
-    })
+    };
+    #[cfg(test)] assert!(std::mem::size_of_val(&future)<256*1024,"Split or box oversized dispatch groups instead of increasing thread stacks");
+    Box::pin(future)
 }
 
 #[cfg(test)]

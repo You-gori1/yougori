@@ -4,9 +4,9 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
 import { ModelChat, ModelWorkspace } from "./model-workspace"
 
-const { status, chat, run, stream, history, saveHistory, platform } = vi.hoisted(() => ({ status: vi.fn(), chat: vi.fn(), run: vi.fn(), stream: vi.fn(), history: vi.fn(), saveHistory: vi.fn(), platform: { state: { environments: [] as { id: string; status: string; lastError?: string }[] }, environmentActions: {}, setEnvironmentStatus: vi.fn(), refreshPlatform: vi.fn() } }))
+const { status, chat, run, preflight, stream, history, saveHistory, platform } = vi.hoisted(() => ({ status: vi.fn(), chat: vi.fn(), run: vi.fn(), preflight:vi.fn(), stream: vi.fn(), history: vi.fn(), saveHistory: vi.fn(), platform: { state: { environments: [] as { id: string; status: string; lastError?: string }[] }, environmentActions: {}, setEnvironmentStatus: vi.fn(), refreshPlatform: vi.fn() } }))
 vi.mock("@/context/platform-context", () => ({ usePlatform: () => platform }))
-vi.mock("@/api/projects-api", () => ({ modelsApi: { status, chat, run, stream, history, saveHistory } }))
+vi.mock("@/api/projects-api", () => ({ modelsApi: { status, chat, run, preflight, stream, history, saveHistory } }))
 // An in-memory engine store for chat history.
 let savedHistory: unknown = null
 beforeEach(() => { savedHistory = null; history.mockImplementation(async () => savedHistory); saveHistory.mockImplementation(async (_id: string, value: unknown) => { savedHistory = value }) })
@@ -15,6 +15,16 @@ vi.mock("@/components/guest-logs", () => ({
     <div aria-label="Live startup output">{active ? environmentId : "paused"}</div>,
 }))
 afterEach(() => { cleanup(); vi.resetAllMocks(); vi.useRealTimers(); localStorage.clear(); platform.state.environments = [] })
+
+it("rejects an unsupported decision model before creating a chat environment", async () => {
+  preflight.mockResolvedValue({supported:false,task:"structured-decision",reason:"Use the model's dedicated SDK/decision API",resources:{storageGbRecommended:null},downloads:{}})
+  render(<ModelWorkspace />)
+  fireEvent.click(screen.getByRole("button", {name:"Huggingface"}))
+  fireEvent.click(await screen.findByRole("button", {name:"Check compatibility"}))
+  expect(await screen.findByLabelText("Model compatibility")).toHaveTextContent("Requires a dedicated runner")
+  expect(screen.getByRole("button", {name:"Run model"})).toBeDisabled()
+  expect(run).not.toHaveBeenCalled()
+})
 
 it("allows another message after a model restarts during generation and ignores the old reply", async () => {
   let finishOld!: (value: unknown) => void

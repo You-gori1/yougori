@@ -11,7 +11,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
-	"time"
+	"sync"
 
 	"golang.org/x/sys/unix"
 )
@@ -28,9 +28,15 @@ func unpackImport(reader io.Reader, destination string) (int64, error) {
 }
 
 func unpackImportOwned(reader io.Reader, root, uid, gid int) (int64, error) {
+	return unpackImportProgress(context.Background(), reader, root, uid, gid, nil)
+}
+func unpackImportProgress(ctx context.Context, reader io.Reader, root, uid, gid int, progress func(int64)) (int64, error) {
 	archive := tar.NewReader(reader)
 	var size int64
 	for {
+		if err := ctx.Err(); err != nil {
+			return size, err
+		}
 		header, err := archive.Next()
 		if err == io.EOF {
 			return size, nil
@@ -85,7 +91,10 @@ func unpackImportOwned(reader io.Reader, root, uid, gid int) (int64, error) {
 			file.Close()
 			return size, err
 		}
-		n, copyErr := io.CopyN(file, archive, header.Size)
+		n, copyErr := io.CopyN(importWriter{ctx, file, progress}, archive, header.Size)
+		if copyErr == nil {
+			copyErr = file.Sync()
+		}
 		closeErr := file.Close()
 		size += n
 		if copyErr != nil {
@@ -126,18 +135,14 @@ func (s *server) importFiles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	unlock := s.locks.lock(containerLockKey(id))
-	defer unlock()
-	ctx, cancel := context.WithTimeout(r.Context(), 24*time.Hour)
-	defer cancel()
-	finishedReading := make(chan struct{})
-	defer close(finishedReading)
-	go func() {
-		select {
-		case <-ctx.Done():
-			r.Body.Close()
-		case <-finishedReading:
-		}
-	}()
+	var release sync.Once
+	defer release.Do(unlock)
+	ctx, state, finish, err := s.beginImport(r.Context(), id, transfer, r.Body, importIdleTimeout)
+	if err != nil {
+		writeError(w, 409, err.Error())
+		return
+	}
+	defer finish()
 	guestRoot := "/"
 	uid, gid := 0, 0
 	if !s.microVM {
@@ -210,10 +215,27 @@ func (s *server) importFiles(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "A file copy must declare its archive size")
 		return
 	}
-	bytes, err := unpackImportOwned(http.MaxBytesReader(w, r.Body, r.ContentLength), target, uid, gid)
+	// Only selecting the anchored root needs lifecycle coordination. Extraction
+	// has an independent cancellation context and must not delay Stop or settings.
+	release.Do(unlock)
+	state.mu.Lock()
+	state.phase = "extracting"
+	state.mu.Unlock()
+	bytes, err := unpackImportProgress(ctx, importReader{ctx, http.MaxBytesReader(w, r.Body, r.ContentLength), state}, target, uid, gid, func(n int64) { state.progress(0, n) })
 	if err != nil {
 		writeError(w, 400, "Copy incomplete at "+destination+": "+err.Error())
 		return
 	}
+	state.mu.Lock()
+	state.phase = "verifying"
+	state.mu.Unlock()
+	if err := unix.Fsync(target); err != nil {
+		writeError(w, 500, "Copy receipt could not verify filesystem flush")
+		return
+	}
+	state.mu.Lock()
+	state.phase = "complete"
+	state.status = "complete"
+	state.mu.Unlock()
 	writeJSON(w, 200, map[string]interface{}{"destination": destination, "bytes": bytes})
 }

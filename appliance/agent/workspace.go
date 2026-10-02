@@ -46,10 +46,14 @@ type guestService struct {
 
 func (s *server) registerWorkspaceRoutes(mux *http.ServeMux) {
 	s.registerAppRoutes(mux)
- mux.HandleFunc("/v1/microvm/workload", s.auth(method(http.MethodPost, s.microWorkload)))
- mux.HandleFunc("/v1/workloads/mount", s.auth(method(http.MethodPost, s.workloadMount)))
+	s.registerAsyncExecRoutes(mux)
+	mux.HandleFunc("/v1/microvm/workload", s.auth(method(http.MethodPost, s.microWorkload)))
+	mux.HandleFunc("/v1/workloads/mount", s.auth(method(http.MethodPost, s.workloadMount)))
 	mux.HandleFunc("/v1/remote/files", s.auth(method(http.MethodPost, s.remoteFiles)))
 	mux.HandleFunc("/v1/files/import", s.auth(method(http.MethodPost, s.importFiles)))
+	mux.HandleFunc("/v1/files/import/progress", s.auth(method(http.MethodGet, s.importProgress)))
+	mux.HandleFunc("/v1/files/import/cancel", s.auth(method(http.MethodPost, s.cancelImport)))
+    mux.HandleFunc("/v1/project-files/activate", s.auth(method(http.MethodPost, s.activateProjectFiles)))
 	mux.HandleFunc("/v1/workspace/version", s.auth(method(http.MethodGet, func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, map[string]int{"version": 1}) })))
 	mux.HandleFunc("/v1/terminal/create", s.auth(method(http.MethodPost, s.terminalCreate)))
 	mux.HandleFunc("/v1/terminal/read", s.auth(method(http.MethodPost, s.terminalRead)))
@@ -132,7 +136,9 @@ func (s *server) terminalCreate(w http.ResponseWriter, r *http.Request) {
 	if !s.microVM {
 		command = exec.Command("nerdctl", "--namespace", namespace, "exec", "-it", request.ID, "/bin/sh", "-lc", terminalBootstrap)
 	}
-	if s.microVM && microWorkloadExists() { command = exec.Command("nerdctl", "--namespace", microWorkloadNamespace, "exec", "-it", microWorkloadName, "/bin/sh", "-lc", terminalBootstrap) }
+	if s.microVM && microWorkloadExists() {
+		command = exec.Command("nerdctl", "--namespace", microWorkloadNamespace, "exec", "-it", microWorkloadName, "/bin/sh", "-lc", terminalBootstrap)
+	}
 	command.Env = append(os.Environ(), "TERM=xterm-256color", "COLORTERM=truecolor")
 	command.Stdin, command.Stdout, command.Stderr = slave, slave, slave
 	command.SysProcAttr = &syscall.SysProcAttr{Setsid: true, Setctty: true, Ctty: 0}

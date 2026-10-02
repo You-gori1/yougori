@@ -1,4 +1,8 @@
 mod services;
+mod files;
+pub(crate) mod secrets;
+pub(crate) mod readiness;
+pub use readiness::{set_environment_health_check,get_environment_health_check};
 use crate::{
     automation::dispatch::dispatch, models::*, runtime::RuntimeManager, store::PlatformStore,
 };
@@ -13,7 +17,13 @@ use std::{
 use tauri::Manager;
 use crate::AppHandle;
 use yougori_cli::manifest::{self, Connection, Environment as Spec, Project, Publication};
-static OPERATIONS: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
+static OPERATIONS: OnceLock<std::sync::Mutex<BTreeMap<String,std::sync::Arc<tokio::sync::Mutex<()>>>>> = OnceLock::new();
+static REGISTRY_WRITES: OnceLock<std::sync::Mutex<()>> = OnceLock::new();
+fn project_lock(key:&str)->Result<std::sync::Arc<tokio::sync::Mutex<()>>,String>{
+    let mut locks=OPERATIONS.get_or_init(Default::default).lock().map_err(|_|"Project coordination unavailable")?;
+    locks.retain(|_,lock|std::sync::Arc::strong_count(lock)>1);
+    Ok(locks.entry(key.into()).or_default().clone())
+}
 #[derive(Clone, Default, Serialize, Deserialize)]
 struct Registry {
     projects: BTreeMap<String, Record>,
@@ -32,7 +42,16 @@ struct Record {
     pending: BTreeMap<String, String>,
     #[serde(default)]
     bindings: Vec<services::Binding>,
+    #[serde(default)]
+    files: BTreeMap<String, FileBinding>,
+    #[serde(default)] setups:BTreeMap<String,String>,
+    #[serde(default)]
+    report: Option<Value>,
+    #[serde(default)] desired:Option<Project>,
+    #[serde(default)] staging:BTreeMap<String,bool>,
 }
+#[derive(Clone,Serialize,Deserialize)]
+struct FileBinding{fingerprint:String,destination:String,target:String,#[serde(default)] active:bool,#[serde(default)] previous:Option<String>}
 fn registry_path(runtime: &RuntimeManager) -> PathBuf {
     runtime.storage_root().join("projects.json")
 }
@@ -55,6 +74,13 @@ fn save(runtime: &RuntimeManager, r: &Registry) -> Result<(), String> {
     f.persist(registry_path(runtime))
         .map_err(|e| e.to_string())?;
     Ok(())
+}
+fn save_record(runtime:&RuntimeManager,k:&str,record:&Record)->Result<(),String>{
+    let _guard=REGISTRY_WRITES.get_or_init(Default::default).lock().map_err(|_|"Project registry is busy")?;
+    let mut current=registry(runtime)?;
+    if current.projects.iter().any(|(key,r)|key!=k&&r.project==record.project){return Err("Another project already owns this project name".into())}
+    current.projects.insert(k.into(),record.clone());
+    save(runtime,&current)
 }
 fn key(path: &Path) -> String {
     format!("{:x}", Sha256::digest(path.to_string_lossy().as_bytes()))
@@ -97,6 +123,9 @@ fn resolve_spec(mut p: Project, root: &Path) -> Result<Project, String> {
                     bind: true,
                 })
             }
+        }
+        for source in &mut spec.files {
+            source.source=root.join(&source.source).canonicalize().map_err(|e|format!("Project file source {}: {e}",source.source))?.to_string_lossy().into_owned();
         }
         if let Some(cloud) = &mut spec.cloud {
             if let Some(file) = cloud["identityFile"].as_str() {
@@ -222,7 +251,8 @@ pub async fn import_compose(
         f.persist_noclobber(&output)
             .map_err(|e| format!("Cannot create yougori.yaml (existing files are kept): {e}"))?;
         let runtime = app.state::<RuntimeManager>();
-        let _lock = OPERATIONS.get_or_init(Default::default).lock().await;
+        let lock=project_lock(&key(&output))?;
+        let _guard=lock.lock().await;
         let mut r = registry(&runtime)?;
         r.projects.entry(key(&output)).or_insert(Record {
             path: output.to_string_lossy().into_owned(),
@@ -232,8 +262,9 @@ pub async fn import_compose(
             connections: vec![],
             pending: BTreeMap::new(),
             bindings: vec![],
+            files: BTreeMap::new(),report:None,setups:BTreeMap::new(),desired:None,staging:BTreeMap::new(),
         });
-        save(&runtime, &r)?;
+        save_record(&runtime,&key(&output),r.projects.get(&key(&output)).unwrap())?;
         result["generated"] = json!(true);
     }
     Ok(result)
@@ -350,13 +381,89 @@ async fn configure(app: &AppHandle, id: &str, spec: &Spec, project: &str) -> Res
     }
     Ok(())
 }
+/// Restore only a verified owned project's interrupted temporary startup before native auto-start.
+pub(crate) async fn restore_interrupted_staging(environment_id:&str,store:&PlatformStore,runtime:&RuntimeManager)->Result<bool,String>{
+    let Some((project_key,_))=registry(runtime)?.projects.into_iter().find(|(_,record)|record.staging.contains_key(environment_id))else{return Ok(false)};
+    let lock=project_lock(&project_key)?;let _guard=lock.lock().await;
+    let mut record=registry(runtime)?.projects.remove(&project_key).ok_or("Interrupted project staging record is missing")?;
+    if !record.staging.contains_key(environment_id){return Ok(false)}
+    let name=record.ids.iter().find_map(|(name,id)|(id==environment_id).then_some(name.clone())).ok_or("Interrupted staging has no saved owned environment identity")?;
+    let lifecycle_lock=crate::commands::environment_network_lock(environment_id).await;
+    let _lifecycle_guard=lifecycle_lock.try_lock().map_err(|_|"Another lifecycle operation is changing this environment; retry interrupted staging reconciliation after it finishes")?;
+    let environment=store.snapshot()?.environments.into_iter().find(|env|env.id==environment_id).ok_or("Interrupted staging environment no longer exists")?;
+    if environment.description!=format!("Yougori project {} / {}",project_key,name){return Err("Interrupted staging ownership differs; the existing runtime was preserved".into())}
+    if environment.status==EnvironmentStatus::Running{return Err("Stop this owned project before reconciling interrupted startup; a running runtime was preserved".into())}
+    let _provider_guard=crate::commands::environment_container_policy_guard(runtime,&environment).await?;
+    let spec=record.applied.get(&name).ok_or("Interrupted staging has no applied startup specification")?;
+    if environment.kind==EnvironmentKind::Container{
+        let mut options=spec.options(&record.project)?;options.hosts=runtime.workload_options(environment.runtime_id.as_deref().unwrap_or(environment_id))?.hosts;
+        runtime.save_workload_options(environment_id,&options)?;runtime.update_workload_configuration(&environment).await?;
+    }
+    record.staging.remove(environment_id);save_record(runtime,&project_key,&record)?;Ok(true)
+}
+async fn startup_intent(app:&AppHandle,p:&Project,record:&Record)->Result<(),String>{
+    let store=app.state::<PlatformStore>();
+    for _ in 0..3{
+        let state=store.snapshot()?;
+        let mut settings=state.settings;
+        let managed=record.ids.values().collect::<Vec<_>>();
+        settings.auto_start_environment_ids.retain(|id|!managed.contains(&id));
+        for(name,spec)in &p.environments{if spec.automatic_start{settings.auto_start_environment_ids.push(record.ids[name].clone());}}
+        settings.auto_start_environment_ids.sort();settings.auto_start_environment_ids.dedup();
+        if p.environments.values().any(|s|s.automatic_start){settings.launch_at_startup=true;settings.startup_headless=true;}
+        match crate::lifecycle::save_settings(settings,state.settings_revision,&store).await{Ok(_)=>return Ok(()),Err(e)if e.contains("YOUGORI_SETTINGS_REVISION_CONFLICT")=>continue,Err(e)=>return Err(e)}
+    }
+    Err("Settings changed repeatedly; the deployment is preserved, retry apply to reconcile automatic startup".into())
+}
+
+#[tauri::command]
+pub async fn deployment_status(path:String,app:AppHandle)->Result<Value,String>{
+    let(path,p)=load(&path)?;
+    let runtime=app.state::<RuntimeManager>();
+    let record=registry(&runtime)?.projects.get(&key(&path)).cloned();
+    let Some(record)=record else{return Ok(json!({"project":p.project,"status":"prepared","ready":false,"saved":false,"environments":{},"recoveryAction":"Apply this project to create its desired state"}))};
+    deployment_report(&app,&p,&record).await
+}
+async fn deployment_report(app:&AppHandle,p:&Project,record:&Record)->Result<Value,String>{
+    let mut environments=BTreeMap::new();
+    let store=app.state::<PlatformStore>();let runtime=app.state::<RuntimeManager>();let workspace=app.state::<crate::workspace::WorkspaceManager>();
+    for(name,spec)in &p.environments{
+        let Some(id)=record.ids.get(name)else{environments.insert(name.clone(),json!({"ready":false,"saved":false,"recoveryAction":"Apply this desired environment"}));continue};
+        let report=match readiness::environment_readiness(id,spec.health.as_ref(),&store,&runtime,&workspace).await{Ok(report)=>report,Err(e)=>json!({"environmentId":id,"ready":false,"error":crate::lifecycle::safe_diagnostic(&e),"recoveryAction":"Inspect the existing environment before retrying this project"})};
+        environments.insert(name.clone(),report);
+    }
+    let desired_configuration_applied=record.desired.as_ref()==Some(p);
+    let files_active=p.environments.iter().all(|(name,spec)|record.ids.get(name).is_some_and(|id|spec.files.iter().all(|source|record.files.get(&format!("{id}/{}",source.target)).is_some_and(|binding|binding.active))));
+    let ready=desired_configuration_applied&&environments.len()==p.environments.len()&&environments.values().all(|v|v["ready"]==true)&&files_active;
+    Ok(json!({"project":p.project,"status":if ready{"ready"}else{"notReady"},"ready":ready,"saved":true,"desiredConfigurationApplied":desired_configuration_applied,"environments":environments,"pendingOperations":record.pending.keys().collect::<Vec<_>>(),"dataPreserved":true,"automaticStartup":{"trigger":"signIn","startsBeforeSignIn":false,"selectedEnvironments":p.environments.iter().filter(|(_,s)|s.automatic_start).map(|(name,_)|name).collect::<Vec<_>>()}}))
+}
+async fn cancellable_deployment_report(app:&AppHandle,p:&Project,record:&Record)->Result<Value,String>{
+    let operation=crate::automation::context::current();
+    if let Some(operation)=operation{
+        tokio::select!{biased;
+            _=operation.cancellation.cancelled()=>{project_cancelled()?;unreachable!()},
+            result=Box::pin(deployment_report(app,p,record))=>result,
+        }
+    }else{Box::pin(deployment_report(app,p,record)).await}
+}
 
 #[tauri::command]
 pub async fn project_action(path: String, action: String, app: AppHandle) -> Result<Value, String> {
+    let result=Box::pin(reconcile_project_action(path,action,app)).await;
+    if let Err(error)=&result{
+        if crate::automation::context::current().is_some_and(|operation|operation.cancellation.is_cancelled()){
+            return Err(format!("YOUGORI_OPERATION_INTERRUPTED: project reconciliation cancelled; existing nodes, data and pending identities were preserved. Inspect deployment status and reconcile this same project before retrying. {}",crate::lifecycle::safe_diagnostic(error)))
+        }
+    }
+    result
+}
+fn project_cancelled()->Result<(),String>{
+    if crate::automation::context::current().is_some_and(|operation|operation.cancellation.is_cancelled()){Err("YOUGORI_OPERATION_INTERRUPTED: project reconciliation cancelled; inspect saved identities before retrying".into())}else{Ok(())}
+}
+async fn reconcile_project_action(path:String,action:String,app:AppHandle)->Result<Value,String>{
     if !["up", "apply", "down"].contains(&action.as_str()) {
         return Err("Choose up, apply or down".into());
     }
-    let _lock = OPERATIONS.get_or_init(Default::default).lock().await;
     let (path, p) = if action == "down" {
         let path = Path::new(&path).canonicalize().map_err(|e| e.to_string())?;
         let p = manifest::parse(&manifest::read(&path)?)?;
@@ -365,8 +472,11 @@ pub async fn project_action(path: String, action: String, app: AppHandle) -> Res
         load(&path)?
     };
     let runtime = app.state::<RuntimeManager>();
-    let mut r = registry(&runtime)?;
     let k = key(&path);
+    let lock=project_lock(&k)?;
+    let _guard=lock.lock().await;
+    project_cancelled()?;
+    let mut r=registry(&runtime)?;
     if r.projects
         .values()
         .any(|v| v.project == p.project && v.path != path.to_string_lossy())
@@ -384,13 +494,17 @@ pub async fn project_action(path: String, action: String, app: AppHandle) -> Res
         connections: vec![],
         pending: BTreeMap::new(),
         bindings: vec![],
+        files:BTreeMap::new(),report:None,setups:BTreeMap::new(),desired:None,staging:BTreeMap::new(),
     });
     if record.project != p.project {
         return Err("Project name changed. Use a separate project folder for a new project, or restore the original name.".into());
     }
+    // Reserve the stable project identity before any external side effect.
+    save_record(&runtime,&k,&record)?;
     if action == "down" {
         services::reconcile(&app, &p, &mut record, &mut r, &k, true).await?;
         for id in record.ids.values().rev() {
+            project_cancelled()?;
             if node(&app, id).is_ok() {
                 status(&app, id, false).await?
             }
@@ -401,6 +515,10 @@ pub async fn project_action(path: String, action: String, app: AppHandle) -> Res
     }
     // Validate all immutable/precondition checks before mutating the first node.
     for (name, spec) in &p.environments {
+        // References are validated as a complete plan before creating a runtime. Values
+        // stay transient; missing credentials must not leave a failed half-created node.
+        for reference in spec.secrets.values(){drop(secrets::resolve(reference)?);}
+        if let Some(reference)=spec.health.as_ref().and_then(|probe|probe.bearer_secret.as_ref()){drop(secrets::resolve(reference)?);}
         if let Some(cloud) = &spec.cloud {
             let mut cloud = cloud.clone();
             cloud["name"] = json!(format!("{}-{name}", p.project));
@@ -412,7 +530,13 @@ pub async fn project_action(path: String, action: String, app: AppHandle) -> Res
             return Err("For microVM images, use named guest volumes or connect a PC folder through My PC after starting".into());
         }
     }
+    // Retire only nodes owned by this project. Keep their identities and persistent data
+    // so removing a declaration does not erase the previous deployment's files.
+    for(name,id)in &record.ids{
+        if !p.environments.contains_key(name)&&node(&app,id).is_ok(){project_cancelled()?;status(&app,id,false).await?;}
+    }
     for name in p.order()? {
+        project_cancelled()?;
         let spec = &p.environments[&name];
         let old = record.applied.get(&name);
         let replace = old.is_some_and(|old| {
@@ -456,7 +580,7 @@ pub async fn project_action(path: String, action: String, app: AppHandle) -> Res
                 })
                 .clone();
             r.projects.insert(k.clone(), record.clone());
-            save(&runtime, &r)?;
+            save_record(&runtime,&k,&record)?;
             let ownership = format!("Yougori project {} / {}", k, name);
             if let Some(existing) = app
                 .state::<PlatformStore>()
@@ -497,7 +621,7 @@ pub async fn project_action(path: String, action: String, app: AppHandle) -> Res
                         request["microvmWorkload"] =
                             json!({"image":spec.image,"options":spec.options(&p.project)?});
                     }
-                    run_workload(request, false, app.clone()).await?
+                    Box::pin(run_workload(request, false, app.clone())).await?
                 };
                 id = result["environments"]
                     .as_array()
@@ -540,20 +664,22 @@ pub async fn project_action(path: String, action: String, app: AppHandle) -> Res
             record.pending.remove(&name);
             record.applied.insert(name.clone(), spec.clone());
             r.projects.insert(k.clone(), record.clone());
-            save(&runtime, &r)?;
-        } else if old != Some(spec) && !matches!(spec.kind.as_str(), "cloud" | "shared") {
+            save_record(&runtime,&k,&record)?;
+        } else if (old != Some(spec)||id.as_ref().is_some_and(|id|record.staging.contains_key(id))) && !matches!(spec.kind.as_str(), "cloud" | "shared") {
             let id = id.as_ref().unwrap();
             status(&app, id, false).await?;
             configure(&app, id, spec, &p.project).await?;
+            record.staging.remove(id);
             record.applied.insert(name.clone(), spec.clone());
             r.projects.insert(k.clone(), record.clone());
-            save(&runtime, &r)?;
+            save_record(&runtime,&k,&record)?;
         }
         let _ = id;
     }
     // Service names resolve to stable private addresses; aliases grant no network access.
     for (name, spec) in &p.environments {
         if matches!(spec.kind.as_str(), "container" | "gpu") {
+            project_cancelled()?;
             let id = &record.ids[name];
             let env = node(&app, id)?;
             let mut options = runtime.workload_options(env.runtime_id.as_deref().unwrap_or(id))?;
@@ -607,6 +733,7 @@ pub async fn project_action(path: String, action: String, app: AppHandle) -> Res
     };
     let current = app.state::<PlatformStore>().snapshot()?;
     for id in record.connections.clone() {
+        project_cancelled()?;
         if let Some(c) = current.connections.iter().find(|c| c.id == id) {
             if desired.iter().any(|d| matches(c, d)) {
                 continue;
@@ -616,8 +743,9 @@ pub async fn project_action(path: String, action: String, app: AppHandle) -> Res
         record.connections.retain(|v| v != &id);
     }
     r.projects.insert(k.clone(), record.clone());
-    save(&runtime, &r)?;
+    save_record(&runtime,&k,&record)?;
     for request in desired {
+        project_cancelled()?;
         let before = app.state::<PlatformStore>().snapshot()?.connections;
         if before.iter().any(|c| matches(c, &request)) {
             continue;
@@ -630,18 +758,43 @@ pub async fn project_action(path: String, action: String, app: AppHandle) -> Res
             }
         }
         r.projects.insert(k.clone(), record.clone());
-        save(&runtime, &r)?;
+        save_record(&runtime,&k,&record)?;
     }
+    Box::pin(files::reconcile(&app,&p,&mut record,&k)).await?;
+    crate::automation::context::progress(json!({"phase":"starting"}));
     for name in p.order()? {
+        project_cancelled()?;
         let id = &record.ids[&name];
         status(&app, id, true).await?;
     }
+    crate::automation::context::progress(json!({"phase":"publishing"}));
+    project_cancelled()?;
     services::reconcile(&app, &p, &mut record, &mut r, &k, false).await?;
-    r.projects.insert(k, record.clone());
-    save(&runtime, &r)?;
-    Ok(
-        json!({"project":p.project,"status":"running","environments":record.ids,"dataPreserved":true}),
-    )
+    readiness::reconcile_project_probes(&p,&record,&runtime)?;
+    project_cancelled()?;
+    startup_intent(&app,&p,&record).await?;
+    // Keep execution outcome separate from verification: a failed probe must not imply creation failed.
+    // A retry reads stable IDs and converges on this same deployment.
+    record.desired=Some(p.clone());save_record(&runtime,&k,&record)?;
+    crate::automation::context::progress(json!({"phase":"readiness"}));
+    let mut report=cancellable_deployment_report(&app,&p,&record).await?;
+    let wait=p.environments.values().filter_map(|spec|spec.health.as_ref().map(|h|h.wait_seconds)).max().unwrap_or(0);
+    let deadline=tokio::time::Instant::now()+std::time::Duration::from_secs(wait);
+    while report["ready"]!=true && tokio::time::Instant::now()<deadline && report["environments"].as_object().is_some_and(|environments|environments.values().any(|v|v["ready"]!=true&&v["retryable"]==true)){
+        project_cancelled()?;
+        record.report=Some(report.clone());save_record(&runtime,&k,&record)?;
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        let remaining=deadline.saturating_duration_since(tokio::time::Instant::now());
+        match tokio::time::timeout(remaining,cancellable_deployment_report(&app,&p,&record)).await{Ok(next)=>report=next?,Err(_)=>break}
+    }
+    record.report=Some(report.clone());
+    project_cancelled()?;
+    r.projects.insert(k.clone(), record.clone());
+    save_record(&runtime,&k,&record)?;
+    let applied_ids=record.ids.iter().filter(|(name,_)|p.environments.contains_key(*name)).collect::<BTreeMap<_,_>>();
+    let mut result=json!({"project":p.project,"status":report["status"],"ready":report["ready"],"environments":applied_ids,"readiness":report,"dataPreserved":true});
+    result["executionOutcome"]=json!("applied");
+    Ok(result)
 }
 
 #[tauri::command]

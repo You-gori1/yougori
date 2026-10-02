@@ -203,6 +203,25 @@ export interface AppSettings {
 }
 
 export interface PlatformState {
+  settingsRevision?: number
+  startupReport?: {
+    startedAt: string
+    completedAt: string | null
+    status: "running" | "succeeded" | "startedUnverified" | "failed" | "interrupted"
+    trigger: string
+    startsBeforeSignIn: boolean
+    serviceRegistration?: { status: string; mechanism: string; recoveryAction?: string; startsBeforeSignIn: boolean } | null
+    environments: {
+      environmentId: string
+      provider: RuntimeProviderKind
+      storageRoot: string | null
+      stage: string
+      status: string
+      error: string | null
+      recoveryAction: string | null
+      readiness: { ready?: boolean; verifiedPublicly?: boolean; [key: string]: unknown } | null
+    }[]
+  } | null
   neocloudDeployments?: Record<string, { provider: string; product: string; name: string; resourceId: string; state: string; image: string; offer: string; diskGb?: number; location: string; address: string; sshHint: string; requestId: string; lastError: string | null; extra?: Record<string, unknown> }>
   /** Reusable Cloudflare account tunnels shared by the app and the CLI; tokens stay in the OS vault. */
   savedDomains?: { id: string; credentialEnvironmentId: string; port: number; hostname: string; hostPort: number }[]
