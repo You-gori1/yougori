@@ -1,4 +1,5 @@
 mod appliance;
+mod boot_token;
 mod host_platform;
 pub(crate) mod cloud;
 pub(crate) mod cuda;
@@ -46,6 +47,8 @@ mod workspace;
 pub(crate) mod guest_ssh;
 mod file_import;
 mod snapshot_export;
+#[cfg(test)]
+pub(crate) use snapshot_export::SnapshotExports;
 mod duplication_disk;
 mod import_drive;
 pub use import_drive::ImportedDrive;
@@ -112,6 +115,7 @@ struct RuntimeLayout {
 }
 
 struct ApplianceProcess {
+    _boot_token: boot_token::BootTokenFile,
     child: Child,
     endpoint: AgentEndpoint,
     qmp_port: u16,
@@ -184,6 +188,7 @@ pub struct RuntimeManager {
     client: Client,
     appliance: Mutex<Option<ApplianceProcess>>,
     appliance_operations: RwLock<()>,
+    snapshot_exports: snapshot_export::SnapshotExports,
     gpu_launches: std::sync::Arc<RwLock<()>>,
     appliance_capacity: std::sync::Mutex<appliance_capacity::ApplianceCapacity>,
     appliance_preparation: OnceCell<bool>,
@@ -214,6 +219,19 @@ impl RuntimeManager {
 
     pub fn new(resource_directory: &Path, app_data_directory: &Path) -> Result<Self, String> {
         let layout = RuntimeLayout::discover(resource_directory)?;
+        Self::new_with_layout(resource_directory, app_data_directory, layout)
+    }
+
+    #[cfg(test)]
+    fn new_with_fixture_resources(resource_directory: &Path, app_data_directory: &Path) -> Result<Self, String> {
+        let layout = RuntimeLayout::from_candidates(resource_directory, vec![
+            resource_directory.join("runtime"),
+            resource_directory.join("resources/runtime"),
+        ])?;
+        Self::new_with_layout(resource_directory, app_data_directory, layout)
+    }
+
+    fn new_with_layout(resource_directory: &Path, app_data_directory: &Path, layout: RuntimeLayout) -> Result<Self, String> {
         let data_root = app_data_directory.join("runtime");
         fs::create_dir_all(&data_root)
             .map_err(|error| format!("create Yougori runtime data directory: {error}"))?;
@@ -257,6 +275,7 @@ impl RuntimeManager {
             client,
             appliance: Mutex::new(None),
             appliance_operations: RwLock::new(()),
+            snapshot_exports: snapshot_export::SnapshotExports::default(),
             gpu_launches: std::sync::Arc::new(RwLock::new(())),
             appliance_capacity: std::sync::Mutex::new(appliance_capacity::ApplianceCapacity::default()),
             appliance_preparation: OnceCell::new(),
@@ -356,6 +375,10 @@ impl RuntimeLayout {
                 PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/runtime"),
             );
         }
+        Self::from_candidates(resource_directory, candidates)
+    }
+
+    fn from_candidates(resource_directory: &Path, candidates: Vec<PathBuf>) -> Result<Self, String> {
         let root = candidates
             .into_iter()
             .find(|candidate| candidate.join("appliance/appliance-base.qcow2").is_file())

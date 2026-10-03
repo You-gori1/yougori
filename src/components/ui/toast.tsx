@@ -99,7 +99,7 @@ function Toasts({
             <Toast.Root
               key={toast.id}
               className={cn(
-                "absolute z-[calc(9999-var(--toast-index))] h-(--toast-calc-height) w-full select-none rounded-lg border bg-[color-mix(in_srgb,var(--popover),var(--color-black)_calc(1%*max(0,var(--toast-index,0))))] not-dark:bg-clip-padding text-popover-foreground shadow-lg/5 [transition:transform_.5s_cubic-bezier(.22,1,.36,1),opacity_.5s,height_.15s,background-color_.5s] before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-lg)-1px)] before:shadow-[0_1px_--theme(--color-black/4%)] data-expanded:bg-popover dark:bg-[color-mix(in_srgb,var(--popover),var(--color-black)_calc(6%*max(0,var(--toast-index,0))))] dark:data-expanded:bg-popover dark:before:shadow-[0_-1px_--theme(--color-white/6%)]",
+                "pointer-events-none absolute z-[calc(9999-var(--toast-index))] h-(--toast-calc-height) w-full select-none rounded-lg border bg-[color-mix(in_srgb,var(--popover),var(--color-black)_calc(1%*max(0,var(--toast-index,0))))] not-dark:bg-clip-padding text-popover-foreground shadow-lg/5 [transition:transform_.5s_cubic-bezier(.22,1,.36,1),opacity_.5s,height_.15s,background-color_.5s] before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-lg)-1px)] before:shadow-[0_1px_--theme(--color-black/4%)] data-expanded:bg-popover dark:bg-[color-mix(in_srgb,var(--popover),var(--color-black)_calc(6%*max(0,var(--toast-index,0))))] dark:data-expanded:bg-popover dark:before:shadow-[0_-1px_--theme(--color-white/6%)]",
                 // Base positioning using data-position
                 "data-[position*=right]:right-0 data-[position*=right]:left-auto",
                 "data-[position*=left]:right-auto data-[position*=left]:left-0",
@@ -146,7 +146,9 @@ function Toasts({
               swipeDirection={swipeDirection}
               toast={toast}
             >
-              <Toast.Content className="pointer-events-auto flex items-center justify-between gap-1.5 overflow-hidden px-3.5 py-3 text-sm transition-opacity duration-250 data-behind:not-data-expanded:pointer-events-none data-behind:opacity-0 data-expanded:opacity-100">
+              {/* Only notification controls intercept clicks. Its message may
+                  overlap a footer control in a narrow window. */}
+              <Toast.Content className="flex items-center justify-between gap-1.5 overflow-hidden px-3.5 py-3 text-sm transition-opacity duration-250 data-behind:not-data-expanded:pointer-events-none data-behind:opacity-0 data-expanded:opacity-100">
                 <div className="flex min-w-0 gap-2">
                   {Icon && (
                     <div
@@ -170,7 +172,7 @@ function Toasts({
                 </div>
                 {toast.actionProps && (
                   <Toast.Action
-                    className={buttonVariants({ size: "xs" })}
+                    className={cn("pointer-events-auto", buttonVariants({ size: "xs" }))}
                     data-slot="toast-action"
                   >
                     {toast.actionProps.children}
@@ -178,7 +180,8 @@ function Toasts({
                 )}
                 <Toast.Close
                   aria-label="Dismiss notification"
-                  className={buttonVariants({ size: "xs", variant: "ghost" })}
+                  aria-hidden={false}
+                  className={cn("pointer-events-auto", buttonVariants({ size: "xs", variant: "ghost" }))}
                 >Dismiss</Toast.Close>
               </Toast.Content>
             </Toast.Root>

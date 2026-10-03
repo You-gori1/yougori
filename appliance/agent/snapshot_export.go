@@ -48,14 +48,26 @@ func writeSnapshotStream(w io.Writer, metadata []byte, export func(io.Writer) er
 // nerdctl export reads the merged rootfs and streams it without committing a
 // second writable layer or saving a tar inside the shared container disk.
 func (s *server) exportSnapshot(w http.ResponseWriter, r *http.Request) {
+	s.exportSnapshotWithConfiguration(w, r, snapshotConfiguration)
+}
+
+func (s *server) exportSnapshotWithConfiguration(w http.ResponseWriter, r *http.Request, configure func(context.Context, string, json.RawMessage, json.RawMessage) (json.RawMessage, error)) {
 	var request snapshotRequest
 	if !decodeRequest(w, r, &request) || !requireID(w, request.ID) || !requireID(w, request.SnapshotID) {
 		return
 	}
+	ctx, stream, finish, err := s.beginSnapshotExport(r.Context(), w, request.ID, request.SnapshotID)
+	if err != nil {
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
+	defer finish()
 	unlock := s.locks.lock(containerLockKey(request.ID), snapshotLockKey(request.SnapshotID))
 	defer unlock()
-	ctx, cancel := context.WithTimeout(r.Context(), 24*time.Hour)
-	defer cancel()
+	if err := ctx.Err(); err != nil {
+		writeError(w, http.StatusConflict, "snapshot export cancelled before preparation")
+		return
+	}
 	output, err := run(ctx, "nerdctl", "--namespace", namespace, "inspect", "--format", "{{json .}}", request.ID)
 	if err != nil {
 		writeCommandError(w, err)
@@ -90,7 +102,7 @@ func (s *server) exportSnapshot(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, "Cannot read snapshot platform")
 		return
 	}
-	configuration, err := snapshotConfiguration(ctx, container.ID, platform.Config, container.Config)
+	configuration, err := configure(ctx, container.ID, platform.Config, container.Config)
 	if err != nil {
 		writeError(w, 500, "Cannot preserve container startup configuration: "+err.Error())
 		return
@@ -137,7 +149,7 @@ func (s *server) exportSnapshot(w http.ResponseWriter, r *http.Request) {
 	}
 	syscall.Sync()
 	w.Header().Set("Content-Type", "application/vnd.yougori.snapshot.v1")
-	err = writeSnapshotStream(w, metadata, func(out io.Writer) error {
+	err = writeSnapshotStream(stream, metadata, func(out io.Writer) error {
 		command := exec.CommandContext(ctx, "nerdctl", "--namespace", namespace, "export", request.ID)
 		command.Env = append(os.Environ(), "TMPDIR="+temporary)
 		reader, err := command.StdoutPipe()
@@ -146,10 +158,22 @@ func (s *server) exportSnapshot(w http.ResponseWriter, r *http.Request) {
 		}
 		var tail logTail
 		command.Stderr = &tail
+		command.WaitDelay = 3 * time.Second
 		if err := command.Start(); err != nil {
 			return err
 		}
+		// Killing the exporter must also unblock its reader if a descendant
+		// retained the pipe, so cancellation can reach bounded resume cleanup.
+		reading := make(chan struct{})
+		go func() {
+			select {
+			case <-ctx.Done():
+				_ = reader.Close()
+			case <-reading:
+			}
+		}()
 		merged := mergeSnapshotVolumes(out, reader, volumes)
+		close(reading)
 		if merged != nil {
 			_ = command.Process.Kill()
 		}

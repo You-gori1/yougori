@@ -32,6 +32,8 @@ type remoteFileRequest struct {
 	ExpectedData string `json:"expectedData"`
 }
 
+var remoteFileMutations keyedLocker
+
 func remoteOpen(root int, name string, flags int, mode uint64) (int, error) {
 	return unix.Openat2(root, name, &unix.OpenHow{Flags: uint64(flags | unix.O_CLOEXEC | unix.O_NOFOLLOW | unix.O_NONBLOCK), Mode: mode, Resolve: unix.RESOLVE_BENEATH | unix.RESOLVE_NO_SYMLINKS | unix.RESOLVE_NO_XDEV})
 }
@@ -55,6 +57,25 @@ func remoteFileOperation(root int, r remoteFileRequest) (interface{}, error) {
 	}
 	if r.Offset < 0 || r.Length < 0 || r.Offset > 1<<40 || r.Length > 1<<40 {
 		return nil, fmt.Errorf("invalid file range")
+	}
+	if writing {
+		// Two remote editors saving the same expected version must not both
+		// pass the comparison and replace one another. Identify the anchored
+		// parent by filesystem/inode, rather than an fd which is reusable
+		// and differs between requests. Overlapping shared roots then identify
+		// the same file, while unrelated files remain independent.
+		parent, err := remoteOpen(root, path.Dir(name), unix.O_RDONLY|unix.O_DIRECTORY, 0)
+		if err != nil {
+			return nil, err
+		}
+		var directory unix.Stat_t
+		err = unix.Fstat(parent, &directory)
+		unix.Close(parent)
+		if err != nil {
+			return nil, err
+		}
+		unlock := remoteFileMutations.lock(fmt.Sprintf("file:%d:%d:%s", directory.Dev, directory.Ino, path.Base(name)))
+		defer unlock()
 	}
 	if r.Operation == "mkdir" || r.Operation == "remove" {
 		parent, e := remoteOpen(root, path.Dir(name), unix.O_RDONLY|unix.O_DIRECTORY, 0)

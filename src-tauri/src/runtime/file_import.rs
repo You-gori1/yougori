@@ -100,16 +100,24 @@ async fn transfer_archive(
         }
         chunk
     });
+    let start = Instant::now();
+    let stream_error = |error: reqwest::Error, fallback: &str| {
+        if error.is_timeout() && start.elapsed() >= limits.total {
+            format!("YOUGORI_TRANSFER_DEADLINE: transfer {transfer} exceeded its total duration; partial guest data retained")
+        } else {
+            fallback.to_owned()
+        }
+    };
     let request = async {
         let mut reply=client.post(url).bearer_auth(token).header(reqwest::header::CONTENT_TYPE,"application/x-tar").header(reqwest::header::CONTENT_LENGTH,total)
             .body(reqwest::Body::wrap_stream(body)).timeout(limits.total).send().await
-            .map_err(|_|"Guest import connection or stream failed; partial contents may remain in the unique import folder".to_string())?;
+            .map_err(|error|stream_error(error,"Guest import connection or stream failed; partial contents may remain in the unique import folder"))?;
         let status = reply.status();
         let mut body = Vec::new();
         while let Some(chunk) = reply
             .chunk()
             .await
-            .map_err(|_| "Guest import receipt stream failed")?
+            .map_err(|error| stream_error(error, "Guest import receipt stream failed"))?
         {
             if body.len() + chunk.len() > 64 * 1024 {
                 return Err("The guest returned an oversized copy response".into());
@@ -139,7 +147,6 @@ async fn transfer_archive(
         Ok(expected)
     };
     tokio::pin!(request);
-    let start = Instant::now();
     let mut last = Instant::now();
     let mut observed = (0, 0);
     let mut confirmed = 0;

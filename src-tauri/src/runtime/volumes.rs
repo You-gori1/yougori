@@ -285,6 +285,7 @@ impl RuntimeManager {
         engine.fabric = self.fabric.clone();
         engine.shared_files = self.shared_files.clone();
         engine.gpu_launches = self.gpu_launches.clone();
+        engine.snapshot_exports = self.snapshot_exports.clone();
         engine.settings_root = self.settings_root.clone();
         let engine = Arc::new(engine);
         engines.insert(volume.directory.clone(), engine.clone());

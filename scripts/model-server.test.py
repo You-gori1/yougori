@@ -1,5 +1,6 @@
 import importlib.util
 import http.client
+import io
 import json
 import hashlib
 import tempfile
@@ -7,6 +8,8 @@ import os
 from pathlib import Path
 import threading
 import unittest
+import queue
+import time
 from contextlib import contextmanager, ExitStack
 from unittest.mock import Mock, patch
 from types import SimpleNamespace
@@ -59,6 +62,197 @@ def model_startup(count=1, files=("model.safetensors",), config=None, versions=N
 
 
 class ModelServerTests(unittest.TestCase):
+    def test_model_http_failures_never_disclose_the_api_key(self):
+        torch = SimpleNamespace(inference_mode=lambda: ExitStack(), cuda=SimpleNamespace(OutOfMemoryError=MemoryError))
+        for failure in (ValueError, TypeError, TimeoutError):
+            with self.subTest(failure=failure.__name__), \
+                 patch.dict("sys.modules", transformers=SimpleNamespace(StoppingCriteriaList=list)), \
+                 patch.object(server, "TORCH", torch), \
+                 patch.object(server, "NETWORK", SimpleNamespace(generate=Mock(side_effect=failure("sensitive detail " + server.TOKEN)))), \
+                 patch.object(server, "TOKENIZER", SimpleNamespace(pad_token_id=0, eos_token_id=1)), \
+                 patch.object(server, "prepare", return_value=({}, 2, 0)), \
+                 patch.dict(server.STATE, status="ready", error=None):
+                listener = server.Server(("127.0.0.1", 0), server.Handler)
+                worker = threading.Thread(target=listener.serve_forever, daemon=True)
+                worker.start()
+                client = http.client.HTTPConnection("127.0.0.1", listener.server_port, timeout=2)
+                try:
+                    client.request("POST", "/v1/chat/completions", json.dumps({"messages":[{"role":"user", "content":"hello"}]}),
+                                   {"Authorization":"Bearer " + server.TOKEN})
+                    response = client.getresponse()
+                    self.assertEqual(response.status, 400 if failure in (ValueError, TypeError) else 500)
+                    self.assertNotIn(server.TOKEN.encode(), response.read())
+                    self.assertFalse(server.GENERATION.locked())
+                finally:
+                    client.close()
+                    listener.shutdown()
+                    listener.server_close()
+                    worker.join()
+
+    def test_stalled_non_streaming_generation_has_a_bounded_response_and_exclusive_gpu(self):
+        started, release, stopping = threading.Event(), threading.Event(), {}
+        def stall(**kwargs):
+            stopping["event"] = kwargs.get("stopping_criteria", [SimpleNamespace(event=threading.Event())])[0].event
+            started.set()
+            release.wait(3)
+            return None
+        lock, meter, result = threading.Lock(), {}, {}
+        torch = SimpleNamespace(inference_mode=lambda: ExitStack(), cuda=SimpleNamespace(OutOfMemoryError=MemoryError))
+        with patch.dict("sys.modules", transformers=SimpleNamespace(StoppingCriteriaList=list)), \
+             patch.object(server, "GENERATION", lock), patch.object(server, "TORCH", torch), \
+             patch.object(server, "NETWORK", SimpleNamespace(generate=stall)), \
+             patch.object(server, "TOKENIZER", SimpleNamespace(pad_token_id=0, eos_token_id=1)), \
+             patch.object(server, "prepare", return_value=({}, 2, 0)), \
+             patch.dict(server.STATE, status="ready", error=None), \
+             patch.object(server, "GENERATION_MAX_SECONDS", .1, create=True), \
+             patch.object(server, "STREAM_CANCEL_GRACE_SECONDS", .05):
+            def request():
+                result["reply"] = server.generate({"messages":[{"role":"user", "content":"hello"}]}, None, meter)
+            response = threading.Thread(target=request)
+            try:
+                response.start()
+                self.assertTrue(started.wait(1))
+                response.join(.6)
+                self.assertFalse(response.is_alive(), "A stalled generation kept its HTTP worker forever")
+                self.assertEqual(result["reply"][0], 504)
+                self.assertEqual(meter["outcome"], "error")
+                self.assertTrue(stopping["event"].is_set())
+                self.assertTrue(lock.locked())
+                self.assertEqual(server.STATE["status"], "error")
+            finally:
+                release.set()
+                response.join(4)
+                deadline = time.monotonic() + 1
+                while lock.locked() and time.monotonic() < deadline:
+                    time.sleep(.01)
+                self.assertFalse(lock.locked())
+
+    def test_stream_success_failure_and_client_disconnect_release_gpu_ownership(self):
+        class Streamer:
+            def __init__(self, tokenizer, **kwargs):
+                self.timeout = kwargs.get("timeout")
+                self.queue = queue.Queue()
+            def __iter__(self):
+                return self
+            def __next__(self):
+                value = self.queue.get(timeout=self.timeout)
+                if value is None:
+                    raise StopIteration
+                return value
+            def end(self):
+                self.queue.put(None)
+        class Disconnected:
+            def write(self, value):
+                raise BrokenPipeError("client disconnected")
+        for mode in ("success", "error", "disconnect"):
+            with self.subTest(mode=mode):
+                output, lock, meter = io.BytesIO(), threading.Lock(), {}
+                handler = SimpleNamespace(wfile=Disconnected() if mode == "disconnect" else output,
+                                          send_response=lambda *args: None, send_header=lambda *args: None,
+                                          end_headers=lambda: None)
+                def generate(**kwargs):
+                    if mode == "error":
+                        raise RuntimeError("sensitive engine detail " + server.TOKEN)
+                    if mode == "disconnect":
+                        self.assertTrue(kwargs["stopping_criteria"][0].event.wait(2))
+                    else:
+                        kwargs["streamer"].queue.put("hello")
+                    kwargs["streamer"].end()
+                    return SimpleNamespace(shape=(1, 4))
+                torch = SimpleNamespace(inference_mode=lambda: ExitStack(), cuda=SimpleNamespace(OutOfMemoryError=MemoryError))
+                with patch.dict("sys.modules", transformers=SimpleNamespace(TextIteratorStreamer=Streamer, StoppingCriteriaList=list)), \
+                     patch.object(server, "GENERATION", lock), patch.object(server, "TORCH", torch), \
+                     patch.object(server, "NETWORK", SimpleNamespace(generate=generate)), \
+                     patch.object(server, "TOKENIZER", SimpleNamespace(pad_token_id=0, eos_token_id=1)), \
+                     patch.object(server, "prepare", return_value=({}, 2, 0)), \
+                     patch.object(server, "STREAM_POLL_SECONDS", .05), \
+                     patch.dict(server.STATE, status="ready", error=None):
+                    result = server.generate({"messages":[{"role":"user", "content":"hello"}], "stream":True}, handler, meter)
+                    self.assertIsNone(result)
+                    self.assertFalse(lock.locked())
+                    self.assertEqual(meter["outcome"], {"success":"ok", "error":"error", "disconnect":"cancelled"}[mode])
+                    self.assertEqual(server.STATE["status"], "ready")
+                    self.assertNotIn(server.TOKEN.encode(), output.getvalue())
+                    if mode != "disconnect":
+                        self.assertIn(b"[DONE]", output.getvalue())
+
+    def test_stalled_stream_finishes_its_response_without_releasing_a_busy_gpu(self):
+        started, release = threading.Event(), threading.Event()
+        class Streamer:
+            def __init__(self, tokenizer, **kwargs):
+                self.timeout = kwargs.get("timeout")
+                self.queue = queue.Queue()
+            def __iter__(self):
+                return self
+            def __next__(self):
+                value = self.queue.get(timeout=self.timeout)
+                if value is None:
+                    raise StopIteration
+                return value
+            def end(self):
+                self.queue.put(None)
+        class Handler:
+            wfile = io.BytesIO()
+            send_response = send_header = end_headers = lambda *args: None
+        def stall(**kwargs):
+            started.set()
+            release.wait(3)
+            kwargs["streamer"].end()
+            return SimpleNamespace(shape=(1, 4))
+        lock = threading.Lock()
+        torch = SimpleNamespace(inference_mode=lambda: ExitStack(), cuda=SimpleNamespace(OutOfMemoryError=MemoryError))
+        network = SimpleNamespace(generate=stall)
+        meter = {}
+        with patch.dict("sys.modules", transformers=SimpleNamespace(TextIteratorStreamer=Streamer, StoppingCriteriaList=list)), \
+             patch.object(server, "GENERATION", lock), patch.object(server, "TORCH", torch), \
+             patch.object(server, "NETWORK", network), \
+             patch.object(server, "TOKENIZER", SimpleNamespace(pad_token_id=0, eos_token_id=1)), \
+             patch.object(server, "prepare", return_value=({}, 2, 0)), \
+             patch.dict(server.STATE, status="ready", error=None), \
+             patch.object(server, "STREAM_MAX_SECONDS", .1, create=True), \
+             patch.object(server, "STREAM_POLL_SECONDS", .05, create=True), \
+             patch.object(server, "STREAM_CANCEL_GRACE_SECONDS", .05, create=True):
+            response = threading.Thread(target=server.generate, args=({"messages":[{"role":"user", "content":"hello"}], "stream":True}, Handler(), meter))
+            try:
+                response.start()
+                self.assertTrue(started.wait(1))
+                response.join(.6)
+                self.assertFalse(response.is_alive(), "A stalled generation kept its HTTP worker forever")
+                self.assertEqual(meter["outcome"], "error")
+                self.assertTrue(lock.locked(), "Never start a second GPU generation while the first is still running")
+                self.assertEqual(server.STATE["status"], "error")
+                self.assertIn(b"[DONE]", Handler.wfile.getvalue())
+            finally:
+                release.set()
+                response.join(4)
+                deadline = time.monotonic() + 1
+                while lock.locked() and time.monotonic() < deadline:
+                    time.sleep(.01)
+                self.assertFalse(lock.locked(), "The finished worker must eventually release GPU ownership")
+
+    def test_malformed_saved_usage_hour_names_cannot_break_request_accounting(self):
+        with tempfile.TemporaryDirectory() as folder, \
+             patch.object(server, "USAGE_PATH", os.path.join(folder, "usage.json")):
+            for hour in ("\u00b2", "9" * 5000):
+                with self.subTest(hour_length=len(hour)):
+                    value = server.empty_usage()
+                    value["hours"][hour] = dict.fromkeys(server.COUNTERS, 0)
+                    Path(server.USAGE_PATH).write_text(json.dumps(value))
+                    with patch.object(server, "USAGE", server.load_usage()):
+                        server.record_usage("api", "ok", 2, 1)
+                        self.assertEqual(server.load_usage()["totals"]["requests"], 1)
+
+    def test_checkpoint_requires_the_requested_immutable_revision(self):
+        for actual in (None, "main", "a" * 39, "g" * 40, "b" * 40):
+            with self.subTest(actual=actual), model_startup() as fixture, \
+                 patch.object(server, "MODEL_REVISION", "a" * 40):
+                fixture.hub.HfApi.return_value.model_info.return_value.sha = actual
+                server.load_model()
+                self.assertEqual(server.STATE["status"], "error")
+                self.assertIn("revision", server.STATE["error"].lower())
+                fixture.transformers.AutoConfig.from_pretrained.assert_not_called()
+                fixture.hub.snapshot_download.assert_not_called()
+
     def test_malformed_saved_usage_cannot_break_request_accounting(self):
         import tempfile
         with tempfile.TemporaryDirectory() as folder, \

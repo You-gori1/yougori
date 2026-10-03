@@ -40,16 +40,18 @@ var (
 )
 
 type server struct {
-	apps          graphicalApps
-	terminals     sync.Map
-	hostShares    sync.Map
-	token         string
-	microVM       bool
-	locks         keyedLocker
-	knownImages   sync.Map
-	provisionLogs sync.Map
-	healthMu      sync.Mutex
-	runtimeReady  uint32
+	apps            graphicalApps
+	terminals       sync.Map
+	hostShares      sync.Map
+	token           string
+	microVM         bool
+	emulated        bool
+	locks           keyedLocker
+	knownImages     sync.Map
+	provisionLogs   sync.Map
+	snapshotExports snapshotExportManager
+	healthMu        sync.Mutex
+	runtimeReady    uint32
 }
 
 type keyedLocker struct {
@@ -137,9 +139,11 @@ type systemExecRequest struct {
 }
 
 type bootConfiguration struct {
-	token    string
-	microVM  bool
-	bootTime int64
+	token         string
+	microVM       bool
+	bootTime      int64
+	emulated      bool
+	firmwareToken bool
 }
 
 type provisionRequest struct {
@@ -286,7 +290,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	s := &server{token: configuration.token, microVM: configuration.microVM}
+	s := &server{token: configuration.token, microVM: configuration.microVM, emulated: configuration.emulated}
 	if s.microVM {
 		if err := configureMicroVMFabric(); err != nil {
 			log.Printf("private networking: %v", err)
@@ -319,6 +323,7 @@ func main() {
 	mux.HandleFunc("/v1/containers/status/", s.auth(method(http.MethodGet, s.containerStatus)))
 	mux.HandleFunc("/v1/snapshots/create", s.auth(method(http.MethodPost, s.createSnapshot)))
 	mux.HandleFunc("/v1/snapshots/export", s.auth(method(http.MethodPost, s.exportSnapshot)))
+	mux.HandleFunc("/v1/snapshots/export/cancel", s.auth(method(http.MethodPost, s.cancelSnapshotExport)))
 	mux.HandleFunc("/v1/snapshots/restore", s.auth(method(http.MethodPost, s.restoreSnapshot)))
 	mux.HandleFunc("/v1/snapshots/release", s.auth(method(http.MethodPost, s.releaseSnapshot)))
 	mux.HandleFunc("/v1/snapshots/delete", s.auth(method(http.MethodPost, s.deleteSnapshot)))
@@ -355,12 +360,31 @@ func readBootConfiguration() (bootConfiguration, error) {
 	if err != nil {
 		return bootConfiguration{}, fmt.Errorf("read kernel command line: %w", err)
 	}
-	return parseBootConfiguration(string(contents))
+	configuration, err := parseBootConfiguration(string(contents))
+	if err != nil {
+		return bootConfiguration{}, err
+	}
+	if configuration.firmwareToken {
+		configuration.token, err = readFirmwareBootToken(configuration.emulated)
+	}
+	return configuration, err
 }
 
 func parseBootConfiguration(commandLine string) (bootConfiguration, error) {
 	configuration := bootConfiguration{}
 	for _, field := range strings.Fields(commandLine) {
+		if strings.HasPrefix(field, "opendock.token-source=") {
+			if field != "opendock.token-source=fwcfg" || configuration.firmwareToken {
+				return bootConfiguration{}, errors.New("invalid Yougori credential source")
+			}
+			configuration.firmwareToken = true
+		}
+		if strings.HasPrefix(field, "opendock.emulated=") {
+			if field != "opendock.emulated=1" {
+				return bootConfiguration{}, errors.New("invalid Yougori emulation marker")
+			}
+			configuration.emulated = true
+		}
 		if strings.HasPrefix(field, "opendock.time=") {
 			value, err := strconv.ParseInt(strings.TrimPrefix(field, "opendock.time="), 10, 64)
 			if err != nil || value < 1577836800 || value > 4102444800 {
@@ -382,7 +406,10 @@ func parseBootConfiguration(commandLine string) (bootConfiguration, error) {
 			configuration.token = value
 		}
 	}
-	if configuration.token == "" {
+	if configuration.firmwareToken && configuration.token != "" {
+		return bootConfiguration{}, errors.New("Yougori firmware credentials must not appear in the kernel command line")
+	}
+	if configuration.token == "" && !configuration.firmwareToken {
 		return bootConfiguration{}, errors.New("missing Yougori boot token")
 	}
 	return configuration, nil
@@ -603,9 +630,13 @@ func (s *server) action(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "unsupported lifecycle action")
 		return
 	}
+	if request.Action == "stop" || request.Action == "restart" {
+		releaseControl := s.snapshotLifecycleControl(request.ID)
+		defer releaseControl()
+	}
 	unlock := s.locks.lock(containerLockKey(request.ID))
 	defer unlock()
-	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), s.lifecycleTimeout(request.Action))
 	defer cancel()
 	if request.Action == "start" || request.Action == "restart" || request.Action == "resume" {
 		if err := s.ensureContainerStorage(ctx, request.ID, 0); err != nil {
@@ -645,6 +676,8 @@ func (s *server) deleteContainer(w http.ResponseWriter, r *http.Request) {
 	if !decodeRequest(w, r, &request) || !requireID(w, request.ID) {
 		return
 	}
+	releaseControl := s.snapshotLifecycleControl(request.ID)
+	defer releaseControl()
 	unlock := s.locks.lock(containerLockKey(request.ID))
 	defer unlock()
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
@@ -846,7 +879,7 @@ func (s *server) execute(w http.ResponseWriter, r *http.Request) {
 	defer unlock()
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
 	defer cancel()
-	output, err := runAllowExit(ctx, "nerdctl", "--namespace", namespace, "exec", request.ID, "/bin/sh", "-lc", request.Command)
+	output, err := s.runContainerExec(ctx, request.ID, request.Command)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

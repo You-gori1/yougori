@@ -461,13 +461,30 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let pid_file = directory.path().join("owned-process.pid");
         let destination = directory.path().join("files.tar");
-        let mut control = ArchiveControl::new(None);
-        Arc::get_mut(&mut control).unwrap().inactivity = Duration::from_millis(350);
+        let control = ArchiveControl::new(None);
+        let observed = control.clone();
+        let command = stalled_command(&pid_file);
+        let output = destination.clone();
+        let task = tokio::spawn(async move { receive_archive_controlled(command,&output,"copy",1024,control).await });
+        // Establish actual stream progress before simulating an expired idle
+        // clock. Python/process startup speed is not what this test measures.
+        tokio::time::timeout(Duration::from_secs(10), async {
+            loop {
+                let progressed = {
+                    let measurement = observed.measurement.lock().unwrap();
+                    measurement.0 == "receiving" && measurement.1 == 7
+                        && observed.received.load(std::sync::atomic::Ordering::Relaxed) == 7
+                };
+                if progressed { break; }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        }).await.unwrap();
         let started = Instant::now();
-        let error = receive_archive_controlled(stalled_command(&pid_file),&destination,"copy",1024,control.clone()).await.unwrap_err();
+        observed.measurement.lock().unwrap().2 = Instant::now() - observed.inactivity;
+        let error = tokio::time::timeout(Duration::from_secs(5),task).await.unwrap().unwrap().unwrap_err();
         assert!(error.contains("YOUGORI_TRANSFER_INACTIVE"),"{error}");
         assert!(started.elapsed() < Duration::from_secs(5));
-        assert_eq!(control.received.load(std::sync::atomic::Ordering::Relaxed),7);
+        assert_eq!(observed.received.load(std::sync::atomic::Ordering::Relaxed),7);
         assert!(!destination.exists());
         assert!(std::fs::read_dir(directory.path()).unwrap().all(|entry|!entry.unwrap().path().extension().is_some_and(|extension|extension == "part")));
         assert_owned_child_stopped(&pid_file);

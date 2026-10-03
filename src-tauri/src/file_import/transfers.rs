@@ -159,4 +159,36 @@ mod tests {
         drop(lease);
         assert!(find(&transfer.id).is_none());
     }
+    #[test]
+    fn environment_cancellation_preserves_independent_transfers_and_releases_admission() {
+        let first_environment = format!("env-transfer-a-{}", uuid::Uuid::new_v4().simple());
+        let second_environment = format!("env-transfer-b-{}", uuid::Uuid::new_v4().simple());
+        let first = begin(&first_environment).unwrap();
+        let second = begin(&second_environment).unwrap();
+        assert!(begin(&first_environment).is_err());
+        assert_eq!(cancel(Some(&first_environment), None)["transfers"].as_array().unwrap().len(), 1);
+        assert!(first.transfer.check().is_err());
+        assert!(second.transfer.check().is_ok());
+        drop(first);
+        let replacement = begin(&first_environment).unwrap();
+        assert!(replacement.transfer.check().is_ok());
+        assert!(second.transfer.check().is_ok());
+    }
+    #[tokio::test]
+    async fn queued_operation_cancellation_reaches_its_transfer_without_cancelling_peers() {
+        let cancellation = CancellationToken::new();
+        let peer = begin(&format!("env-peer-{}", uuid::Uuid::new_v4().simple())).unwrap();
+        let context = crate::automation::context::OperationContext {
+            id: "disposable-cancellation-fixture".into(),
+            cancellation: cancellation.clone(),
+            progress: Arc::new(|_| {}),
+        };
+        let transfer = crate::automation::context::scope(context, async {
+            begin(&format!("env-child-{}", uuid::Uuid::new_v4().simple())).unwrap()
+        })
+        .await;
+        cancellation.cancel();
+        assert!(transfer.transfer.check().unwrap_err().starts_with("YOUGORI_OPERATION_CANCELLED"));
+        assert!(peer.transfer.check().is_ok());
+    }
 }

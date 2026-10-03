@@ -39,7 +39,10 @@ pub fn bind(endpoint: &str, first: bool) -> io::Result<Listener> {
         let result = tokio::net::windows::named_pipe::ServerOptions::new()
             .first_pipe_instance(first)
             .reject_remote_clients(true)
-            .max_instances(32)
+            // Bound live connections for their entire lifetime. Leave room for
+            // the listening handle and one newly accepted connection before
+            // admission rejects it and closes its handle.
+            .max_instances(super::CLIENT_LIMIT + 2)
             .create_with_security_attributes_raw(
                 endpoint,
                 (&mut attributes as *mut SECURITY_ATTRIBUTES).cast(),
@@ -77,4 +80,34 @@ pub fn bind(endpoint: &str, _first: bool) -> io::Result<Listener> {
     let socket = Listener::bind(path)?;
     std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
     Ok(socket)
+}
+
+#[cfg(all(test, windows))]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn replacement_listener_survives_full_connection_admission() {
+        use tokio::net::windows::named_pipe::ClientOptions;
+
+        let endpoint = format!(
+            r"\\.\pipe\yougori-control-saturation-{}",
+            uuid::Uuid::new_v4().simple()
+        );
+        let mut listener = bind(&endpoint, true).unwrap();
+        let mut connected = Vec::new();
+        // Include the transient accepted connection that admission will reject.
+        // A replacement listener must already exist before that handle closes.
+        for index in 0..=super::super::CLIENT_LIMIT {
+            let client = ClientOptions::new().open(&endpoint).unwrap();
+            listener.connect().await.unwrap();
+            let next = bind(&endpoint, false)
+                .unwrap_or_else(|error| panic!("Replacement listener {index} failed: {error}"));
+            connected.push((std::mem::replace(&mut listener, next), client));
+        }
+        let client = ClientOptions::new().open(&endpoint).unwrap();
+        listener.connect().await.unwrap();
+        drop(client);
+        drop(connected);
+    }
 }

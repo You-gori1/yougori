@@ -160,7 +160,7 @@ fn dispatch_group_0<'a>(app: &'a AppHandle, method: &'a str, p: &'a Value, progr
         "set_deployment_secret" => crate::projects::secrets::set_secret(&arg::<String>(p,"name")?,&arg::<String>(p,"value")?),
         "delete_deployment_secret" => crate::projects::secrets::delete_secret(&arg::<String>(p,"name")?),
         "deployment_status" => crate::projects::deployment_status(a!("path"),app.clone()).await,
-        "get_environment_health_check" => encoded(crate::projects::get_environment_health_check(a!("environmentId"),runtime)),
+        "get_environment_health_check" => encoded(crate::projects::get_environment_health_check(a!("environmentId"),runtime)?),
         "set_environment_health_check" => crate::projects::set_environment_health_check(a!("environmentId"),a!("health"),app.clone()),
         "publication_preflight" => workspace::publication_preflight(a!("environmentId"),a!("port"),a!("kind"),a!("hostPort"),a!("cloudflare"),a!("domain"),store,manager).await,
         _ => Err(format!("No backend handler for {method}")),

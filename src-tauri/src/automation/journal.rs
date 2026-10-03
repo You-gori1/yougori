@@ -210,6 +210,8 @@ fn allowlisted(value: &Value) -> Value {
                 "readiness",
                 "executing",
                 "waiting",
+                "snapshotExport",
+                "snapshotExportFinished",
             ]
             .contains(phase)
         }) {

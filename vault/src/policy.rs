@@ -93,6 +93,22 @@ pub fn safe_text(value: &str, max: usize) -> bool {
             c.is_control() || matches!(c, '\u{2028}'..='\u{202e}' | '\u{2066}'..='\u{2069}')
         })
 }
+fn dns_name(value: &str, underscores: bool) -> bool {
+    // A single final dot is the valid absolute-name notation. Empty labels,
+    // repeated final dots, and labels with edge hyphens are not DNS names.
+    let host = value.strip_suffix('.').unwrap_or(value);
+    host.len() <= 253
+        && host.contains('.')
+        && host.split('.').all(|label| {
+            !label.is_empty()
+                && label.len() <= 63
+                && !label.starts_with('-')
+                && !label.ends_with('-')
+                && label.bytes().all(|b| {
+                    b.is_ascii_alphanumeric() || b == b'-' || underscores && b == b'_'
+                })
+        })
+}
 impl Operation {
     pub fn name(&self) -> &'static str {
         match self {
@@ -131,19 +147,7 @@ impl Operation {
                 }
             }
             Self::Dns(v) => {
-                let host = v.name.trim_end_matches('.');
-                if host.len() > 253
-                    || !host.contains('.')
-                    || host.split('.').any(|s| {
-                        s.is_empty()
-                            || s.len() > 63
-                            || s.starts_with('-')
-                            || s.ends_with('-')
-                            || !s
-                                .bytes()
-                                .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
-                    })
-                {
+                if !dns_name(&v.name, true) {
                     return Err("Use a complete ASCII DNS name".into());
                 }
                 if !(60..=86400).contains(&v.ttl) || !safe_text(&v.content, 2048) {
@@ -152,15 +156,7 @@ impl Operation {
                 match v.record_type.as_str() {
                     "A" if v.content.parse::<std::net::Ipv4Addr>().is_ok() => (),
                     "AAAA" if v.content.parse::<std::net::Ipv6Addr>().is_ok() => (),
-                    "CNAME"
-                        if v.content.len() <= 253
-                            && v.content
-                                .bytes()
-                                .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'.')
-                            && v.content.contains('.') =>
-                    {
-                        ()
-                    }
+                    "CNAME" if dns_name(&v.content, false) => (),
                     "TXT" if !v.proxied => (),
                     _ => return Err("Invalid DNS record type, content, or proxy setting".into()),
                 }
@@ -381,5 +377,30 @@ mod tests {
         let mut value = record;
         value.content = "not-an-address".into();
         assert!(Operation::Dns(value).validate().is_err());
+    }
+
+    #[test]
+    fn cname_targets_use_complete_unambiguous_dns_labels() {
+        let record = Dns {
+            item: uuid::Uuid::nil().to_string(),
+            name: "app.example.com".into(),
+            record_type: "CNAME".into(),
+            content: "target.example.com".into(),
+            ttl: 300,
+            proxied: false,
+        };
+        for target in ["target.example.com", "target.example.com."] {
+            let mut valid = record.clone();
+            valid.content = target.into();
+            assert!(Operation::Dns(valid).validate().is_ok());
+        }
+        for target in [".example.com", "a..example.com", "-a.example.com", "a-.example.com", "target.example.com.."] {
+            let mut invalid = record.clone();
+            invalid.content = target.into();
+            assert!(Operation::Dns(invalid).validate().is_err(), "accepted {target}");
+        }
+        let mut invalid = record;
+        invalid.name = "app.example.com..".into();
+        assert!(Operation::Dns(invalid).validate().is_err());
     }
 }

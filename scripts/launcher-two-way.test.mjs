@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync, existsSync, symlinkSync, statSync, lstatSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync, existsSync, symlinkSync, statSync, lstatSync, renameSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createHash } from 'node:crypto'
@@ -16,6 +16,55 @@ function fixture(t) {
   t.after(() => { remote.abort(); rmSync(root, { recursive: true, force: true }) })
   return { root, call: r => remote.request(r) }
 }
+
+test('prototype-named files keep their checksums and directory failure diagnostics', t => {
+  const { root, call } = fixture(t)
+  for (const name of ['__proto__', 'constructor', 'toString']) writeFileSync(join(root, name), `contents of ${name}`)
+  const reply = JSON.parse(JSON.stringify(call({ op: 'hashes', paths: ['__proto__', 'constructor', 'toString', 'missing'], skipLinks: true })))
+  for (const name of ['__proto__', 'constructor', 'toString']) assert.equal(reply.hashes[name], digest(`contents of ${name}`))
+  assert.equal(reply.hashes.missing, null)
+  rmSync(join(root, '__proto__'))
+  mkdirSync(join(root, '__proto__'))
+  writeFileSync(join(root, '__proto__', 'keep.txt'), 'keep this concurrent addition')
+  const removal = JSON.parse(JSON.stringify(call({ op: 'directories', create: false, paths: ['__proto__'] })))
+  assert.equal(typeof removal.errors.__proto__, 'string')
+  assert.equal(readFileSync(join(root, '__proto__', 'keep.txt'), 'utf8'), 'keep this concurrent addition')
+})
+
+test('replacing an upload directory with a link cannot redirect chunks or staging cleanup', t => {
+  const { root, call } = fixture(t)
+  const outside = mkdtempSync(join(tmpdir(), 'yougori-upload-outside-'))
+  t.after(() => rmSync(outside, { recursive: true, force: true }))
+  mkdirSync(join(root, 'nested'))
+  call({ op: 'begin', path: 'nested/file.bin', expected: null })
+  const temporary = readdirSync(join(root, 'nested'))[0]
+  rmSync(join(root, 'nested'), { recursive: true })
+  symlinkSync(outside, join(root, 'nested'), process.platform === 'win32' ? 'junction' : 'dir')
+  writeFileSync(join(outside, temporary), 'unrelated private file')
+  assert.throws(() => call({ op: 'chunk', data: Buffer.from('incoming').toString('base64') }), /Symlink/)
+  call({ op: 'abort' })
+  assert.equal(readFileSync(join(outside, temporary), 'utf8'), 'unrelated private file')
+})
+
+test('SQLite batch cancellation cannot remove a file through a replaced parent directory', t => {
+  const { root, call } = fixture(t)
+  const outside = mkdtempSync(join(tmpdir(), 'yougori-sqlite-outside-'))
+  t.after(() => rmSync(outside, { recursive: true, force: true }))
+  mkdirSync(join(root, 'nested'))
+  call({ op: 'sqlite-create', path: 'nested/data.db', schema: [{ sql: 'CREATE TABLE records(id TEXT PRIMARY KEY,value TEXT)' }] })
+  call({ op: 'sqlite-stage-batch', path: 'nested/data.db', operations: [{ key: JSON.stringify(['records', ['new']]), expected: null, row: ['new', 'pending'] }] })
+  const temporary = readdirSync(join(root, 'nested')).find(name => name.startsWith('.yougori-sync-sqlite-'))
+  assert.ok(temporary)
+  try { renameSync(join(root, 'nested'), join(root, 'moved')) }
+  catch (error) {
+    if (process.platform === 'win32' && ['EPERM', 'EACCES', 'EBUSY'].includes(error.code)) { t.skip('Windows SQLite handle prevents parent rename; Linux exercises the replacement'); return }
+    throw error
+  }
+  symlinkSync(outside, join(root, 'nested'), process.platform === 'win32' ? 'junction' : 'dir')
+  writeFileSync(join(outside, temporary), 'unrelated private file')
+  call({ op: 'sqlite-abort' })
+  assert.equal(readFileSync(join(outside, temporary), 'utf8'), 'unrelated private file')
+})
 test('listing an open WAL database preserves SQLite locks and commits stay visible to fresh app connections', t => {
   const {root,call} = fixture(t)
   const file=join(root,'records.sqlite')
@@ -40,6 +89,82 @@ test('listing an open WAL database preserves SQLite locks and commits stay visib
   call({op:'sqlite-stage-batch',path:'records.sqlite',operations:[{key,expected,row:['base','synced commit']}]})
   assert.equal(call({op:'sqlite-apply',path:'records.sqlite'}).count,1)
   assert.ok(app("SELECT value FROM records WHERE id='base'").includes('synced commit'))
+})
+
+test('ordinary directory replacement preserves unrelated files during upload and cancellation', t => {
+  const { root, call } = fixture(t)
+  mkdirSync(join(root, 'nested'))
+  call({ op: 'begin', path: 'nested/file.bin', expected: null })
+  call({ op: 'chunk', data: Buffer.from('original staging').toString('base64') })
+  const temporary = readdirSync(join(root, 'nested'))[0]
+  try { renameSync(join(root, 'nested'), join(root, 'moved')) }
+  catch (error) {
+    if (process.platform === 'win32' && ['EPERM', 'EACCES', 'EBUSY'].includes(error.code)) { t.skip('Windows upload handle prevents directory replacement'); return }
+    throw error
+  }
+  mkdirSync(join(root, 'nested'))
+  writeFileSync(join(root, 'nested', temporary), 'unrelated private file')
+  assert.throws(() => call({ op: 'chunk', data: Buffer.from('incoming').toString('base64') }), /staging location changed/)
+  assert.throws(() => call({ op: 'commit', hash: digest('unrelated private file') }), /staging location changed/)
+  call({ op: 'abort' })
+  assert.equal(readFileSync(join(root, 'nested', temporary), 'utf8'), 'unrelated private file')
+  assert.equal(readFileSync(join(root, 'moved', temporary), 'utf8'), 'original staging')
+  assert.equal(existsSync(join(root, 'nested', 'file.bin')), false)
+})
+
+test('replacing just the staging file cannot redirect an upload or its cleanup', t => {
+  const { root, call } = fixture(t)
+  call({ op: 'begin', path: 'file.bin', expected: null })
+  call({ op: 'chunk', data: Buffer.from('original staging').toString('base64') })
+  const temporary = readdirSync(root)[0]
+  try { renameSync(join(root, temporary), join(root, 'moved')) }
+  catch (error) {
+    if (process.platform === 'win32' && ['EPERM', 'EACCES', 'EBUSY'].includes(error.code)) { t.skip('Windows upload handle prevents staging replacement'); return }
+    throw error
+  }
+  writeFileSync(join(root, temporary), 'unrelated private file')
+  assert.throws(() => call({ op: 'chunk', data: Buffer.from('incoming').toString('base64') }), /staging location changed/)
+  assert.throws(() => call({ op: 'commit', hash: digest('unrelated private file') }), /staging location changed/)
+  call({ op: 'abort' })
+  assert.equal(readFileSync(join(root, temporary), 'utf8'), 'unrelated private file')
+  assert.equal(readFileSync(join(root, 'moved'), 'utf8'), 'original staging')
+})
+
+test('ordinary parent replacement cannot redirect SQLite cancellation', t => {
+  const { root, call } = fixture(t)
+  mkdirSync(join(root, 'nested'))
+  call({ op: 'sqlite-create', path: 'nested/data.db', schema: [{ sql: 'CREATE TABLE records(id TEXT PRIMARY KEY,value TEXT)' }] })
+  call({ op: 'sqlite-stage-batch', path: 'nested/data.db', operations: [{ key: JSON.stringify(['records', ['new']]), expected: null, row: ['new', 'pending'] }] })
+  const temporary = readdirSync(join(root, 'nested')).find(name => name.startsWith('.yougori-sync-sqlite-'))
+  try { renameSync(join(root, 'nested'), join(root, 'moved')) }
+  catch (error) {
+    if (process.platform === 'win32' && ['EPERM', 'EACCES', 'EBUSY'].includes(error.code)) { t.skip('Windows SQLite handle prevents parent replacement'); return }
+    throw error
+  }
+  mkdirSync(join(root, 'nested'))
+  writeFileSync(join(root, 'nested', temporary), 'unrelated private file')
+  call({ op: 'sqlite-abort' })
+  assert.equal(readFileSync(join(root, 'nested', temporary), 'utf8'), 'unrelated private file')
+  assert.ok(existsSync(join(root, 'moved', temporary)))
+})
+
+test('SQLite staging replacement cannot alter an unrelated file or commit substituted records', t => {
+  const { root, call } = fixture(t)
+  call({ op: 'sqlite-create', path: 'data.db', schema: [{ sql: 'CREATE TABLE records(id TEXT PRIMARY KEY,value TEXT)' }] })
+  const operation = { key: JSON.stringify(['records', ['new']]), expected: null, row: ['new', 'pending'] }
+  call({ op: 'sqlite-stage-batch', path: 'data.db', operations: [operation] })
+  const temporary = readdirSync(root).find(name => name.startsWith('.yougori-sync-sqlite-'))
+  try { renameSync(join(root, temporary), join(root, 'moved')) }
+  catch (error) {
+    if (process.platform === 'win32' && ['EPERM', 'EACCES', 'EBUSY'].includes(error.code)) { t.skip('Windows staging handle prevents replacement'); return }
+    throw error
+  }
+  writeFileSync(join(root, temporary), 'unrelated private file')
+  assert.throws(() => call({ op: 'sqlite-apply', path: 'data.db' }), /staging location changed/)
+  assert.throws(() => call({ op: 'sqlite-stage-batch', path: 'data.db', operations: [operation] }), /staging location changed/)
+  call({ op: 'sqlite-abort' })
+  assert.equal(readFileSync(join(root, temporary), 'utf8'), 'unrelated private file')
+  assert.deepEqual(call({ op: 'sqlite-scan', path: 'data.db' }).entries, [])
 })
 test('two-way transfers binary files in bounded chunks and preserves the old file until commit', t => {
   const {root, call} = fixture(t)

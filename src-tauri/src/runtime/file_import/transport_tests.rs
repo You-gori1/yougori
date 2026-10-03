@@ -122,3 +122,33 @@ async fn confirmed_guest_progress_keeps_slow_extraction_alive() {
     assert!(!state.cancel.load(Ordering::Relaxed));
     server.abort();
 }
+
+#[tokio::test]
+async fn request_total_deadline_retains_partial_outcome_and_cancels_guest() {
+    let archive = tempfile::NamedTempFile::new().unwrap();
+    std::fs::write(archive.path(), b"original").unwrap();
+    let (base, state, server) = fixture(false).await;
+    let mut deadline_limits = limits();
+    deadline_limits.total = Duration::from_millis(50);
+    deadline_limits.inactivity = Duration::from_secs(10);
+    // Force the HTTP timeout to win before the next watchdog tick.
+    deadline_limits.poll = Duration::from_secs(10);
+    let result = transfer_archive(
+        &base,
+        "disposable-fixture-token",
+        "env-deadline-fixture",
+        archive.path(),
+        "abc",
+        8,
+        None,
+        Arc::new(|_| {}),
+        CancellationToken::new(),
+        deadline_limits,
+    )
+    .await;
+    server.abort();
+    let error = result.unwrap_err();
+    assert!(error.starts_with("YOUGORI_TRANSFER_DEADLINE"), "{error}");
+    assert!(state.cancel.load(Ordering::Relaxed));
+    assert_eq!(std::fs::read(archive.path()).unwrap(), b"original");
+}

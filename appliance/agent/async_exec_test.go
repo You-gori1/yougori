@@ -269,3 +269,40 @@ func TestAsyncContainerPreservesGuestStatusDespiteLegacyNerdctlTransport(t *test
 		t.Fatal("completion record retained", err)
 	}
 }
+
+func TestAsyncTimeoutDoesNotRewriteCompletedProcessWhileReadingReceipt(t *testing.T) {
+	root := t.TempDir()
+	// The command finishes immediately, but the provider takes time to fetch
+	// its private completion receipt. That delivery delay is not execution.
+	adapter := "#!/bin/sh\nshift 4\ncase \"$3\" in 'test -f '*) sleep 3;; esac\nexec \"$@\"\n"
+	if err := os.WriteFile(filepath.Join(root, "nerdctl"), []byte(adapter), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", root+":"+os.Getenv("PATH"))
+	execution := "exec-delayed-receipt"
+	pidfile := "/tmp/.yougori-" + execution + ".pid"
+	defer os.Remove(pidfile)
+	defer os.Remove(pidfile + ".exit")
+	s := &server{}
+	reply := httptest.NewRecorder()
+	s.asyncExecStart(reply, httptest.NewRequest("POST", "/v1/exec/start", strings.NewReader(`{"id":"one","executionId":"`+execution+`","command":"printf finished; exit 7","timeoutSeconds":1}`)))
+	if reply.Code != 202 {
+		t.Fatal(reply.Code, reply.Body.String())
+	}
+	item, err := s.execution(asyncExecRequest{ID: "one", ExecutionID: execution})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer item.stop()
+	select {
+	case <-item.stopped:
+	case <-time.After(6 * time.Second):
+		t.Fatal("completion receipt did not arrive")
+	}
+	item.mu.Lock()
+	code, failure := item.exitCode, item.errorCode
+	item.mu.Unlock()
+	if code != 7 || failure != "" {
+		t.Fatalf("receipt delay rewrote an already completed execution: exit=%d error=%q", code, failure)
+	}
+}

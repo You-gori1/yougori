@@ -3,9 +3,11 @@ package main
 import (
 	"archive/tar"
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -135,5 +137,75 @@ func TestFileImportRejectsTruncatedDataAndExistingParentLinks(t *testing.T) {
 	entries, _ = os.ReadDir(filepath.Join(outside, "nested"))
 	if len(entries) != 0 {
 		t.Fatal("wrote through ancestor link")
+	}
+}
+
+func TestFileImportRequiresCompleteArchiveTerminatorAndBody(t *testing.T) {
+	archive := importArchive(t, &tar.Header{Name: "file", Typeflag: tar.TypeReg, Size: 4096})
+	for _, fixture := range []struct {
+		name string
+		data []byte
+	}{
+		{"empty request", nil},
+		{"missing terminator after complete file", archive[:len(archive)-1024]},
+		{"only one terminator block", archive[:len(archive)-512]},
+		{"nonzero trailing bytes", append(append([]byte(nil), archive...), []byte("unexpected archive payload")...)},
+	} {
+		t.Run(fixture.name, func(t *testing.T) {
+			if _, err := unpackImport(bytes.NewReader(fixture.data), t.TempDir()); err == nil {
+				t.Fatal("accepted an incomplete or ambiguous archive body")
+			}
+		})
+	}
+	// Conventional tar record padding remains valid, and must be consumed.
+	padded := append(append([]byte(nil), archive...), make([]byte, 1024)...)
+	reader := bytes.NewReader(padded)
+	if size, err := unpackImport(reader, t.TempDir()); err != nil || size != 4096 || reader.Len() != 0 {
+		t.Fatalf("valid padded archive was not fully consumed: size=%d remaining=%d err=%v", size, reader.Len(), err)
+	}
+}
+
+func TestFileImportExtendedMetadataCannotImpersonateTerminator(t *testing.T) {
+	// A complete first file followed by an orphan extended header previously
+	// looked complete because Next consumed more than 1024 metadata bytes.
+	base := importArchive(t, &tar.Header{Name: "file", Typeflag: tar.TypeReg})
+	base = base[:len(base)-1024]
+	metadata := func(kind byte, payload []byte) []byte {
+		header := append([]byte(nil), base[:512]...)
+		header[156] = kind
+		copy(header[124:136], fmt.Sprintf("%011o\x00", len(payload)))
+		for i := 148; i < 156; i++ {
+			header[i] = ' '
+		}
+		sum := 0
+		for _, value := range header {
+			sum += int(value)
+		}
+		copy(header[148:156], fmt.Sprintf("%06o\x00 ", sum))
+		result := append(header, payload...)
+		return append(result, make([]byte, (512-len(payload)%512)%512)...)
+	}
+	for _, fixture := range []struct {
+		name string
+		data []byte
+	}{
+		{"PAX", metadata(tar.TypeXHeader, []byte("20 path=orphan-name\n"))},
+		{"GNU long name", metadata(tar.TypeGNULongName, []byte(strings.Repeat("x", 1500)+"\x00"))},
+		{"GNU zero-filled name payload", metadata(tar.TypeGNULongName, append([]byte("orphan\x00"), make([]byte, 2048)...))},
+	} {
+		t.Run(fixture.name, func(t *testing.T) {
+			archive := append(append([]byte(nil), base...), fixture.data...)
+			if _, err := unpackImport(bytes.NewReader(archive), t.TempDir()); err == nil {
+				t.Fatal("orphan metadata accepted as a complete archive")
+			}
+		})
+	}
+	// Extended names are valid when followed by an entry and actual terminators.
+	for _, format := range []tar.Format{tar.FormatPAX, tar.FormatGNU} {
+		name := strings.Repeat("x", 130)
+		archive := importArchive(t, &tar.Header{Name: name, Typeflag: tar.TypeReg, Size: 7, Format: format})
+		if size, err := unpackImport(bytes.NewReader(archive), t.TempDir()); err != nil || size != 7 {
+			t.Fatalf("valid extended name rejected: format=%v size=%d err=%v", format, size, err)
+		}
 	}
 }

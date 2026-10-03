@@ -10,7 +10,7 @@ const bash = process.platform === "win32" ? "C:/Program Files/Git/bin/bash.exe" 
 const unix = path => path.replaceAll("\\", "/").replace(/^([A-Za-z]):/, (_, drive) => `/${drive.toLowerCase()}`)
 const script = readFileSync(new URL("./install/install.sh", import.meta.url), "utf8").replaceAll("\r\n", "\n")
 
-function install(t, { extension = "deb", assetQuery = "", badHash = false, aptExit = "0", skillExit = "0", engineOnly = "0", os = "Linux", arch = "x86_64", assetKey = "linux-x86_64", shell = "/bin/bash", startEngine = "1", shadowCli = false, profiles = {} } = {}) {
+function install(t, { extension = "deb", assetQuery = "", assetUrl = null, manifestUrl = "https://fixture.invalid/latest.json", badHash = false, aptExit = "0", skillExit = "0", engineOnly = "0", os = "Linux", arch = "x86_64", assetKey = "linux-x86_64", shell = "/bin/bash", startEngine = "1", shadowCli = false, profiles = {} } = {}) {
   const root = mkdtempSync(join(tmpdir(), "yougori-installer-"))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const bin = join(root, "bin")
@@ -48,9 +48,9 @@ function install(t, { extension = "deb", assetQuery = "", badHash = false, aptEx
     chmodSync(join(shadow, "yougori"), 0o755)
   }
   const env = { ...process.env, HOME: unix(home), SHELL: shell, YOUGORI_START_ENGINE: startEngine, FIXTURE_CLI_LOG: unix(cliLog), FIXTURE_BIN: unix(bin), FIXTURE_OS: os,
-      FIXTURE_ARCH: arch, FIXTURE_SKILL_EXIT: skillExit, YOUGORI_ENGINE_ONLY: engineOnly, YOUGORI_AUTOSTART: "", YOUGORI_RELEASES_URL: "https://fixture.invalid/latest.json",
+      FIXTURE_ARCH: arch, FIXTURE_SKILL_EXIT: skillExit, YOUGORI_ENGINE_ONLY: engineOnly, YOUGORI_AUTOSTART: "", YOUGORI_RELEASES_URL: manifestUrl,
       FIXTURE_APT_LOG: unix(log), FIXTURE_APT_EXIT: aptExit, FIXTURE_CURL_LOG: unix(curlLog), FIXTURE_SHADOW: shadowCli ? unix(shadow) : "", FIXTURE_HOME_BIN: shadowCli ? unix(join(home, ".local/bin")) : "",
-      FIXTURE_MANIFEST: JSON.stringify({ version: "1.0.0", assets: { [assetKey]: { url: `https://fixture.invalid/Yougori.${extension}${assetQuery}`, sha256: badHash ? "0".repeat(64) : sha } } }),
+      FIXTURE_MANIFEST: JSON.stringify({ version: "1.0.0", assets: { [assetKey]: { url: assetUrl ?? `https://fixture.invalid/Yougori.${extension}${assetQuery}`, sha256: badHash ? "0".repeat(64) : sha } } }),
   }
   if (engineOnly === null) delete env.YOUGORI_ENGINE_ONLY
   const rerun = () => spawnSync(bash, ["--noprofile", "--norc", "-c", 'export PATH="${FIXTURE_SHADOW:+$FIXTURE_SHADOW:}$FIXTURE_BIN:${FIXTURE_HOME_BIN:+$FIXTURE_HOME_BIN:}$PATH"; /bin/sh -s'], {
@@ -58,8 +58,23 @@ function install(t, { extension = "deb", assetQuery = "", badHash = false, aptEx
   })
   const result = rerun()
   if (result.error) throw result.error
-  return { result, rerun, home, curl: readFileSync(curlLog, "utf8"), cli: existsSync(cliLog) ? readFileSync(cliLog, "utf8") : "", apt: existsSync(log) ? readFileSync(log, "utf8") : null, engineInstalled: existsSync(join(root, "home/.local/opt/yougori-engine/yougori-engine")), cliInstalled: existsSync(join(root, "home/.local/opt/yougori-engine/cli/yougori")) }
+  return { result, rerun, home, curl: existsSync(curlLog) ? readFileSync(curlLog, "utf8") : "", cli: existsSync(cliLog) ? readFileSync(cliLog, "utf8") : "", apt: existsSync(log) ? readFileSync(log, "utf8") : null, engineInstalled: existsSync(join(root, "home/.local/opt/yougori-engine/yougori-engine")), cliInstalled: existsSync(join(root, "home/.local/opt/yougori-engine/cli/yougori")) }
 }
+
+test("Unix installer refuses unsafe manifest and download URLs before installing", t => {
+  for (const url of ['http://fixture.invalid/latest.json', 'https://user:private@fixture.invalid/latest.json', 'https://']) {
+    const manifest = install(t, { manifestUrl: url })
+    assert.notEqual(manifest.result.status, 0)
+    assert.equal(manifest.curl, "")
+    assert.match(manifest.result.stderr, /HTTPS without credentials/)
+    assert.doesNotMatch(manifest.result.stdout + manifest.result.stderr, /user:private/)
+    const download = install(t, { assetUrl: url })
+    assert.notEqual(download.result.status, 0)
+    assert.equal(download.apt, null)
+    assert.match(download.result.stderr, /HTTPS without credentials/)
+    assert.doesNotMatch(download.curl, /user:private/)
+  }
+})
 
 test("command downloads are attributed without changing the package filename or existing query", t => {
   const plain = install(t)

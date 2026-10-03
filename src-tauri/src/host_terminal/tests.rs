@@ -141,7 +141,9 @@ fn host_terminal_real_powershell_cli_input_resize_and_owned_cleanup() {
         .prefix("Yougori host test é ")
         .tempdir()
         .unwrap();
-    let bundled = Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/cli/yougori-cli.exe");
+    let bundled = std::env::var_os("YOUGORI_TEST_HOST_CLI").map(PathBuf::from)
+        .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/cli/yougori-cli.exe"));
+    assert!(bundled.is_absolute(), "Use an absolute candidate CLI path");
     assert!(bundled.is_file(), "Run npm run cli:bundle first");
     let cli_directory = dir.path().join("CLI with spaces é");
     std::fs::create_dir(&cli_directory).unwrap();
@@ -245,7 +247,10 @@ fn host_terminal_real_powershell_cli_input_resize_and_owned_cleanup() {
     assert_eq!(colors["colorTerm"], "truecolor");
     assert_eq!(colors["readLine"], true);
     assert!(!colors["commandColor"].as_str().unwrap().is_empty());
-    assert_eq!(read_json("schema.json")["name"], "get_platform_state");
+    let schema = read_json("schema.json");
+    assert_eq!(schema["version"], 2, "Bundle the current CLI or set YOUGORI_TEST_HOST_CLI to its absolute path");
+    assert_eq!(schema["ok"], true);
+    assert_eq!(schema["result"]["name"], "get_platform_state");
     let colored = manager.action(request("host-real-one", "read"), "main", None).unwrap();
     let colored = String::from_utf8(STANDARD.decode(colored.data).unwrap()).unwrap();
     assert!(colored.contains("\x1b[96m\"name\""), "The interactive CLI did not send coloured JSON: {colored}");

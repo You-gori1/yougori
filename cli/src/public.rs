@@ -1210,11 +1210,18 @@ fn prefs(args: &[String]) -> Result<Value, String> {
             "projectStatus": if project.is_some() { "found" } else { "noProjectPreferences" },
         })),
         [action, key, value] if action == "remember" => {
-            let current = std::fs::read_to_string(&target).unwrap_or_else(|_| crate::project_files::PREFERENCES_TEMPLATE.to_owned());
+            let current = match std::fs::read_to_string(&target) {
+                Ok(text) => text,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => crate::project_files::PREFERENCES_TEMPLATE.to_owned(),
+                Err(error) => return Err(format!("Cannot read preferences {}: {error}. The file was not changed.", target.display())),
+            };
             save(crate::project_files::remember(&current, key, value, &civil_date((now_hour() / 24) as i64))?)
         }
         [action, key] if action == "forget" => {
-            let current = std::fs::read_to_string(&target).map_err(|_| "No preferences file yet")?;
+            let current = std::fs::read_to_string(&target).map_err(|error| {
+                if error.kind() == std::io::ErrorKind::NotFound { "No preferences file yet".to_owned() }
+                else { format!("Cannot read preferences {}: {error}. The file was not changed.", target.display()) }
+            })?;
             save(crate::project_files::forget(&current, key).ok_or_else(|| format!("Nothing remembered for {key}"))?)
         }
         _ => Err(PREFS_USAGE.into()),

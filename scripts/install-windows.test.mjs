@@ -12,6 +12,29 @@ const boundary = script.indexOf("Write-Host 'Finding the latest Yougori release.
 assert.ok(boundary > 0)
 const selection = script.slice(0, boundary) + '\nWrite-Output $platform\n'
 
+test("Windows installer refuses unsafe manifest URLs before network or installation", { skip: process.platform !== "win32" }, () => {
+  for (const url of ['http://fixture.invalid/latest.json', 'https://user:private@fixture.invalid/latest.json', 'https://', 'not a URL']) {
+    const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(selection, 'utf16le').toString('base64')], {
+      encoding: 'utf8', windowsHide: true, timeout: 15000,
+      env: { ...process.env, YOUGORI_RELEASES_URL: url },
+    })
+    assert.equal(result.status, 1, result.stderr)
+    assert.match(result.stdout, /YOUGORI_RELEASES_URL must use HTTPS without credentials/)
+    assert.doesNotMatch(result.stdout + result.stderr, /user:private/)
+  }
+})
+
+test("Windows installer requires valid signatures from its exact publisher", { skip: process.platform !== "win32" }, () => {
+  const start = script.indexOf('function Assert-Signed')
+  const end = script.indexOf('function Stop-InstalledEngine', start)
+  for (const [status, publisher, expected] of [['Valid', 'CN=Installer Test', 0], ['NotSigned', 'CN=Installer Test', 7], ['Valid', 'CN=Other Publisher', 7]]) {
+    const fixture = `$ErrorActionPreference='Stop'; $allowUnsigned=$false; $ExpectedPublisher='CN=Installer Test'; function Fail($message) { throw $message }; function Remove-Item {}; function Get-AuthenticodeSignature { param($LiteralPath); [PSCustomObject]@{ Status='${status}'; SignerCertificate=[PSCustomObject]@{ Subject='${publisher}' } } };\n${script.slice(start, end)}\ntry { Assert-Signed 'fixture.exe'; Write-Output 'VERIFIED' } catch { Write-Output $_.Exception.Message; exit 7 }`
+    const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(fixture, 'utf16le').toString('base64')], { encoding: 'utf8', windowsHide: true, timeout: 15000 })
+    assert.equal(result.status, expected, result.stderr)
+    assert.match(result.stdout, expected ? /Nothing was installed/ : /VERIFIED/)
+  }
+})
+
 for (const mode of ['offline', 'stops', 'refuses', 'timeout']) test(`Windows reinstall handles an engine that ${mode}`, { skip: process.platform !== "win32" }, t => {
   const root = mkdtempSync(join(tmpdir(), 'yougori reinstall '))
   t.after(() => rmSync(root, { recursive: true, force: true }))

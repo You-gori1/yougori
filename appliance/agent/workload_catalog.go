@@ -45,7 +45,7 @@ func (s *server) workloadLogs(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, map[string]any{"logs": progress.(*provisionLog).text(), "limitBytes": 8192})
 		return
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), s.diagnosticTimeout())
 	defer cancel()
 	var tail logTail
 	command := exec.CommandContext(ctx, "nerdctl", "--namespace", namespace, "logs", "--tail", strconv.Itoa(request.Tail), request.ID)

@@ -10,12 +10,18 @@ set -eu
 
 fail() { printf 'Yougori install failed: %s\n' "$1" >&2; exit 1; }
 need() { command -v "$1" >/dev/null 2>&1 || fail "this installer needs '$1'"; }
+https_url() {
+  case "$1" in https://*) ;; *) fail "$2 must use HTTPS without credentials" ;; esac
+  authority=${1#https://}
+  authority=${authority%%[/?#]*}
+  case "$authority" in ''|*@*) fail "$2 must use HTTPS without credentials" ;; esac
+}
 need curl
 need uname
 need tar
 
 manifest_url="${YOUGORI_RELEASES_URL:-https://yougori.com/releases/latest.json}"
-case "$manifest_url" in https://*) ;; *) fail "YOUGORI_RELEASES_URL must be HTTPS" ;; esac
+https_url "$manifest_url" "YOUGORI_RELEASES_URL"
 engine_only="${YOUGORI_ENGINE_ONLY:-1}"
 start_engine="${YOUGORI_START_ENGINE:-1}"
 case "$start_engine" in 0|1) ;; *) fail "YOUGORI_START_ENGINE must be 0 or 1" ;; esac
@@ -42,7 +48,7 @@ version=$(printf '%s' "$manifest" | tr -d '\n' | sed -n 's/.*"version"[[:space:]
 url=$(field url)
 sha=$(field sha256)
 [ -n "$url" ] && [ -n "$sha" ] || fail "release $version has no download for $platform yet"
-case "$url" in https://*) ;; *) fail "the release download is not HTTPS" ;; esac
+https_url "$url" "the release download"
 [ "${#sha}" = 64 ] || fail "the release SHA-256 is invalid"
 case "$sha" in *[!0-9a-fA-F]*) fail "the release SHA-256 is invalid" ;; esac
 

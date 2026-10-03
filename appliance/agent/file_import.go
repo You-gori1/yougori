@@ -31,15 +31,26 @@ func unpackImportOwned(reader io.Reader, root, uid, gid int) (int64, error) {
 	return unpackImportProgress(context.Background(), reader, root, uid, gid, nil)
 }
 func unpackImportProgress(ctx context.Context, reader io.Reader, root, uid, gid int, progress func(int64)) (int64, error) {
-	archive := tar.NewReader(reader)
+	stream := &importArchiveReader{reader: reader}
+	archive := tar.NewReader(stream)
 	var size int64
 	for {
 		if err := ctx.Err(); err != nil {
 			return size, err
 		}
+		stream.beginHeader()
 		header, err := archive.Next()
+		stream.trackingHeader = false
 		if err == io.EOF {
-			return size, nil
+			// archive/tar also returns EOF after orphan PAX/GNU metadata. Count
+			// actual zero header blocks, never metadata payload or file padding.
+			if !stream.terminated {
+				return size, fmt.Errorf("copy archive is missing its complete terminator")
+			}
+			// Consume the entire declared HTTP body before acknowledging it.
+			// Extra tar record padding is allowed, but a second archive or junk
+			// after the terminator is an ambiguous, invalid transfer.
+			return size, finishImportArchive(ctx, stream)
 		}
 		if err != nil {
 			return size, err
@@ -102,6 +113,132 @@ func unpackImportProgress(ctx context.Context, reader io.Reader, root, uid, gid 
 		}
 		if closeErr != nil {
 			return size, closeErr
+		}
+	}
+}
+
+type importArchiveReader struct {
+	reader         io.Reader
+	read           int64
+	trackingHeader bool
+	padding        int64
+	metadata       int64
+	block          [512]byte
+	blockBytes     int
+	zeroHeaders    int
+	terminated     bool
+}
+
+func (reader *importArchiveReader) Read(p []byte) (int, error) {
+	n, err := reader.reader.Read(p)
+	if reader.trackingHeader {
+		reader.observeHeaders(p[:n])
+	}
+	reader.read += int64(n)
+	return n, err
+}
+
+func (reader *importArchiveReader) beginHeader() {
+	reader.trackingHeader = true
+	reader.padding = (512 - reader.read%512) % 512
+	reader.metadata = 0
+	reader.blockBytes = 0
+	reader.zeroHeaders = 0
+	reader.terminated = false
+}
+
+// Next hides extended headers and consumes their payloads internally. Observe
+// only its aligned header records; zero-filled long-name data is not an EOF.
+func (reader *importArchiveReader) observeHeaders(data []byte) {
+	for len(data) > 0 && !reader.terminated {
+		if reader.padding > 0 || reader.metadata > 0 {
+			remaining := &reader.padding
+			if *remaining == 0 {
+				remaining = &reader.metadata
+			}
+			n := int64(len(data))
+			if n > *remaining {
+				n = *remaining
+			}
+			*remaining -= n
+			data = data[n:]
+			continue
+		}
+		n := copy(reader.block[reader.blockBytes:], data)
+		reader.blockBytes += n
+		data = data[n:]
+		if reader.blockBytes != len(reader.block) {
+			continue
+		}
+		reader.blockBytes = 0
+		zero := true
+		for _, value := range reader.block {
+			if value != 0 {
+				zero = false
+				break
+			}
+		}
+		if zero {
+			reader.zeroHeaders++
+			reader.terminated = reader.zeroHeaders == 2
+			continue
+		}
+		reader.zeroHeaders = 0
+		switch reader.block[156] {
+		case tar.TypeXHeader, tar.TypeXGlobalHeader, tar.TypeGNULongName, tar.TypeGNULongLink:
+			size, valid := importMetadataSize(reader.block[124:136])
+			if !valid || size > math.MaxInt64-511 {
+				reader.trackingHeader = false
+				return
+			}
+			reader.metadata = (size + 511) / 512 * 512
+		}
+	}
+}
+
+func importMetadataSize(field []byte) (int64, bool) {
+	if field[0]&0x80 == 0 {
+		value := strings.Trim(string(field), " \x00")
+		if value == "" {
+			return 0, true
+		}
+		size, err := strconv.ParseInt(value, 8, 64)
+		return size, err == nil && size >= 0
+	}
+	// GNU's base-256 positive numeric fields; negative sizes are invalid.
+	if field[0]&0x40 != 0 {
+		return 0, false
+	}
+	var size int64
+	for index, value := range field {
+		if index == 0 {
+			value &= 0x7f
+		}
+		if size > (math.MaxInt64-int64(value))/256 {
+			return 0, false
+		}
+		size = size*256 + int64(value)
+	}
+	return size, true
+}
+
+func finishImportArchive(ctx context.Context, reader io.Reader) error {
+	var padding [32 * 1024]byte
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		n, err := reader.Read(padding[:])
+		for _, value := range padding[:n] {
+			if value != 0 {
+				return fmt.Errorf("copy archive has unexpected trailing data")
+			}
+		}
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
 		}
 	}
 }

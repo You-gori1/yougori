@@ -227,6 +227,23 @@ fn missing_confirmation_fails_before_connecting() {
 }
 
 #[test]
+fn interspersed_flags_never_allow_secret_arguments_or_pollute_json_output() {
+    for command in [
+        vec!["call", "--dry-run", "set_deployment_secret", "--json", r#"{"name":"fixture","value":"fixture-private"}"#],
+        vec!["--no-wait", "call", "set_deployment_secret", "--value", "fixture-private", "--name", "fixture", "--yes"],
+    ] {
+        let output = cli(&command);
+        assert!(!output.status.success());
+        let parsed = response(&output);
+        assert_eq!(parsed["version"], yougori_cli::wire::VERSION);
+        assert_eq!(parsed["ok"], false);
+        assert!(parsed["error"].as_str().unwrap().contains("never shell arguments"));
+        assert!(!String::from_utf8_lossy(&output.stdout).contains("fixture-private"));
+        assert!(output.stderr.is_empty());
+    }
+}
+
+#[test]
 fn file_and_stdin_json_accept_bom_and_reject_oversized_input() {
     use std::io::Write;
     let temp = tempfile::tempdir().unwrap();

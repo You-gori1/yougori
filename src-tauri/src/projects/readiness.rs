@@ -10,11 +10,13 @@ fn stage(status: &str, detail: &str) -> Value { json!({"status":status,"detail":
 fn status_stage(status: Result<u16,String>, expected: u16) -> Value {
     match status { Ok(code) => json!({"status":if code==expected{"ready"}else{"failed"},"httpStatus":code,"expectedStatus":expected}), Err(detail) => stage("failed", &detail) }
 }
-pub(crate) fn configured_probe(environment_id: &str, runtime: &RuntimeManager) -> Option<HealthCheck> {
-    if let Ok(probes) = saved_probes(runtime) { if let Some(probe) = probes.get(environment_id) { return Some(probe.clone()) } }
-    registry(runtime).ok()?.projects.values().find_map(|record| record.ids.iter().find_map(|(name,id)| {
+pub(crate) fn configured_probe(environment_id: &str, runtime: &RuntimeManager) -> Result<Option<HealthCheck>, String> {
+    if let Some(probe) = saved_probes(runtime)?.get(environment_id) { probe.validate()?; return Ok(Some(probe.clone())) }
+    let probe = registry(runtime)?.projects.values().find_map(|record| record.ids.iter().find_map(|(name,id)| {
         (id == environment_id).then(|| record.applied.get(name).and_then(|spec| spec.health.clone())).flatten()
-    }))
+    }));
+    if let Some(probe) = &probe { probe.validate()?; }
+    Ok(probe)
 }
 fn saved_probes(runtime:&RuntimeManager)->Result<BTreeMap<String,HealthCheck>,String> {
     let path=runtime.storage_root().join("deployment-health.json");
@@ -40,7 +42,7 @@ pub(super) fn reconcile_project_probes(project:&Project,record:&Record,runtime:&
     if probes!=original{persist_probes(runtime,&probes)?;}Ok(())
 }
 #[tauri::command]
-pub fn get_environment_health_check(environment_id:String,runtime:tauri::State<'_,RuntimeManager>)->Option<HealthCheck>{configured_probe(&environment_id,&runtime)}
+pub fn get_environment_health_check(environment_id:String,runtime:tauri::State<'_,RuntimeManager>)->Result<Option<HealthCheck>,String>{configured_probe(&environment_id,&runtime)}
 #[tauri::command]
 pub fn set_environment_health_check(environment_id:String,health:Option<HealthCheck>,app:AppHandle)->Result<Value,String> {
     node(&app,&environment_id)?;
@@ -55,25 +57,41 @@ pub fn set_environment_health_check(environment_id:String,health:Option<HealthCh
 
 async fn local_probe(env: &crate::models::Environment, probe: &HealthCheck, token: Option<&str>, runtime: &RuntimeManager) -> Result<u16,String> {
     tokio::time::timeout(Duration::from_secs(probe.timeout_seconds), async {
-        let mut stream: BoxStream = if env.kind == EnvironmentKind::Cloud {
+        let stream: BoxStream = if env.kind == EnvironmentKind::Cloud {
             Box::new(runtime.cloud.service_stream(&env.id, probe.port).await.map_err(|_| "Cannot connect to the application through its cloud connection")?)
         } else {
             let (endpoint, credential) = runtime.workspace_endpoint(env).await.map_err(|_| "Guest control connection is not ready")?;
             Box::new(crate::workspace::agent_stream(&endpoint, &credential, env.runtime_id.as_deref().unwrap_or(&env.id), probe.port).await.map_err(|_| "Application port is not accepting connections")?)
         };
-        let body=probe.body.as_ref().map(Value::to_string).unwrap_or_default();
-        let authorization=token.map(|v|format!("Authorization: Bearer {v}\r\n")).unwrap_or_default();
-        let request=format!("{} {} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Type: application/json\r\n{authorization}Content-Length: {}\r\n\r\n{body}", probe.method,probe.path,body.len());
-        stream.write_all(request.as_bytes()).await.map_err(|_| "Cannot send application probe")?;
-        let mut line=String::new();
-        BufReader::new(stream.take(8192)).read_line(&mut line).await.map_err(|_| "Application returned an invalid HTTP status")?;
-        http_status(&line)
+        local_probe_stream(stream, probe, token).await
     }).await.map_err(|_| "Application probe exceeded its configured timeout".to_string())?
+}
+fn probe_url(base: &url::Url, path: &str) -> Result<url::Url,String> {
+    let url=base.join(path).map_err(|_| "Health path is invalid")?;
+    if url.origin()!=base.origin() || url.fragment().is_some() { return Err("Health path must stay on this publication's origin and cannot contain a fragment".into()) }
+    Ok(url)
+}
+async fn local_probe_stream(mut stream: BoxStream, probe: &HealthCheck, token: Option<&str>) -> Result<u16,String> {
+    probe.validate()?;
+    let base=url::Url::parse("http://localhost/").expect("static health origin");
+    let url=probe_url(&base,&probe.path)?;
+    let target=format!("{}{}",url.path(),url.query().map(|query|format!("?{query}")).unwrap_or_default());
+    let body=probe.body.as_ref().map(Value::to_string).unwrap_or_default();
+    let authorization=token.map(|value| {
+        reqwest::header::HeaderValue::from_str(&format!("Bearer {value}"))
+            .map_err(|_| "Application credential is invalid for HTTP authentication".to_string())?;
+        Ok::<_,String>(format!("Authorization: Bearer {value}\r\n"))
+    }).transpose()?.unwrap_or_default();
+    let request=format!("{} {target} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Type: application/json\r\n{authorization}Content-Length: {}\r\n\r\n{body}", probe.method,body.len());
+    stream.write_all(request.as_bytes()).await.map_err(|_| "Cannot send application probe")?;
+    let mut line=String::new();
+    BufReader::new(stream.take(8192)).read_line(&mut line).await.map_err(|_| "Application returned an invalid HTTP status")?;
+    http_status(&line)
 }
 fn http_status(line: &str) -> Result<u16,String> {
     let mut words=line.split_whitespace();
-    if !words.next().is_some_and(|s| s.starts_with("HTTP/1.")) { return Err("Application did not return an HTTP response".into()) }
-    words.next().and_then(|v|v.parse::<u16>().ok()).filter(|v| (100..=599).contains(v)).ok_or("Application returned an invalid HTTP status".into())
+    if !matches!(words.next(),Some("HTTP/1.0" | "HTTP/1.1")) { return Err("Application did not return an HTTP response".into()) }
+    words.next().filter(|v|v.len()==3 && v.bytes().all(|byte|byte.is_ascii_digit())).and_then(|v|v.parse::<u16>().ok()).filter(|v| (100..=599).contains(v)).ok_or("Application returned an invalid HTTP status".into())
 }
 async fn public_probe(base: &str, probe: &HealthCheck, token: Option<&str>) -> Result<u16,String> {
     let client=reqwest::Client::builder().no_proxy().redirect(reqwest::redirect::Policy::none()).connect_timeout(Duration::from_secs(5)).timeout(Duration::from_secs(probe.timeout_seconds)).build().map_err(|_| "Cannot initialize public readiness check")?;
@@ -82,8 +100,7 @@ async fn public_probe(base: &str, probe: &HealthCheck, token: Option<&str>) -> R
 async fn public_probe_with_client(base: &str, probe: &HealthCheck, token: Option<&str>,client:&reqwest::Client) -> Result<u16,String> {
     let base=url::Url::parse(base).map_err(|_| "Publication URL is invalid")?;
     if base.scheme()!="https" || base.host_str().is_none() || !base.username().is_empty() || base.password().is_some() { return Err("Public readiness requires a credential-free HTTPS URL".into()) }
-    let url=base.join(&probe.path).map_err(|_| "Health path is invalid")?;
-    if url.origin()!=base.origin() { return Err("Health path must stay on this publication's origin".into()) }
+    let url=probe_url(&base,&probe.path)?;
     let method=reqwest::Method::from_bytes(probe.method.as_bytes()).map_err(|_| "Invalid health method")?;
     let mut request=client.request(method,url);
     if let Some(token)=token { request=request.bearer_auth(token); }
@@ -95,7 +112,7 @@ pub(crate) async fn environment_readiness(environment_id: &str, explicit_probe: 
     let state=store.snapshot()?;
     let env=state.environments.iter().find(|e|e.id==environment_id).ok_or("Environment not found")?;
     let running=env.status==EnvironmentStatus::Running;
-    let configured=configured_probe(environment_id,runtime);
+    let configured=configured_probe(environment_id,runtime)?;
     let probe=explicit_probe.or(configured.as_ref());
     if let Some(probe)=probe { probe.validate()?; }
     let publications=serde_json::to_value(crate::workspace::publication_metadata(environment_id,store,manager).await?).map_err(|_|"Cannot summarize publication metadata")?.as_array().cloned().unwrap_or_default();
@@ -153,6 +170,56 @@ pub(crate) async fn environment_readiness(environment_id: &str, explicit_probe: 
     }
     #[test] fn status_parse_and_readiness_do_not_treat_cloudflare_530_as_success(){assert_eq!(http_status("HTTP/1.1 530 Origin error\r\n").unwrap(),530);assert_eq!(status_stage(Ok(530),200)["status"],"failed");assert!(http_status("ready").is_err());}
     #[test] fn status_diagnostics_omit_response_content(){let result=status_stage(Ok(401),200);assert_eq!(result["httpStatus"],401);assert!(result.get("body").is_none());}
+    #[test] fn malformed_http_status_lines_cannot_verify_application_readiness(){
+        for line in ["HTTP/1.bad 200 OK\r\n","HTTP/1.1 +200 OK\r\n","HTTP/1.1 0200 OK\r\n","HTTP/1.1 99 Missing\r\n"] {
+            assert!(http_status(line).is_err(),"accepted malformed status line {line:?}");
+        }
+        assert_eq!(http_status("HTTP/1.0 204 No Content\r\n").unwrap(),204);
+    }
+    #[tokio::test] async fn local_and_public_health_paths_use_identical_url_encoding(){
+        let (stream,mut server)=tokio::io::duplex(8192);
+        let task=tokio::spawn(async move {
+            let mut line=String::new();
+            let mut reader=BufReader::new(&mut server);
+            reader.read_line(&mut line).await.unwrap();
+            server.write_all(b"HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n").await.unwrap();
+            line
+        });
+        let probe:HealthCheck=serde_json::from_value(json!({"port":3000,"path":"/health check/\u{03bb}?label=hello world","expected_status":204})).unwrap();
+        assert_eq!(local_probe_stream(Box::new(stream),&probe,None).await.unwrap(),204);
+        let local_request=task.await.unwrap();
+        let (url,client,task)=https_fixture("HTTP/1.1 204 No Content\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").await;
+        assert_eq!(public_probe_with_client(&url,&probe,None,&client).await.unwrap(),204);
+        let public_request=task.await.unwrap();
+        assert_eq!(local_request.trim(),public_request.lines().next().unwrap());
+        assert!(local_request.contains("/health%20check/%CE%BB?label=hello%20world"));
+    }
+    #[tokio::test] async fn local_health_rejects_cross_origin_paths_fragments_and_header_injection_before_sending(){
+        let probe:HealthCheck=serde_json::from_value(json!({"port":3000,"path":"/health"})).unwrap();
+        for path in ["/\\unrelated.invalid/health","/health#different"] {
+            let (stream,mut server)=tokio::io::duplex(8192);
+            let mut bad=probe.clone();bad.path=path.into();
+            assert!(local_probe_stream(Box::new(stream),&bad,Some("private-test-value")).await.is_err());
+            let mut byte=[0u8;1];assert_eq!(server.read(&mut byte).await.unwrap(),0);
+        }
+        let (stream,mut server)=tokio::io::duplex(8192);
+        let error=local_probe_stream(Box::new(stream),&probe,Some("private\r\nInjected: bad")).await.unwrap_err();
+        assert!(!error.contains("private"));
+        let mut byte=[0u8;1];assert_eq!(server.read(&mut byte).await.unwrap(),0);
+    }
+    #[test] fn unreadable_or_invalid_health_registries_never_turn_into_an_absent_probe(){
+        let data=tempfile::tempdir().unwrap();let runtime=RuntimeManager::new(Path::new(env!("CARGO_MANIFEST_DIR")),data.path()).unwrap();
+        assert!(configured_probe("env-test",&runtime).unwrap().is_none());
+        let path=runtime.storage_root().join("deployment-health.json");
+        for contents in [b"{\"env-test\":".as_slice(),b"{\"env-test\":{\"port\":0}}".as_slice()] {
+            std::fs::write(&path,contents).unwrap();
+            assert!(configured_probe("env-test",&runtime).is_err());
+            assert_eq!(std::fs::read(&path).unwrap(),contents,"readiness must preserve corrupted evidence");
+        }
+        std::fs::remove_file(path).unwrap();
+        std::fs::write(registry_path(&runtime),b"{truncated").unwrap();
+        assert!(configured_probe("env-test",&runtime).is_err());
+    }
     #[tokio::test]async fn running_runtime_does_not_verify_an_application_or_a_public_url(){
         let data=tempfile::tempdir().unwrap();let runtime=RuntimeManager::new(Path::new(env!("CARGO_MANIFEST_DIR")),data.path()).unwrap();let store=PlatformStore::load(data.path().join("state.json")).unwrap();let manager=WorkspaceManager::new(data.path());
         let environment:crate::models::Environment=serde_json::from_value(json!({"id":"env-readiness","name":"readiness","kind":"fullVm","status":"running","runtime":"builtin:alpine","provider":"qemu","runtimeId":"env-readiness","createdAt":"2026-01-01T00:00:00Z","description":"disposable readiness metadata fixture","cpuUsage":0,"memoryUsageGb":0,"storageDeltaGb":0,"networkRxMbps":0,"resourcePolicy":{"cpu":{"min":1,"preferred":1,"max":1,"current":1},"memoryGb":{"min":1,"preferred":1,"max":1,"current":1},"priority":"normal","dynamic":false}})).unwrap();

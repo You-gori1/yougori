@@ -1392,6 +1392,11 @@ pub async fn set_environment_status(
     runtime: State<'_, RuntimeManager>,
 ) -> Result<PlatformState, String> {
     if matches!(status, EnvironmentStatus::Stopped | EnvironmentStatus::Paused) { crate::file_import::cancel_transfers(&environment_id, None); crate::guest_execution::cancel_environment_jobs(&environment_id); }
+    let snapshot_interruption = if matches!(status, EnvironmentStatus::Stopped | EnvironmentStatus::Paused) {
+        let state = store.snapshot()?;
+        let environment = state.environments.iter().find(|environment| environment.id == environment_id).ok_or("Environment not found")?;
+        Some(runtime.interrupt_snapshot_exports(runtime_id(environment)))
+    } else { None };
     if status == EnvironmentStatus::Running {
         // A model environment that is reused gets this version's model server; if that fails
         // it starts with the one it has.
@@ -1400,7 +1405,12 @@ pub async fn set_environment_status(
         }
     }
     let network_lock = environment_network_lock(&environment_id).await;
-    let _network_serial = network_lock.try_lock().map_err(|_| "Another lifecycle or network operation is changing this environment; retry after that operation finishes.".to_string())?;
+    let _network_serial = if snapshot_interruption.as_ref().is_some_and(|interruption| interruption.cancelled_exports > 0) {
+        tokio::time::timeout(std::time::Duration::from_secs(8), network_lock.lock()).await
+            .map_err(|_| "Snapshot export cleanup is still pending; inspect the interrupted snapshot before retrying this lifecycle action".to_string())?
+    } else {
+        network_lock.try_lock().map_err(|_| "Another lifecycle or network operation is changing this environment; retry after that operation finishes.".to_string())?
+    };
     if matches!(
         status,
         EnvironmentStatus::Provisioning | EnvironmentStatus::Error
@@ -1705,8 +1715,18 @@ pub async fn delete_environment(
     backup: State<'_, BackupManager>,
 ) -> Result<EnvironmentDeletionResult, String> {
     crate::file_import::cancel_transfers(&environment_id, None); crate::guest_execution::cancel_environment_jobs(&environment_id);
+    let snapshot_interruption = {
+        let state = store.snapshot()?;
+        let environment = state.environments.iter().find(|environment| environment.id == environment_id).ok_or("Environment not found")?;
+        runtime.interrupt_snapshot_exports(runtime_id(environment))
+    };
     let network_lock = environment_network_lock(&environment_id).await;
-    let _network_serial = network_lock.try_lock().map_err(|_| "Another lifecycle or network operation is changing this environment; retry after that operation finishes.".to_string())?;
+    let _network_serial = if snapshot_interruption.cancelled_exports > 0 {
+        tokio::time::timeout(std::time::Duration::from_secs(8), network_lock.lock()).await
+            .map_err(|_| "Snapshot export cleanup is still pending; inspect the interrupted snapshot before retrying this lifecycle action".to_string())?
+    } else {
+        network_lock.try_lock().map_err(|_| "Another lifecycle or network operation is changing this environment; retry after that operation finishes.".to_string())?
+    };
     factory_reset::cleanup_pending(&environment_id, &store, &runtime, &backup).await?;
     let state = store.snapshot()?;
     let environment = state

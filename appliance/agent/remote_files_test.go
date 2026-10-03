@@ -1,9 +1,12 @@
 package main
 
 import (
+	"encoding/base64"
+	"fmt"
 	"golang.org/x/sys/unix"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 )
 
@@ -98,5 +101,58 @@ func TestRemoteFilesScopesAndPermissions(t *testing.T) {
 	r.Path = ""
 	if _, err = remoteFileOperation(root, r); err == nil {
 		t.Fatal("root deletion allowed")
+	}
+}
+
+func TestRemoteConcurrentTextSavesRejectStaleEdits(t *testing.T) {
+	folder := t.TempDir()
+	original := []byte("the version both editors opened")
+	if err := os.Mkdir(filepath.Join(folder, "nested"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(folder, "nested", "edited"), original, 0600); err != nil {
+		t.Fatal(err)
+	}
+	root, err := unix.Open(folder, unix.O_RDONLY|unix.O_DIRECTORY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unix.Close(root)
+	nested, err := unix.Open(filepath.Join(folder, "nested"), unix.O_RDONLY|unix.O_DIRECTORY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unix.Close(nested)
+	start := make(chan struct{})
+	results := make(chan error, 32)
+	var workers sync.WaitGroup
+	for i := 0; i < cap(results); i++ {
+		workers.Add(1)
+		go func(editor int) {
+			defer workers.Done()
+			<-start
+			selected, name := root, "nested/edited"
+			if editor%2 == 0 {
+				selected, name = nested, "edited"
+			}
+			_, err := remoteFileOperation(selected, remoteFileRequest{Operation: "replace", Path: name, ExpectedData: base64.StdEncoding.EncodeToString(original), Data: base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("saved by editor %d", editor)))})
+			results <- err
+		}(i)
+	}
+	close(start)
+	workers.Wait()
+	close(results)
+	succeeded := 0
+	for err := range results {
+		if err == nil {
+			succeeded++
+		}
+	}
+	if succeeded != 1 {
+		t.Fatalf("%d concurrent saves accepted the same stale version; exactly one must succeed", succeeded)
+	}
+	entries, err := os.ReadDir(filepath.Join(folder, "nested"))
+	if err != nil || len(entries) != 1 {
+		t.Fatal("save left temporary files", entries, err)
 	}
 }

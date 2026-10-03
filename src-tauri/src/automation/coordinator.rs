@@ -179,4 +179,40 @@ mod tests {
             .await
             .is_ok());
     }
+    #[tokio::test]
+    async fn cancelled_multi_resource_wait_releases_only_its_acquired_resources() {
+        let coordinator = Coordinator::default();
+        let token = CancellationToken::new();
+        let owner = coordinator
+            .acquire(&["environment:env-z".into()], "owner", &token, |_, _| {})
+            .await
+            .unwrap();
+        let cancellation = CancellationToken::new();
+        let waiting = coordinator
+            .acquire(
+                &["environment:env-a".into(), "environment:env-z".into()],
+                "cancelled-waiter",
+                &cancellation,
+                |resource, owner| {
+                    assert_eq!(resource, "environment:env-z");
+                    assert_eq!(owner.as_deref(), Some("owner"));
+                    cancellation.cancel();
+                },
+            )
+            .await;
+        assert!(waiting.err().unwrap().starts_with("YOUGORI_OPERATION_CANCELLED"));
+        let available = tokio::time::timeout(
+            std::time::Duration::from_millis(100),
+            coordinator.acquire(&["environment:env-a".into()], "next", &token, |_, _| {}),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert_eq!(
+            coordinator.owners.lock().unwrap().get("environment:env-z").map(String::as_str),
+            Some("owner")
+        );
+        drop(available);
+        drop(owner);
+    }
 }

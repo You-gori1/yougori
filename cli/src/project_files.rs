@@ -146,6 +146,13 @@ fn looks_secret(key: &str, value: &str) -> bool {
     sensitive || random
 }
 
+fn remembered_section(lines: &[impl AsRef<str>]) -> Option<(usize, usize)> {
+    let start = lines.iter().position(|line| line.as_ref().trim() == "## Remembered")? + 1;
+    let end = lines[start..].iter().position(|line| line.as_ref().trim_start().starts_with("## "))
+        .map_or(lines.len(), |index| start + index);
+    Some((start, end))
+}
+
 /// Adds or updates `- KEY: VALUE (confirmed N times, last DATE)` under `## Remembered`.
 pub fn remember(text: &str, key: &str, value: &str, today: &str) -> Result<String, String> {
     let key = key.trim();
@@ -156,20 +163,19 @@ pub fn remember(text: &str, key: &str, value: &str, today: &str) -> Result<Strin
     if looks_secret(key, value) {
         return Err("That looks like a secret. Preferences never store passwords, tokens or keys.".into());
     }
-    let mut text = if text.contains("## Remembered") { text.to_owned() } else { format!("{}\n{}", text.trim_end(), "\n## Remembered\n").trim_start().to_owned() };
+    let mut text = if text.lines().any(|line| line.trim() == "## Remembered") { text.to_owned() } else { format!("{}\n{}", text.trim_end(), "\n## Remembered\n").trim_start().to_owned() };
     let prefix = format!("- {key}: ");
     let mut lines = text.lines().map(str::to_owned).collect::<Vec<_>>();
     let count = |line: &str| line.rsplit_once("(confirmed ").and_then(|(_, rest)| rest.split_whitespace().next()?.parse::<u32>().ok()).unwrap_or(1);
-    let existing = lines.iter().position(|line| line.starts_with(&prefix));
+    let (start, end) = remembered_section(&lines).ok_or("Missing Remembered preferences section")?;
+    let existing = lines[start..end].iter().position(|line| line.starts_with(&prefix)).map(|index| start + index);
     let entry = |times: u32| format!("{prefix}{value} (confirmed {times} {}, last {today})", if times == 1 { "time" } else { "times" });
     match existing {
         Some(index) => {
             let same = lines[index][prefix.len()..].split(" (confirmed ").next() == Some(value);
-            lines[index] = entry(if same { count(&lines[index]) + 1 } else { 1 });
+            lines[index] = entry(if same { count(&lines[index]).saturating_add(1) } else { 1 });
         }
         None => {
-            let section = lines.iter().position(|l| l.trim() == "## Remembered").unwrap_or(lines.len());
-            let end = lines[section + 1..].iter().position(|l| l.starts_with("## ")).map_or(lines.len(), |i| section + 1 + i);
             lines.insert(end, entry(1));
         }
     }
@@ -180,8 +186,11 @@ pub fn remember(text: &str, key: &str, value: &str, today: &str) -> Result<Strin
 
 pub fn forget(text: &str, key: &str) -> Option<String> {
     let prefix = format!("- {}: ", key.trim());
-    let kept = text.lines().filter(|line| !line.starts_with(&prefix)).collect::<Vec<_>>();
-    (kept.len() != text.lines().count()).then(|| kept.join("\n") + "\n")
+    let lines = text.lines().collect::<Vec<_>>();
+    let (start, end) = remembered_section(&lines)?;
+    let kept = lines.iter().enumerate().filter(|(index, line)| !(*index >= start && *index < end && line.starts_with(&prefix)))
+        .map(|(_, line)| *line).collect::<Vec<_>>();
+    (kept.len() != lines.len()).then(|| kept.join("\n") + "\n")
 }
 
 #[cfg(test)]
@@ -254,5 +263,20 @@ mod tests {
         assert!(!text.contains("Public access") && text.contains("Environment kind"));
         assert!(forget(&text, "missing").is_none());
         assert!(remember("", "Kind", "gpu", "d").unwrap().contains("## Remembered\n- Kind: gpu"));
+    }
+    #[test]
+    fn preference_edits_use_only_the_remembered_section_and_tolerate_prose_mentions() {
+        let prose = "My notes mention ## Remembered but have no heading.\n- Kind: personal note\n";
+        let updated = remember(prose, "Kind", "container", "2026-10-02").unwrap();
+        assert!(updated.starts_with(prose));
+        assert!(updated.contains("## Remembered\n- Kind: container (confirmed 1 time, last 2026-10-02)"));
+        let sections = "# Notes\n- Kind: personal note\n\n## Remembered\n- Kind: gpu (confirmed 4294967295 times, last yesterday)\n\n## Other\n- Kind: other note\n";
+        let updated = remember(sections, "Kind", "gpu", "2026-10-02").unwrap();
+        assert!(updated.contains("- Kind: gpu (confirmed 4294967295 times, last 2026-10-02)"));
+        assert!(updated.contains("- Kind: personal note") && updated.contains("- Kind: other note"));
+        let removed = forget(&updated, "Kind").unwrap();
+        assert!(removed.contains("- Kind: personal note") && removed.contains("- Kind: other note"));
+        assert!(!removed.contains("- Kind: gpu"));
+        assert!(forget(prose, "Kind").is_none());
     }
 }

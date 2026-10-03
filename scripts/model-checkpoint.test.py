@@ -4,13 +4,42 @@ Run in an isolated Python environment with the model_server.py dependency versio
 and PyTorch 2.8.0. CPU PyTorch is sufficient for these checkpoint regressions.
 """
 import importlib.util
+import os
+from pathlib import Path
 import tempfile
+from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 
 @unittest.skipUnless(importlib.util.find_spec("torch") and importlib.util.find_spec("transformers"),
                      "requires the model runtime's PyTorch and Transformers dependencies")
 class CheckpointTests(unittest.TestCase):
+    def test_non_streaming_api_uses_real_generation_and_releases_its_gpu_guard(self):
+        import torch
+        from transformers import LlamaConfig, LlamaForCausalLM
+        torch.set_num_threads(1)
+        torch.manual_seed(47)
+        network = LlamaForCausalLM(LlamaConfig(vocab_size=64, hidden_size=32, intermediate_size=64,
+                                             num_hidden_layers=1, num_attention_heads=4, num_key_value_heads=2,
+                                             max_position_embeddings=2048, pad_token_id=0,
+                                             bos_token_id=1, eos_token_id=None)).eval()
+        with tempfile.TemporaryDirectory() as folder, \
+             patch.dict(os.environ, YOUGORI_MODEL="example/test-model", YOUGORI_MODEL_TOKEN="a" * 64, HF_HOME=folder):
+            spec = importlib.util.spec_from_file_location("yougori_generation_test", Path(__file__).parents[1] / "src-tauri/src/model_server.py")
+            server = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(server)
+            inputs = {"input_ids": torch.tensor([[1, 3, 4]]), "attention_mask": torch.ones(1, 3, dtype=torch.long)}
+            server.NETWORK, server.TORCH = network, torch
+            server.TOKENIZER = SimpleNamespace(pad_token_id=0, eos_token_id=None, decode=lambda output, **kwargs: "test output")
+            meter = {}
+            with patch.object(server, "prepare", return_value=(inputs, 3, 0)):
+                status, response = server.generate({"messages":[{"role":"user", "content":"hello"}], "max_tokens":2, "temperature":0}, None, meter)
+            self.assertEqual(status, 200)
+            self.assertEqual(response["usage"], {"prompt_tokens":3, "completion_tokens":2, "total_tokens":5})
+            self.assertEqual(meter["outcome"], "ok")
+            self.assertFalse(server.GENERATION.locked())
+
     def roundtrip(self, configuration, multimodal_class=None):
         import torch
         from transformers import AutoModelForCausalLM

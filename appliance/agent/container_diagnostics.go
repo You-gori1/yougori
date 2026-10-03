@@ -74,7 +74,7 @@ func (s *server) containerDiagnostics(w http.ResponseWriter, r *http.Request) {
 	if !requireID(w, id) {
 		return
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), s.diagnosticTimeout())
 	defer cancel()
 	output, err := run(ctx, "nerdctl", "--namespace", namespace, "inspect", "--format", "{{json .State}}", id)
 	if err != nil {

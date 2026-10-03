@@ -290,7 +290,7 @@ impl RuntimeManager {
         let response = self.client
             .get(format!("{}/v1/containers/status/{id}", endpoint.base_url))
             .bearer_auth(&endpoint.token)
-            .timeout(Duration::from_secs(18))
+            .timeout(Duration::from_secs(if cfg!(target_arch = "aarch64") { 125 } else { 18 }))
             .send().await.map_err(|e| e.to_string())?;
         let value: serde_json::Value = successful_response(response).await?
             .json().await.map_err(|e| e.to_string())?;
@@ -837,10 +837,12 @@ let result:serde_json::Value=self.agent_post("/v1/containers/logs",&serde_json::
         for gpu_enabled in if cfg!(target_os = "windows") { vec![true, false] } else { vec![false] } {
             if !gpu_enabled && gpu_launch.explicit() { break; }
             for accelerator in accelerators {
-                let mut child = self.spawn_appliance(&endpoint, accelerator, gpu_enabled, &gpu_launch, capacity, max_memory_mib, qmp_port)?;
+                let (mut child, boot_token) = self.spawn_appliance(&endpoint, accelerator, gpu_enabled, &gpu_launch, capacity, max_memory_mib, qmp_port)?;
                 let boot_timeout = super::host_platform::guest_boot_timeout();
-                let deadline = Instant::now() + boot_timeout;
+                let boot_started = Instant::now();
                 let storage_deadline = Instant::now() + Duration::from_secs(31 * 60);
+                let mut progress_at = Instant::now();
+                let mut log_size = 0;
                 loop {
                     if let Some(status) = child
                         .try_wait()
@@ -860,6 +862,7 @@ let result:serde_json::Value=self.agent_post("/v1/containers/logs",&serde_json::
                             }
                         } else { None };
                         *process_guard = Some(ApplianceProcess {
+                            _boot_token: boot_token,
                             child,
                             endpoint: endpoint.clone(),
                             qmp_port,
@@ -871,10 +874,17 @@ let result:serde_json::Value=self.agent_post("/v1/containers/logs",&serde_json::
                         });
                         return Ok(endpoint);
                     }
-                    if Instant::now() >= deadline && !(Instant::now() < storage_deadline && storage_preparation_in_progress(&self.appliance_log_tail())) {
+                    if let Ok(metadata) = std::fs::metadata(self.data_root.join("appliance/serial.log")) {
+                        if metadata.len() != log_size {
+                            log_size = metadata.len();
+                            progress_at = Instant::now();
+                        }
+                    }
+                    if appliance_boot_expired(boot_started.elapsed(), boot_timeout, progress_at.elapsed(), cfg!(target_arch = "aarch64"))
+                        && !(Instant::now() < storage_deadline && storage_preparation_in_progress(&self.appliance_log_tail())) {
                         last_error = format!(
-                            "Yougori appliance did not become ready within {} seconds. {}Boot log: {}",
-                            boot_timeout.as_secs(),
+                            "Yougori appliance did not become ready after {} seconds (maximum {} seconds; last boot progress {} seconds ago). {}Boot log: {}",
+                            boot_started.elapsed().as_secs(), boot_timeout.as_secs(), progress_at.elapsed().as_secs(),
                             if cfg!(target_arch = "aarch64") { "This ARM64 host runs the x86-64 appliance through software emulation. " } else { "" },
                             self.appliance_log_tail()
                         );
@@ -1023,13 +1033,14 @@ let result:serde_json::Value=self.agent_post("/v1/containers/logs",&serde_json::
         capacity: super::appliance_capacity::ApplianceCapacity,
         max_memory_mib: usize,
         qmp_port: u16,
-    ) -> Result<tokio::process::Child, String> {
+    ) -> Result<(tokio::process::Child, super::boot_token::BootTokenFile), String> {
         let port = endpoint
             .base_url
             .rsplit(':')
             .next()
             .ok_or("invalid appliance endpoint")?;
         let overlay = self.data_root.join("appliance/system.qcow2");
+        let boot_token = super::boot_token::BootTokenFile::create(&self.data_root.join("appliance"), &endpoint.token)?;
         let log_path = self.data_root.join("appliance/serial.log");
         let error_path = self.data_root.join("appliance/qemu.log");
         File::create(&log_path)
@@ -1065,9 +1076,11 @@ let result:serde_json::Value=self.agent_post("/v1/containers/logs",&serde_json::
                 &path_string(&self.layout.appliance_initramfs),
                 "-append",
                 &format!(
-                    "root=/dev/vda rw rootfstype=ext4 console=ttyS0 modules=virtio_pci,virtio_blk,virtio_net,virtio_gpu,drm,ext4 opendock.token={}",
-                    endpoint.token
+                    "root=/dev/vda rw rootfstype=ext4 console=ttyS0 modules=virtio_pci,virtio_blk,virtio_net,virtio_gpu,drm,ext4 opendock.token-source=fwcfg{}",
+                    if cfg!(target_arch = "aarch64") { " opendock.emulated=1" } else { "" }
                 ),
+                "-fw_cfg",
+                &boot_token.argument(),
                 "-blockdev",
                 &serde_json::json!({
                     "driver": "file",
@@ -1124,7 +1137,7 @@ let result:serde_json::Value=self.agent_post("/v1/containers/logs",&serde_json::
             .spawn()
             .map_err(|error| format!("start bundled Yougori appliance: {error}"))?;
         super::guest_job::contain(&child);
-        Ok(child)
+        Ok((child, boot_token))
     }
 
     fn appliance_log_tail(&self) -> String {
@@ -1183,6 +1196,10 @@ fn appliance_check_usable(exit_code: Option<i32>, stdout: &[u8]) -> bool {
         && check["check-errors"].as_u64() == Some(0)
         && check.get("corruptions").map(serde_json::Value::as_u64).unwrap_or(Some(0)) == Some(0)
         && check["filename"].is_string()
+}
+
+fn appliance_boot_expired(elapsed: Duration, maximum: Duration, quiet: Duration, emulated_arm: bool) -> bool {
+    elapsed >= maximum || (emulated_arm && elapsed >= Duration::from_secs(600) && quiet >= Duration::from_secs(180))
 }
 
 fn storage_preparation_in_progress(log: &str) -> bool {
@@ -1456,6 +1473,17 @@ fn validate_previous_appliance_disk(root:&std::path::Path) -> Result<(),String> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn slow_arm_boot_requires_progress_and_a_finite_outer_budget() {
+        let maximum = Duration::from_secs(1200);
+        assert!(!appliance_boot_expired(Duration::from_secs(700), maximum, Duration::from_secs(10), true));
+        assert!(appliance_boot_expired(Duration::from_secs(700), maximum, Duration::from_secs(180), true));
+        assert!(!appliance_boot_expired(Duration::from_secs(599), maximum, Duration::from_secs(300), true));
+        assert!(appliance_boot_expired(maximum, maximum, Duration::ZERO, true));
+        assert!(!appliance_boot_expired(Duration::from_secs(119), Duration::from_secs(120), Duration::from_secs(119), false));
+        assert!(appliance_boot_expired(Duration::from_secs(120), Duration::from_secs(120), Duration::ZERO, false));
+    }
     #[test]
     fn absent_previous_appliance_disk_is_never_treated_as_a_fresh_pool() {
         let data = tempfile::tempdir().unwrap();

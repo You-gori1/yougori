@@ -122,7 +122,7 @@ fn health_timeout() -> u64 { 10 }
 fn health_wait()->u64{120}
 impl HealthCheck {
     pub fn validate(&self) -> Result<(), String> {
-        if self.port == 0 || self.port == 7443 || !self.path.starts_with('/') || self.path.starts_with("//") || self.path.len() > 4096 || self.path.chars().any(char::is_control)
+        if self.port == 0 || self.port == 7443 || !self.path.starts_with('/') || self.path.starts_with("//") || self.path.len() > 4096 || self.path.chars().any(char::is_control) || self.path.contains(['#', '\\'])
             || !["GET", "HEAD", "POST"].contains(&self.method.as_str()) || !(100..=599).contains(&self.expected_status) || !(1..=60).contains(&self.timeout_seconds)
             || !(1..=600).contains(&self.wait_seconds) || self.body.as_ref().is_some_and(|v| v.to_string().len() > 65536) || self.bearer_secret.as_ref().is_some_and(|s| !workload::identifier(s)) {
             return Err("Health check requires a valid application port, local path, GET/HEAD/POST, expected status 100–599, timeout 1–60 seconds, and a vault reference for authentication".into())
@@ -579,8 +579,11 @@ publish:
         assert_eq!(parse(&to_yaml(&project).unwrap()).unwrap(),project);
     }
     #[test]fn invalid_health_paths_secret_values_and_unpinned_sdks_fail_before_creation(){
-        for path in ["//other.example/health","/health\r\nAuthorization: leaked","health"]{
+        for path in ["//other.example/health","/health\r\nAuthorization: leaked","health","/health#fragment","/\\other.example/health","/health\\subpath"]{
             let probe:HealthCheck=serde_json::from_value(json!({"port":3000,"path":path})).unwrap();assert!(probe.validate().is_err());
+        }
+        for path in ["/health%23literal","/health%5Cliteral","/health check/λ?label=hello world"] {
+            let probe:HealthCheck=serde_json::from_value(json!({"port":3000,"path":path})).unwrap();assert!(probe.validate().is_ok());
         }
         for requirement in ["fastapi", "git+https://example.com/package", "package==1.0; echo malicious"]{
             let setup:Setup=serde_json::from_value(json!({"pip":[requirement]})).unwrap();assert!(setup.validate().is_err());

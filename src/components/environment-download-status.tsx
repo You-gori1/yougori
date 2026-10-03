@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { environmentDownloadApi, type EnvironmentDownload } from "@/api/environment-download-api"
 import { Button } from "@/components/ui/button"
 import { toastManager } from "@/components/ui/toast"
@@ -7,17 +7,27 @@ import { toastManager } from "@/components/ui/toast"
 export function EnvironmentDownloadStatus() {
   const [links, setLinks] = useState<EnvironmentDownload[]>([])
   const [busy, setBusy] = useState(false)
+  const revision = useRef(0)
   useEffect(() => {
     let active = true, timer: ReturnType<typeof setTimeout>, pending = false
     const poll = async () => {
       if (pending) return
       pending = true
+      const requestedRevision = revision.current
       clearTimeout(timer)
-      try { const result = await environmentDownloadApi.heartbeat(); if (active) setLinks(result.filter(link => link.active)) }
+      try { const result = await environmentDownloadApi.heartbeat(); if (active && requestedRevision === revision.current) setLinks(result.filter(link => link.active)) }
       catch { /* An offline engine expires leases itself; do not announce success. */ }
-      finally { pending = false; if (active) timer = setTimeout(() => void poll(), 20_000) }
+      finally {
+        pending = false
+        if (active) {
+          // Link changes during a read need a fresh result immediately. An older
+          // heartbeat must not bring a successfully revoked link back on screen.
+          if (requestedRevision !== revision.current) void poll()
+          else timer = setTimeout(() => void poll(), 20_000)
+        }
+      }
     }
-    const changed = () => { void poll() }
+    const changed = () => { revision.current += 1; void poll() }
     void poll()
     window.addEventListener("yougori-download-links-changed", changed)
     return () => { active = false; clearTimeout(timer); window.removeEventListener("yougori-download-links-changed", changed) }
@@ -27,8 +37,15 @@ export function EnvironmentDownloadStatus() {
     <p className="text-xs font-medium">{links.length} {links.length === 1 ? "download link" : "download links"} on</p>
     <Button size="xs" variant="outline" disabled={busy} onClick={() => {
       setBusy(true)
-      void Promise.all(links.map(link => environmentDownloadApi.stop(link.environmentId)))
-        .then(() => setLinks([])).catch(reason => toastManager.add({ title: "Download links", description: String(reason), type: "error" }))
+      revision.current += 1
+      void Promise.allSettled(links.map(async link => {
+        await environmentDownloadApi.stop(link.environmentId)
+        revision.current += 1
+        setLinks(current => current.filter(item => item.environmentId !== link.environmentId))
+      })).then(results => {
+        const failure = results.find(result => result.status === "rejected")
+        if (failure?.status === "rejected") toastManager.add({ title: "Download links", description: String(failure.reason), type: "error" })
+      })
         .finally(() => setBusy(false))
     }}>Turn off</Button>
   </div>

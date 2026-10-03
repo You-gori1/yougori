@@ -16,12 +16,20 @@ $ExpectedPublisher = '__YOUGORI_PUBLISHER__'
 
 function Fail($message) { Write-Host "Yougori install failed: $message" -ForegroundColor Red; exit 1 }
 
+function Assert-HttpsUri($value, $label) {
+  $uri = $null
+  if (-not [Uri]::TryCreate([string]$value, [UriKind]::Absolute, [ref]$uri) -or $uri.Scheme -ne 'https' -or -not $uri.Host -or $uri.UserInfo) {
+    Fail "$label must use HTTPS without credentials."
+  }
+  return $uri.AbsoluteUri
+}
+
 $engineOnly = $env:YOUGORI_ENGINE_ONLY -ne '0'
 $allowUnsigned = $env:YOUGORI_ALLOW_UNSIGNED -eq '1'
 $startEngine = if ($env:YOUGORI_START_ENGINE) { $env:YOUGORI_START_ENGINE } else { '1' }
 if ($startEngine -notin @('0', '1')) { Fail 'YOUGORI_START_ENGINE must be 0 or 1.' }
 if ($ExpectedPublisher -eq ('__YOUGORI_' + 'PUBLISHER__') -and -not $allowUnsigned) { Fail 'this copy of the installer was not prepared for a release (no publisher pin). Use the one from https://yougori.com/install.ps1.' }
-$manifestUrl = if ($env:YOUGORI_RELEASES_URL -and $env:YOUGORI_RELEASES_URL.StartsWith('https://')) { $env:YOUGORI_RELEASES_URL } else { 'https://yougori.com/releases/latest.json' }
+$manifestUrl = if ($env:YOUGORI_RELEASES_URL) { Assert-HttpsUri $env:YOUGORI_RELEASES_URL 'YOUGORI_RELEASES_URL' } else { 'https://yougori.com/releases/latest.json' }
 $platform = switch ($env:PROCESSOR_ARCHITECTURE) { 'ARM64' { 'windows-aarch64' } 'AMD64' { 'windows-x86_64' } default { Fail "unsupported processor $($env:PROCESSOR_ARCHITECTURE)" } }
 if ($engineOnly) { $platform = "$platform-engine" }
 if ([Environment]::OSVersion.Version.Build -lt 19041) { Fail 'Windows 10 version 2004 (build 19041) or newer is required.' }
@@ -65,7 +73,8 @@ Write-Host 'Finding the latest Yougori release...'
 try { $manifest = Invoke-RestMethod -Uri $manifestUrl -UseBasicParsing } catch { Fail "cannot read $manifestUrl ($($_.Exception.Message))" }
 $asset = $manifest.assets.$platform
 if (-not $asset -or -not $asset.url -or -not $asset.sha256) { Fail "release $($manifest.version) has no download for $platform yet." }
-if (-not $asset.url.StartsWith('https://')) { Fail 'the release download is not HTTPS.' }
+$asset.url = Assert-HttpsUri $asset.url 'The release download'
+if ($asset.sha256 -isnot [string] -or $asset.sha256 -notmatch '^[0-9a-fA-F]{64}$') { Fail 'the release SHA-256 is invalid.' }
 
 $folder = Join-Path $env:TEMP ("yougori-install-" + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $folder | Out-Null

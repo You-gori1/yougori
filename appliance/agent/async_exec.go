@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"net/http"
 	"os/exec"
-	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -247,19 +246,9 @@ func (s *server) startAsyncCommand(request asyncExecRequest) (*asyncExecution, e
 	return item, nil
 }
 func (s *server) asyncGuestExitCode(item *asyncExecution) (int, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), s.guestReceiptTimeout())
 	defer cancel()
-	script := `test -f "$1" || exit 1; status=$(head -c 4 "$1"); rm -f "$1"; printf '%s' "$status"`
-	command := exec.CommandContext(ctx, "nerdctl", "--namespace", namespace, "exec", item.environment, "/bin/sh", "-c", script, "yougori", "/tmp/.yougori-"+item.execution+".pid.exit")
-	value, err := command.Output()
-	if err != nil {
-		return 1, fmt.Errorf("guest completion record unavailable")
-	}
-	code, err := strconv.Atoi(strings.TrimSpace(string(value)))
-	if err != nil || code < 0 || code > 255 {
-		return 1, fmt.Errorf("guest completion record invalid")
-	}
-	return code, nil
+	return guestExitCode(ctx, item.environment, "/tmp/.yougori-"+item.execution+".pid.exit")
 }
 func (s *server) stopAsyncProcesses(item *asyncExecution) {
 	if item.command == nil || item.command.Process == nil {
@@ -329,14 +318,15 @@ func (s *server) watchAsyncExecution(item *asyncExecution, total time.Duration) 
 			return
 		case now := <-ticker.C:
 			item.mu.Lock()
+			pending := !item.processEnded && !item.done
 			abandoned := now.Sub(item.lastLease) > asyncLease
 			expired := now.After(deadline)
-			if abandoned || expired {
+			if pending && (abandoned || expired) {
 				item.cancelled = abandoned && !expired
 				item.timedOut = expired
 			}
 			item.mu.Unlock()
-			if abandoned || expired {
+			if pending && (abandoned || expired) {
 				item.stop()
 			}
 		}

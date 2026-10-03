@@ -572,6 +572,7 @@ pub(crate) async fn publication_metadata(environment_id:&str,store:&PlatformStor
             .map(|domain| domain.hostname.clone()).or_else(|| saved.cloudflare_hostname.clone());
         let urls = match &saved.kind {
             PublicationKind::Cloudflare => hostname.map(|hostname| vec![format!("https://{hostname}")]).unwrap_or_default(),
+            PublicationKind::Loopback => vec![format!("http://127.0.0.1:{}", saved.host_port)],
             _ => vec![format!("http://127.0.0.1:{}", saved.host_port), format!("http://{}:{}", lan_address(), saved.host_port)],
         };
         publications.push(Publication {
@@ -945,11 +946,11 @@ async fn publish_service_with_intent(
             port,
             kind: kind.clone(),
             host_port,
-            urls: vec![
+            urls: if kind == PublicationKind::Loopback { vec![format!("http://127.0.0.1:{host_port}")] } else { vec![
                 format!("http://127.0.0.1:{host_port}"),
                 format!("http://{}:{host_port}", lan_address()),
                 format!("http://10.0.2.2:{host_port}"),
-            ],
+            ] },
             status: "active".into(),
             message: if kind == PublicationKind::Public {
                 "Direct publishing is listening. Internet reachability requires your public IP and router/firewall port forwarding; Yougori does not change them automatically.".into()

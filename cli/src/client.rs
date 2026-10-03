@@ -69,7 +69,7 @@ async fn engine_identity_at(endpoint:&str)->Result<Value,String>{
         response=exchange_at(endpoint,&req).await?;
     }
     if !response.ok{return Err(response.error.unwrap_or_else(||"Cannot inspect the running engine".into()));}
-    let mut identity=response.result.unwrap_or(json!({}));
+    let mut identity=response.result.filter(Value::is_object).ok_or("Invalid Yougori engine identity response")?;
     identity["protocolVersion"]=response.version.into();
     identity["protocolCompatible"]=(response.version==wire::VERSION).into();
     Ok(identity)
@@ -594,6 +594,25 @@ mod macos_path_tests {
     }
     fn resource_details() -> wire::ErrorDetails {
         wire::ErrorDetails { code: "transfer_inactive".into(), affected_resource: Some("environment:fixture".into()), retryable: false, outcome: "partial_copy_retained".into() }
+    }
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn malformed_identity_results_return_errors_without_panicking() {
+        use tokio::net::windows::named_pipe::ServerOptions;
+        for (index, result) in [json!(null), json!("unexpected"), json!(42), json!([])].into_iter().enumerate() {
+            let endpoint = format!("{}-invalid-identity-{}-{index}", wire::endpoint().unwrap(), std::process::id());
+            let mut server = ServerOptions::new().first_pipe_instance(true).create(&endpoint).unwrap();
+            let worker = tokio::spawn(async move {
+                server.connect().await.unwrap();
+                wire::read_frame(&mut server, wire::MAX_REQUEST).await.unwrap();
+                wire::write_frame(&mut server, &serde_json::to_vec(&Response::success(result)).unwrap(), wire::MAX_RESPONSE).await.unwrap();
+                let mut ack = [0];
+                let _ = tokio::io::AsyncReadExt::read(&mut server, &mut ack).await;
+            });
+            let error = engine_identity_at(&endpoint).await.unwrap_err();
+            assert_eq!(error, "Invalid Yougori engine identity response");
+            worker.await.unwrap();
+        }
     }
     #[cfg(windows)]
     #[tokio::test]

@@ -506,6 +506,30 @@ mod tests {
         );
     }
     #[tokio::test]
+    async fn release_fetch_rejects_http_errors_malformed_json_and_oversized_bodies() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        for (reply, expected) in [
+            (b"HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_vec(), "The release server answered 503 Service Unavailable"),
+            (b"HTTP/1.1 200 OK\r\nContent-Length: 7\r\nConnection: close\r\n\r\ninvalid".to_vec(), "The release manifest is not valid JSON"),
+            (format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", MAX_MANIFEST + 1).into_bytes(), "The release manifest is too large"),
+            ([b"HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n".to_vec(), vec![b' '; MAX_MANIFEST + 1]].concat(), "The release manifest is too large"),
+        ] {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let url = format!("http://{}/fixture.json", listener.local_addr().unwrap());
+            let worker = tokio::spawn(async move {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                let mut request = [0; 1024];
+                stream.read(&mut request).await.unwrap();
+                let _ = stream.write_all(&reply).await;
+            });
+            let client = reqwest::Client::builder().no_proxy().timeout(Duration::from_secs(2)).build().unwrap();
+            assert_eq!(fetch(&client, &url).await.unwrap_err(), expected);
+            worker.await.unwrap();
+        }
+        let client = reqwest::Client::builder().https_only(true).build().unwrap();
+        assert_eq!(fetch(&client, "http://127.0.0.1/fixture.json").await.unwrap_err(), "Cannot reach the release server. Try again when online.");
+    }
+    #[tokio::test]
     #[ignore = "Requires the public release server; never installs or contacts the local engine"]
     async fn published_manifests_are_readable_and_only_offer_supported_packages() {
         let client = reqwest::Client::builder()

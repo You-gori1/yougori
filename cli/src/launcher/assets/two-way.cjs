@@ -55,20 +55,35 @@ module.exports = function create(root) {
   function expected(file, value) {
     if (hash(file) !== value) throw Error('File changed during sync; both versions were kept');
   }
+  function validateUpload() {
+    target(upload.relative);
+    const parent = fs.lstatSync(path.dirname(upload.temp), { bigint: true });
+    const staged = fs.lstatSync(upload.temp, { bigint: true });
+    if (!parent.isDirectory() || parent.dev !== upload.parent.dev || parent.ino !== upload.parent.ino ||
+        !staged.isFile() || staged.dev !== upload.identity.dev || staged.ino !== upload.identity.ino) {
+      throw Error('Sync staging location changed; both versions were kept');
+    }
+  }
   function abort() {
-    if (upload) { try { fs.unlinkSync(upload.temp); } catch {} upload = undefined; }
+    if (upload) {
+      try { fs.closeSync(upload.fd); } catch {}
+      // A guest process may replace the parent directory during a transfer.
+      // Never let cleanup follow that replacement into unrelated files.
+      try { validateUpload(); fs.unlinkSync(upload.temp); } catch {}
+      upload = undefined;
+    }
   }
   function request(r, report) {
     if (r.op.startsWith('sqlite-')) return sqlite.request(r, report);
     switch (r.op) {
       case 'directories': {
         if (!Array.isArray(r.paths) || r.paths.length > 64) throw Error('Invalid directory batch');
-        const errors = {};
+        const errors = [];
         for (const p of r.paths) {
           try { if (r.create) fs.mkdirSync(target(p), { recursive:true }); else fs.rmdirSync(target(p)); }
-          catch(e) { if (r.create || e.code !== 'ENOENT') errors[p] = e.message; }
+          catch(e) { if (r.create || e.code !== 'ENOENT') errors.push([p, e.message]); }
         }
-        return { errors };
+        return { errors: Object.fromEntries(errors) };
       }
       case 'mkdir': fs.mkdirSync(target(r.path), { recursive: true }); return {};
       case 'rmdir': {
@@ -78,13 +93,13 @@ module.exports = function create(root) {
       case 'hashes': {
         if (!Array.isArray(r.paths) || r.paths.length > 64) throw Error('Invalid hash batch');
         if (r.skipLinks === true) {
-          const values = {}, skipped = [];
+          const values = [], skipped = [];
           for (const p of r.paths) {
             const file = target(p, false, true);
             if (file === null) skipped.push(p);
-            else values[p] = cachedHash(file);
+            else values.push([p, cachedHash(file)]);
           }
-          return { hashes: values, skipped };
+          return { hashes: Object.fromEntries(values), skipped };
         }
         return Object.fromEntries(r.paths.map(p => [p, cachedHash(target(p))]));
       }
@@ -127,22 +142,35 @@ module.exports = function create(root) {
         const temp = path.join(path.dirname(file), `.yougori-sync-${crypto.randomBytes(12).toString('hex')}`);
         let mode = 0o644;
         try { mode = fs.statSync(file).mode & 0o777; } catch {}
-        fs.writeFileSync(temp, '', { flag: 'wx', mode });
-        upload = { file, temp, relative: r.path, expected: r.expected, bytes: 0 };
+        const parent = fs.lstatSync(path.dirname(file), { bigint: true });
+        const fd = fs.openSync(temp, 'wx', mode);
+        upload = { file, temp, fd, parent, identity: fs.fstatSync(fd, { bigint: true }), relative: r.path, expected: r.expected, bytes: 0 };
+        try { validateUpload(); } catch (error) { abort(); throw error; }
         return {};
       }
       case 'chunk': {
         if (!upload) throw Error('No sync upload');
+        validateUpload();
         const data = Buffer.from(r.data, 'base64');
         if (data.length > 24 * 1024 || upload.bytes + data.length > MAX) throw Error('Sync upload exceeds limit');
-        fs.appendFileSync(upload.temp, data); upload.bytes += data.length;
+        // Keep the original staging descriptor instead of reopening its name.
+        // Directory replacement cannot redirect an in-flight write.
+        for (let offset = 0; offset < data.length;) {
+          const written = fs.writeSync(upload.fd, data, offset, data.length - offset);
+          if (!written) throw Error('Sync upload made no progress');
+          offset += written;
+        }
+        upload.bytes += data.length;
         return {};
       }
       case 'commit': {
         if (!upload) throw Error('No sync upload');
-        target(upload.relative);
+        validateUpload();
         expected(upload.file, upload.expected);
         if (hash(upload.temp) !== r.hash) throw Error('Sync upload checksum mismatch');
+        fs.fsyncSync(upload.fd);
+        fs.closeSync(upload.fd);
+        upload.fd = undefined;
         fs.renameSync(upload.temp, upload.file);
         upload = undefined;
         return {};

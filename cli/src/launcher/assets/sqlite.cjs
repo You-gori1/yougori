@@ -13,22 +13,38 @@ function isDatabase(file) {
   catch (e) { if (e.code === 'ENOENT' || e.code === 'EISDIR') return false; throw e; }
   finally { if (fd !== undefined) fs.closeSync(fd); }
 }
-function* lines(file) {
-  const fd = fs.openSync(file, 'r'), buffer = Buffer.alloc(64 * 1024);
+function* lines(fd) {
+  const buffer = Buffer.alloc(64 * 1024);
   const decoder = new (require('string_decoder').StringDecoder)('utf8');
-  let rest = '', n;
-  try {
-    while ((n = fs.readSync(fd, buffer, 0, buffer.length, null))) {
-      rest += decoder.write(buffer.subarray(0, n));
-      let end; while ((end = rest.indexOf('\n')) >= 0) { yield JSON.parse(rest.slice(0, end)); rest = rest.slice(end + 1); }
-    }
-    if (rest + decoder.end()) throw Error('Incomplete SQLite sync batch');
-  } finally { fs.closeSync(fd); }
+  let rest = '', n, position = 0;
+  while ((n = fs.readSync(fd, buffer, 0, buffer.length, position))) {
+    position += n;
+    rest += decoder.write(buffer.subarray(0, n));
+    let end; while ((end = rest.indexOf('\n')) >= 0) { yield JSON.parse(rest.slice(0, end)); rest = rest.slice(end + 1); }
+  }
+  if (rest + decoder.end()) throw Error('Incomplete SQLite sync batch');
 }
 module.exports = function create(target) {
   const connections = new Map();
   let staged, rowBuffer;
-  function abort() { if (staged) { try { fs.unlinkSync(staged.file); } catch {} staged = undefined; } }
+  function validateStage() {
+    target(staged.path);
+    const parent = fs.lstatSync(path.dirname(staged.file), { bigint: true });
+    const file = fs.lstatSync(staged.file, { bigint: true });
+    if (!parent.isDirectory() || parent.dev !== staged.parent.dev || parent.ino !== staged.parent.ino ||
+        !file.isFile() || file.dev !== staged.identity.dev || file.ino !== staged.identity.ino) {
+      throw Error('SQLite staging location changed; both versions were kept');
+    }
+  }
+  function abort() {
+    if (staged) {
+      // Recheck the database's parent before removing its staging file. A
+      // replaced directory must never redirect cancellation into another tree.
+      try { fs.closeSync(staged.fd); } catch {}
+      try { validateStage(); fs.unlinkSync(staged.file); } catch {}
+      staged = undefined;
+    }
+  }
   function open(relative, schema) {
     const file = target(relative);
     if (connections.has(file)) {
@@ -91,10 +107,13 @@ module.exports = function create(target) {
   function batch(c, relative) {
     if (!staged) {
       const file = path.join(path.dirname(c.file), `.yougori-sync-sqlite-${crypto.randomBytes(12).toString('hex')}`);
-      fs.writeFileSync(file, '', { flag: 'wx', mode: 0o600 });
-      staged = { file, path: relative, signature: describe(c).signature, partial: '', count: 0 };
+      const signature = describe(c).signature;
+      const parent = fs.lstatSync(path.dirname(c.file), { bigint: true });
+      const fd = fs.openSync(file, 'wx+', 0o600);
+      staged = { file, fd, parent, identity: fs.fstatSync(fd, { bigint: true }), path: relative, signature, partial: '', count: 0 };
     }
     if (staged.path !== relative) throw Error('A different SQLite batch is pending');
+    try { validateStage(); } catch (error) { abort(); throw error; }
     return staged;
   }
   function request(r, report = () => {}) {
@@ -190,7 +209,7 @@ module.exports = function create(target) {
       case 'sqlite-stage': {
         batch(c, r.path);
         staged.partial += Buffer.from(r.data, 'base64').toString('latin1');
-        if (r.done) { const text = Buffer.from(staged.partial, 'latin1').toString('utf8'); JSON.parse(text); fs.appendFileSync(staged.file, text + '\n'); staged.partial = ''; staged.count++; }
+        if (r.done) { const text = Buffer.from(staged.partial, 'latin1').toString('utf8'); JSON.parse(text); fs.appendFileSync(staged.fd, text + '\n'); staged.partial = ''; staged.count++; }
         return {};
       }
       case 'sqlite-stage-batch': {
@@ -201,12 +220,13 @@ module.exports = function create(target) {
         }
         batch(c, r.path);
         if (staged.partial) throw Error('A SQLite record transfer is incomplete');
-        fs.appendFileSync(staged.file, r.operations.map(op => JSON.stringify(op) + '\n').join(''));
+        fs.appendFileSync(staged.fd, r.operations.map(op => JSON.stringify(op) + '\n').join(''));
         staged.count += r.operations.length;
         return {};
       }
       case 'sqlite-apply': {
         if (!staged) return { count: 0 };
+        validateStage();
         if (staged.path !== r.path || staged.partial || describe(c).signature !== staged.signature) throw Error('SQLite schema changed during sync');
         c.db.exec('BEGIN IMMEDIATE; PRAGMA defer_foreign_keys=ON');
         let count = 0;
@@ -214,14 +234,14 @@ module.exports = function create(target) {
           let checked = 0, applied = 0;
           progress('validate', 0, staged.count, true);
           // Check every expected row before triggers/cascades from the first write.
-          for (const op of lines(staged.file)) {
+          for (const op of lines(staged.fd)) {
             const actual = fingerprint(row(c,op.key));
             if (actual !== op.expected && actual !== fingerprint(op.row)) throw Error('SQLite destination record changed; retrying');
             progress('validate', ++checked, staged.count);
           }
           progress('validate', checked, staged.count, true);
           progress('apply', 0, staged.count, true);
-          for (const op of lines(staged.file)) {
+          for (const op of lines(staged.fd)) {
             progress('apply', applied++, staged.count);
             if (fingerprint(row(c,op.key)) === fingerprint(op.row)) continue;
             const { name,table,values,where } = unpack(c,op.key);

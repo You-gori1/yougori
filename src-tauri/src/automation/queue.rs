@@ -3,7 +3,7 @@ use super::{
     coordinator::{self, Coordinator},
     dispatch,
     journal::Journal,
-    HISTORY, RESULT_BUDGET, RESULT_LIMIT,
+    CLIENT_LIMIT, HISTORY, RESULT_BUDGET, RESULT_LIMIT,
 };
 use crate::{store::PlatformStore, AppHandle};
 use serde_json::{json, Value};
@@ -48,6 +48,16 @@ pub(super) fn is_control_method(method: &str) -> bool {
     )
 }
 
+fn snapshot_stop_resource<'a>(method: &str, params: &'a Value) -> Option<&'a str> {
+    if matches!(method, "restart_environment" | "delete_environment")
+        || (method == "set_environment_status" && matches!(params["status"].as_str(), Some("stopped" | "paused")))
+    {
+        params["environmentId"].as_str()
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -82,6 +92,71 @@ mod tests {
         assert_eq!(page["data"], "a");
         assert_eq!(page["done"], true);
         assert_eq!(page["truncated"], true);
+    }
+    #[test]
+    fn truncated_output_metadata_reports_only_pageable_bytes() {
+        let output = CapturedOutput {
+            data: vec![b'a', 0xf0, 0x9f],
+            total: 5,
+        };
+        assert_eq!(output.metadata("utf8")["availableBytes"], 1);
+        let page = output.page("utf8", 0, 20).unwrap();
+        assert_eq!(page["availableBytes"], 1);
+        assert_eq!(page["nextCursor"], page["availableBytes"]);
+        assert_eq!(output.page("utf8", 1, 20).unwrap()["done"], true);
+        let text = "ASCII😀é世";
+        for cutoff in 0..=text.len() {
+            let bytes = text.as_bytes()[..cutoff].to_vec();
+            let available = std::str::from_utf8(&bytes)
+                .map(str::len)
+                .unwrap_or_else(|error| error.valid_up_to());
+            let output = CapturedOutput { data: bytes, total: text.len() as u64 };
+            assert_eq!(output.metadata("utf8")["availableBytes"], available);
+            let page = output.page("utf8", 0, 65536).unwrap();
+            assert_eq!(page["data"], &text[..available]);
+            assert_eq!(page["nextCursor"], available);
+            assert_eq!(page["done"], true);
+        }
+    }
+    #[tokio::test]
+    async fn early_snapshot_interruption_releases_its_environment_for_stop() {
+        let coordinator = Coordinator::default();
+        let exports = crate::runtime::SnapshotExports::default();
+        let keys = vec!["environment:env-snapshot-a".into()];
+        let token = CancellationToken::new();
+        let owner = coordinator.acquire(&keys, "snapshot", &token, |_, _| {}).await.unwrap();
+        let export = exports.begin("env-snapshot-a").unwrap();
+        let independent = exports.begin("env-snapshot-b").unwrap();
+        for method in ["set_environment_status", "restart_environment", "delete_environment"] {
+            assert_eq!(snapshot_stop_resource(method, &json!({"environmentId":"env-snapshot-a","status":"stopped"})), Some("env-snapshot-a"));
+        }
+        assert!(snapshot_stop_resource("set_environment_status", &json!({"environmentId":"env-snapshot-a","status":"running"})).is_none());
+        let interruption = exports.interrupt("env-snapshot-a");
+        assert!(export.cancellation.is_cancelled());
+        assert!(!independent.cancellation.is_cancelled());
+        assert!(exports.begin("env-snapshot-a").is_err());
+        let cleanup = async { export.cancellation.cancelled().await; drop(owner); drop(export); };
+        let stop = coordinator.acquire(&keys, "stop", &token, |_, _| {});
+        let (_, stop) = tokio::time::timeout(Duration::from_millis(100), async { tokio::join!(cleanup, stop) }).await.unwrap();
+        drop(stop.unwrap());
+        assert!(!independent.cancellation.is_cancelled());
+        drop(interruption);
+        assert!(exports.begin("env-snapshot-a").is_ok());
+    }
+    #[test]
+    fn snapshot_cancellation_is_available_only_during_export_and_retains_partial_outcome() {
+        let (progress, measurement) = tokio::sync::watch::channel(None);
+        let mut job = Job { method: "run_backup".into(), status: "running", progress: measurement, ..Job::default() };
+        assert!(!job.can_cancel());
+        progress.send_replace(Some(json!({"phase":"snapshotExport","cancellable":true})));
+        assert!(job.can_cancel());
+        assert_eq!(job.value(false)["cancellable"], true);
+        progress.send_replace(Some(json!({"phase":"snapshotExportFinished","cancellable":false})));
+        assert!(!job.can_cancel());
+        job.failed("YOUGORI_OPERATION_CANCELLED: snapshot export interrupted; no snapshot published; originals preserved".into());
+        assert_eq!(job.value(false)["status"], "cancelled");
+        assert_eq!(job.value(false)["outcome"], "partial");
+        assert_eq!(job.value(false)["errorCode"], "operation_cancelled");
     }
     #[test]
     fn job_failure_retains_specific_code_resource_and_unknown_outcome() {
@@ -204,6 +279,12 @@ impl Default for Job {
     }
 }
 impl Job {
+    fn can_cancel(&self) -> bool {
+        self.cancellable || (matches!(self.method.as_str(), "create_snapshot" | "run_backup" | "export_local_backup")
+            && self.progress.borrow().as_ref().is_some_and(|progress| {
+                progress["phase"] == "snapshotExport" && progress["cancellable"] == true
+            }))
+    }
     fn succeeded(&mut self, value: Value) {
         let mut output = CapturedOutput {
             data: Vec::new(),
@@ -242,6 +323,9 @@ impl Job {
             details.code = "transfer_inactive".into();
             details.outcome = "partial".into();
             details.retryable = false;
+        } else if error.starts_with("YOUGORI_OPERATION_CANCELLED: snapshot export interrupted;") {
+            details.outcome = "partial".into();
+            details.retryable = false;
         } else if error.starts_with("YOUGORI_TRANSFER_DEADLINE") {
             details.code = "transfer_deadline".into();
             details.outcome = "partial".into();
@@ -278,7 +362,7 @@ impl Job {
                 "interrupted" => "reconciliation_required",
                 _ => "pending",
             });
-        let mut value = json!({"jobId":self.id,"method":self.method,"status":self.status,"outcome":outcome,"createdAt":self.created,"startedAt":self.started_at,"completedAt":self.completed_at,"resources":self.resources,"cancellable":self.cancellable,"cancelRequested":self.cancellation.is_cancelled()});
+        let mut value = json!({"jobId":self.id,"method":self.method,"status":self.status,"outcome":outcome,"createdAt":self.created,"startedAt":self.started_at,"completedAt":self.completed_at,"resources":self.resources,"cancellable":self.can_cancel(),"cancelRequested":self.cancellation.is_cancelled()});
         if let Some(progress) = self.progress.borrow().as_ref() {
             value["lastProgressAt"] = progress["lastProgressAt"].clone();
             value["progress"] = progress.clone();
@@ -380,21 +464,31 @@ impl Write for CapturedOutput {
     }
 }
 impl CapturedOutput {
+    fn available_bytes(&self) -> usize {
+        // Captured JSON is valid UTF-8 until the byte budget cuts its final
+        // character. Inspect only that character so metadata polling does not
+        // repeatedly scan a retained 32 MiB result.
+        let mut start = self.data.len().saturating_sub(4);
+        while start < self.data.len() && self.data[start] & 0xc0 == 0x80 {
+            start += 1;
+        }
+        std::str::from_utf8(&self.data[start..])
+            .map(|_| self.data.len())
+            .unwrap_or_else(|error| start + error.valid_up_to())
+    }
     fn metadata(&self, id: &str) -> Value {
-        json!({"delivery":"paged","resultHandle":id,"totalBytes":self.total,"availableBytes":self.data.len(),"truncated":self.total>self.data.len() as u64})
+        let available = self.available_bytes();
+        json!({"delivery":"paged","resultHandle":id,"totalBytes":self.total,"availableBytes":available,"truncated":self.total>available as u64})
     }
     fn page(&self, id: &str, cursor: usize, limit: usize) -> Result<Value, String> {
-        if cursor > self.data.len() {
+        let available = self.available_bytes();
+        if cursor > available {
             return Err("Result cursor exceeds retained output".into());
         }
         // A capture limit can split the final code point. Drop that incomplete
         // suffix; retained cursors always refer to the original UTF-8 bytes.
-        let valid = match std::str::from_utf8(&self.data) {
-            Ok(text) => text,
-            Err(error) => std::str::from_utf8(&self.data[..error.valid_up_to()])
-                .map_err(|_| "Invalid result encoding")?,
-        };
-        let text = valid;
+        let text = std::str::from_utf8(&self.data[..available])
+            .map_err(|_| "Invalid result encoding")?;
         let mut end = (cursor + limit.clamp(1, 65536)).min(text.len());
         if !text.is_char_boundary(cursor) {
             return Err("Result cursor is not a UTF-8 boundary".into());
@@ -406,7 +500,7 @@ impl CapturedOutput {
             end = cursor + text[cursor..].chars().next().unwrap().len_utf8();
         }
         Ok(
-            json!({"jobId":id,"encoding":"json","data":&text[cursor..end],"cursor":cursor,"nextCursor":end,"totalBytes":self.total,"availableBytes":self.data.len(),"truncated":self.total>self.data.len() as u64,"done":end>=text.len()}),
+            json!({"jobId":id,"encoding":"json","data":&text[cursor..end],"cursor":cursor,"nextCursor":end,"totalBytes":self.total,"availableBytes":available,"truncated":self.total>available as u64,"done":end>=text.len()}),
         )
     }
 }
@@ -442,7 +536,7 @@ impl Control {
             coordinator: Coordinator::default(),
             operations: Arc::new(Semaphore::new(32)),
             control_operations: Arc::new(Semaphore::new(8)),
-            clients: Arc::new(Semaphore::new(64)),
+            clients: Arc::new(Semaphore::new(CLIENT_LIMIT)),
             regular_clients: Arc::new(Semaphore::new(32)),
             control_clients: Arc::new(Semaphore::new(8)),
             finished: tokio::sync::Notify::new(),
@@ -573,7 +667,7 @@ impl Control {
                     .find(|job| Some(job.id.as_str()) == request.params["jobId"].as_str())
                     .ok_or("YOUGORI_JOB_NOT_FOUND: operation not found in retained history")?;
                 if job.completed.is_none() {
-                    if job.status == "running" && !job.cancellable {
+                    if job.status == "running" && !job.can_cancel() {
                         return Err("YOUGORI_NOT_CANCELLABLE: this operation must finish or be reconciled; cancelling its client does not undo its effects".into());
                     }
                     job.cancellation.cancel();
@@ -688,6 +782,15 @@ impl Control {
             &self.operations
         };
         let permit=lane.clone().try_acquire_owned().map_err(|_|"YOUGORI_BUSY: this operation lane is full. Inspect jobs or cancel queued work; shutdown and cancellation remain independent.")?;
+        // Cancel a conflicting export before waiting for its environment lease.
+        // Keep the barrier until this lifecycle operation ends so an export
+        // still preparing its stream cannot race past the cancellation.
+        let snapshot_interruption = if let Some(environment_id) = snapshot_stop_resource(method.name, &request.params) {
+            let state = app.state::<PlatformStore>().snapshot()?;
+            state.environments.iter().find(|environment| environment.id == environment_id)
+                .and_then(|environment| app.try_state::<crate::runtime::RuntimeManager>()
+                    .map(|runtime| runtime.interrupt_snapshot_exports(environment.runtime_id.as_deref().unwrap_or(&environment.id))))
+        } else { None };
         if method.name == "start_environment_download" {
             let id = request.params["request"]["environmentId"]
                 .as_str()
@@ -730,6 +833,7 @@ impl Control {
         let job_id = id.clone();
         tauri::async_runtime::spawn(async move {
             let _permit = permit;
+            let _snapshot_interruption = snapshot_interruption;
             let blocker = waiting.clone();
             let lease = control
                 .coordinator

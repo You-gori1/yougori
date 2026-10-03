@@ -37,7 +37,7 @@ fn guest_boot_timeout_for(os: &str, arch: &str) -> std::time::Duration {
     // can still be starting OpenRC when the former three-minute limit expires.
     // This is a maximum, not a delay: callers return as soon as the
     // authenticated guest health probe succeeds, and detect QEMU exits sooner.
-    std::time::Duration::from_secs(if arch == "aarch64" { 600 } else if os == "macos" { 180 } else { 120 })
+    std::time::Duration::from_secs(if arch == "aarch64" { 1200 } else if os == "macos" { 180 } else { 120 })
 }
 
 #[cfg(test)]
@@ -48,7 +48,7 @@ mod tests {
     fn guest_boot_budget_allows_software_emulation_but_remains_bounded() {
         use std::time::Duration;
         for os in ["linux", "macos", "windows"] {
-            assert_eq!(guest_boot_timeout_for(os, "aarch64"), Duration::from_secs(600));
+            assert_eq!(guest_boot_timeout_for(os, "aarch64"), Duration::from_secs(1200));
         }
         assert_eq!(guest_boot_timeout_for("macos", "x86_64"), Duration::from_secs(180));
         for os in ["linux", "windows"] {

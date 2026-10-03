@@ -70,10 +70,13 @@ async fn publication_listener_reuse_keeps_original_and_survives_original_removal
     let port=fixture_listener(&manager,"pub-original",&env.id,PublicationKind::Cloudflare).await;
     let plan=publication_plan(&env.id,8080,&PublicationKind::Loopback,Some(port),None,&store,&manager).await.unwrap();assert_eq!(plan["action"],"reuseListener");assert_eq!(plan["allowed"],true);
     let published=publish_service(env.id.clone(),8080,PublicationKind::Loopback,Some(port),None,&store,&runtime,&manager).await.unwrap();assert_ne!(published.id,"pub-original");
+    assert_eq!(published.urls,vec![format!("http://127.0.0.1:{port}")],"loopback-only listeners must not advertise LAN or guest-network access");
     manager.publications.lock().await.remove("pub-original");
     let mut stream=TcpStream::connect(("127.0.0.1",port)).await.unwrap();let mut bytes=Vec::new();stream.read_to_end(&mut bytes).await.unwrap();assert_eq!(bytes,b"still available");
     manager.shutdown(&runtime).await;
     tokio::time::sleep(Duration::from_millis(30)).await;assert!(TcpStream::connect(("127.0.0.1",port)).await.is_err());
+    let saved=publication_metadata(&env.id,&store,&manager).await.unwrap();
+    assert_eq!(saved.iter().find(|publication|publication.id==published.id).unwrap().urls,vec![format!("http://127.0.0.1:{port}")],"saved loopback intent must retain the same access scope");
 }
 #[tokio::test]
 async fn failed_owned_route_transition_restores_working_listener_and_saved_intent(){

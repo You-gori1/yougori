@@ -3,6 +3,8 @@ import importlib.metadata
 import json
 import hashlib
 import os
+import queue
+import re
 import secrets
 import signal
 import subprocess
@@ -25,6 +27,14 @@ USAGE_LOCK = threading.Lock()
 USAGE_HOURS = 90 * 24
 USAGE_RECENT = 100
 COUNTERS = ("requests", "prompt_tokens", "completion_tokens", "errors", "rejected")
+GENERATION_MAX_SECONDS = 90
+STREAM_MAX_SECONDS = 300
+STREAM_POLL_SECONDS = 1
+STREAM_CANCEL_GRACE_SECONDS = 2
+
+
+def usage_hour_valid(hour):
+    return isinstance(hour, str) and 1 <= len(hour) <= 12 and hour.isascii() and hour.isdigit()
 
 
 def empty_usage():
@@ -39,7 +49,7 @@ def load_usage():
             return isinstance(counters, dict) and all(type(count) is int and count >= 0 for count in counters.values())
         if (value.get("version") == 1
                 and counters_valid(value.get("totals")) and counters_valid(value.get("sources"))
-                and isinstance(value.get("hours"), dict) and all(counters_valid(bucket) for bucket in value["hours"].values())
+                and isinstance(value.get("hours"), dict) and all(usage_hour_valid(hour) and counters_valid(bucket) for hour, bucket in value["hours"].items())
                 and isinstance(value.get("recent"), list)):
             return value
     except (OSError, ValueError, AttributeError):
@@ -79,7 +89,7 @@ def record_usage(source, outcome, prompt_tokens=0, completion_tokens=0, seconds=
         if outcome != "rejected":
             USAGE["sources"][source] = USAGE["sources"].get(source, 0) + 1
         oldest = int(now // 3600) - USAGE_HOURS
-        for key in [k for k in USAGE["hours"] if not k.isdigit() or int(k) < oldest]:
+        for key in [k for k in USAGE["hours"] if not usage_hour_valid(k) or int(k) < oldest]:
             del USAGE["hours"][key]
         USAGE["recent"] = (USAGE["recent"] + [{"time": int(now), "source": source, "outcome": outcome, "prompt_tokens": prompt_tokens,
                                                "completion_tokens": completion_tokens, "seconds": round(seconds, 3), "stream": stream}])[-USAGE_RECENT:]
@@ -129,6 +139,9 @@ def checkpoint():
                            "Yougori's model runner serves text chat and cannot run this decision head. "
                            "See https://huggingface.co/" + MODEL + " for its decision API and runner.")
     revision = metadata.sha
+    if (not isinstance(revision, str) or not re.fullmatch(r"[a-fA-F0-9]{40}", revision)
+            or MODEL_REVISION is not None and revision != MODEL_REVISION):
+        raise RuntimeError("Model metadata did not return the requested immutable checkpoint revision")
     config = AutoConfig.from_pretrained(MODEL, revision=revision, trust_remote_code=False)
     if type(config) not in AutoModelForCausalLM._model_mapping:
         raise RuntimeError("The " + config.model_type + " architecture is not supported by Yougori's text chat runner. "
@@ -295,6 +308,44 @@ def completion_id():
     return "chatcmpl-" + secrets.token_hex(12)
 
 
+class GenerationTimeout(RuntimeError):
+    """Only server-created, credential-free timeout messages may reach the API."""
+
+
+def non_streaming_output(inputs, kwargs, meter):
+    from transformers import StoppingCriteriaList
+    stop, finished, ownership, result = threading.Event(), threading.Event(), threading.Lock(), {}
+    detached = False
+    def work():
+        try:
+            with TORCH.inference_mode():
+                result["output"] = NETWORK.generate(**inputs, **kwargs, stopping_criteria=StoppingCriteriaList([Cancelled(stop)]))
+        except BaseException as error:
+            result["error"] = error
+        finally:
+            with ownership:
+                finished.set()
+                if detached:
+                    GENERATION.release()
+    thread = threading.Thread(target=work, daemon=True)
+    thread.start()
+    thread.join(GENERATION_MAX_SECONDS)
+    timed_out = not finished.is_set()
+    if timed_out:
+        stop.set()
+        thread.join(STREAM_CANCEL_GRACE_SECONDS)
+    with ownership:
+        if not finished.is_set():
+            detached = True
+            meter["_generation_deferred"] = True
+            STATE.update(status="error", error="Model generation did not stop after cancellation. Restart this model before sending more requests.")
+    if timed_out:
+        raise GenerationTimeout(STATE["error"] if detached else "Model generation exceeded its time limit; shorten the conversation or choose a smaller response.")
+    if "error" in result:
+        raise result["error"]
+    return result["output"]
+
+
 def generate(body, handler, meter):
     """Returns (status, json) for a regular reply, or None after streaming server-sent events to handler.
     Fills meter with the outcome and token counts for usage tracking."""
@@ -307,32 +358,39 @@ def generate(body, handler, meter):
         inputs, input_tokens, dropped = prepare(messages, count, truncate)
         meter["prompt_tokens"] = input_tokens
         pad = TOKENIZER.pad_token_id if TOKENIZER.pad_token_id is not None else TOKENIZER.eos_token_id
-        kwargs = {"max_new_tokens": count, "max_time": 300 if stream else 90, "do_sample": temperature > 0, "pad_token_id": pad}
+        kwargs = {"max_new_tokens": count, "max_time": STREAM_MAX_SECONDS if stream else GENERATION_MAX_SECONDS, "do_sample": temperature > 0, "pad_token_id": pad}
         if temperature > 0:
             kwargs["temperature"] = temperature
         extra = {"truncated_messages": dropped, "context_window": context_window()} if truncate else {}
         if stream:
             stream_reply(handler, inputs, input_tokens, count, kwargs, extra, meter)
             return None
-        with TORCH.inference_mode():
-            output = NETWORK.generate(**inputs, **kwargs)
+        output = non_streaming_output(inputs, kwargs, meter)
         generated = output[0, input_tokens:]
         meter.update(outcome="ok", completion_tokens=len(generated))
         return 200, {"id": completion_id(), "object": "chat.completion", "created": int(time.time()), "model": MODEL,
                      "choices": [{"index": 0, "message": {"role": "assistant", "content": TOKENIZER.decode(generated, skip_special_tokens=True)}, "finish_reason": "stop" if len(generated) < count else "length"}],
                      "usage": {"prompt_tokens": input_tokens, "completion_tokens": len(generated), "total_tokens": input_tokens + len(generated), **extra}}
+    except GenerationTimeout as error:
+        meter["outcome"] = "error"
+        return 504, {"error": {"message": str(error)}}
     except TORCH.cuda.OutOfMemoryError:
         TORCH.cuda.empty_cache()
         meter["outcome"] = "error"
         return 507, {"error": {"message": "Not enough GPU memory. Shorten the conversation or choose a smaller model."}}
     finally:
-        GENERATION.release()
+        # A stalled GPU worker cannot safely be killed from another Python thread.
+        # Its finalizer owns this lock until it actually stops; the HTTP worker can
+        # return a bounded failure without allowing overlapping GPU generations.
+        if not meter.pop("_generation_deferred", False):
+            GENERATION.release()
 
 
 def stream_reply(handler, inputs, input_tokens, count, kwargs, extra, meter):
     from transformers import StoppingCriteriaList, TextIteratorStreamer
-    stop, result = threading.Event(), {}
-    streamer = TextIteratorStreamer(TOKENIZER, skip_prompt=True, skip_special_tokens=True)
+    stop, finished, ownership, result = threading.Event(), threading.Event(), threading.Lock(), {}
+    detached = False
+    streamer = TextIteratorStreamer(TOKENIZER, skip_prompt=True, skip_special_tokens=True, timeout=STREAM_POLL_SECONDS)
 
     def work():
         try:
@@ -341,6 +399,11 @@ def stream_reply(handler, inputs, input_tokens, count, kwargs, extra, meter):
         except BaseException as error:
             result["error"] = error
             streamer.end()
+        finally:
+            with ownership:
+                finished.set()
+                if detached:
+                    GENERATION.release()
 
     ident, created = completion_id(), int(time.time())
     handler.send_response(200)
@@ -349,14 +412,17 @@ def stream_reply(handler, inputs, input_tokens, count, kwargs, extra, meter):
     handler.send_header("Connection", "close")
     handler.end_headers()
 
+    disconnected = False
     def send(value):
-        if stop.is_set():
+        nonlocal disconnected
+        if disconnected:
             return
         try:
             data = value if isinstance(value, bytes) else json.dumps(value, ensure_ascii=False).encode("utf-8")
             handler.wfile.write(b"data: " + data + b"\n\n")
             handler.wfile.flush()
         except OSError:
+            disconnected = True
             stop.set()  # The client disconnected; generation stops at the next token.
 
     def chunk(delta, finish=None, **more):
@@ -364,11 +430,34 @@ def stream_reply(handler, inputs, input_tokens, count, kwargs, extra, meter):
 
     thread = threading.Thread(target=work, daemon=True)
     thread.start()
+    deadline, timed_out = time.monotonic() + STREAM_MAX_SECONDS, False
     send(chunk({"role": "assistant", "content": ""}))
-    for text in streamer:
+    while not stop.is_set():
+        if time.monotonic() >= deadline:
+            timed_out = True
+            stop.set()
+            break
+        try:
+            text = next(streamer)
+        except queue.Empty:
+            if finished.is_set():
+                break
+            continue
+        except StopIteration:
+            break
         if text:
             send(chunk({"content": text}))
-    thread.join()
+    thread.join(STREAM_CANCEL_GRACE_SECONDS)
+    with ownership:
+        if not finished.is_set():
+            detached = True
+            meter["_generation_deferred"] = True
+            STATE.update(status="error", error="Model generation did not stop after cancellation. Restart this model before sending more requests.")
+    if detached or timed_out:
+        meter["outcome"] = "error"
+        send({"error": {"message": STATE["error"] if detached else "Model generation exceeded its time limit; shorten the conversation or choose a smaller response."}})
+        send(b"[DONE]")
+        return
     error = result.get("error")
     meter["outcome"] = "error" if error is not None else "cancelled" if stop.is_set() else "ok"
     if error is None:
@@ -454,7 +543,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.reply(*reply)
         except (ValueError, TypeError) as error:
             meter["outcome"] = "invalid"
-            self.reply(400, {"error": {"message": str(error)}})
+            self.reply(400, {"error": {"message": str(error).replace(TOKEN, "[redacted]")}})
         except Exception:
             meter["outcome"] = "error"
             self.reply(500, {"error": {"message": "Generation failed. Check the model's compatibility and available GPU memory."}})

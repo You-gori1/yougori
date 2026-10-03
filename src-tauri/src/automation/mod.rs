@@ -18,6 +18,7 @@ pub use queue::Control;
 const HISTORY: usize = 256;
 const RESULT_BUDGET: usize = 64 * 1024 * 1024;
 const RESULT_LIMIT: usize = 8 * 1024 * 1024;
+const CLIENT_LIMIT: usize = 64;
 
 pub(crate) fn is_shutting_down(app: &AppHandle) -> bool {
     app.try_state::<Arc<Control>>().is_some_and(|control| control.quiescing.load(std::sync::atomic::Ordering::Acquire))
@@ -37,7 +38,7 @@ async fn connection(
     mut stream: impl AsyncRead + AsyncWrite + Unpin,
     control: Arc<Control>,
     app: AppHandle,
-    handshake: tokio::sync::OwnedSemaphorePermit,
+    _connection: tokio::sync::OwnedSemaphorePermit,
 ) {
     let response = match tokio::time::timeout(
         Duration::from_secs(5),
@@ -47,7 +48,6 @@ async fn connection(
     {
         Ok(Ok(bytes)) => match serde_json::from_slice::<Request>(&bytes) {
             Ok(request) => {
-                drop(handshake);
                 let lane=if queue::is_control_method(&request.method){&control.control_clients}else{&control.regular_clients};
                 match lane.clone().try_acquire_owned() {
                     Ok(_client)=>control.handle(app,request).await,

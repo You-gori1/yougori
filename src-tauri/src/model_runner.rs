@@ -107,11 +107,16 @@ pub async fn run_model_with_resources(model: String, port: Option<u16>, resource
 }
 /// The container command that runs this version's model server.
 fn server_command() -> String {
-    let script = STANDARD.encode(include_bytes!("model_server.py"));
+    // Keep the complete server below the guest's 32 KiB command limit. Python's
+    // standard library can decode it without any installed model dependencies.
+    let mut compressed = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::best());
+    std::io::Write::write_all(&mut compressed, include_bytes!("model_server.py"))
+        .expect("writing the embedded model server to memory");
+    let script = STANDARD.encode(compressed.finish().expect("compressing the embedded model server"));
     format!(
         "exec python -u -c {}",
         shell_quote(&format!(
-            "import base64;exec(compile(base64.b64decode('{script}'),'yougori-model','exec'))"
+            "import base64,zlib;exec(compile(zlib.decompress(base64.b64decode('{script}')),'yougori-model','exec'))"
         ))
     )
 }
@@ -719,6 +724,15 @@ mod tests {
         assert!(command.len() < 32 * 1024, "startup commands are limited to 32 KB");
         assert!(!is_server_command("exec python -u -c 'print(1)'"));
         assert!(!is_server_command("sleep infinity"));
+        // The size reduction must preserve the exact script, including Unicode
+        // and the fixes applied to reused model environments.
+        // shell_quote escapes the Python quotes for /bin/sh.
+        let unquoted = command.replace("'\"'\"'", "'");
+        let encoded = unquoted.split("b64decode('").nth(1).unwrap().split('\'').next().unwrap();
+        let compressed = STANDARD.decode(encoded).unwrap();
+        let mut decoded = Vec::new();
+        std::io::Read::read_to_end(&mut flate2::read::ZlibDecoder::new(&compressed[..]), &mut decoded).unwrap();
+        assert_eq!(decoded, include_bytes!("model_server.py"));
     }
     #[test]
     fn model_resource_allocation_preserves_fixed_values_and_rejects_impossible_limits() {

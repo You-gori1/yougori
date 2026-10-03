@@ -47,6 +47,7 @@ export function HostTerminalCanvas({ tab, active, onState, onControls }: {
     function mountTerminal() {
     if (!target.current) return
     let disposed = false, ready = false, created = false, offset = 0, timer = 0
+    let readFailures = 0
     let inputQueue = Promise.resolve()
     const terminal = new Terminal({ fontSize: 13, fontFamily: '"Cascadia Code", "Cascadia Mono", Consolas, monospace', cursorBlink: true, cursorStyle: "bar", lineHeight: 1.2, scrollback: 2000, allowProposedApi: false, theme: terminalTheme })
     const fit = new FitAddon(); terminal.loadAddon(fit); terminal.open(target.current)
@@ -82,15 +83,25 @@ export function HostTerminalCanvas({ tab, active, onState, onControls }: {
       }))
     } })
     const poll = async () => {
-      if (disposed) return
+      if (disposed || !ready) return
       try {
         const output = await hostTerminalApi.terminal({ sessionId: id, action: "read", offset })
-        if (disposed) return
+        if (disposed || !ready) return
+        readFailures = 0
         offset = output.offset
         if (output.truncated) terminal.writeln("\r\n[Older output discarded; terminal history is limited to keep memory usage small.]")
         if (output.data) terminal.write(Uint8Array.from(atob(output.data), c => c.charCodeAt(0)))
         if (output.done) { ready = false; onState(id, "exited"); terminal.writeln(`\r\n[Shell exited${output.exitCode === null ? "" : ` · code ${output.exitCode}`} — open a new terminal to continue.]`); return }
-      } catch (reason) { fail(reason); return }
+      } catch (reason) {
+        if (disposed || !ready) return
+        // A read can safely resume at the same cursor. Never replay input or
+        // create a replacement shell: the original command may still be running.
+        if (/error sending request for url|failed to fetch|networkerror|timed out|timeout/i.test(String(reason)) && ++readFailures <= 3) {
+          timer = window.setTimeout(() => void poll(), readFailures * 500)
+          return
+        }
+        fail(reason); return
+      }
       timer = window.setTimeout(() => void poll(), document.hidden ? 2500 : activeRef.current ? 120 : 1200)
     }
     void (async () => {

@@ -215,7 +215,7 @@ pub fn parse(
     if !(1..=86400).contains(&timeout) {
         return Err("--timeout must be between 1 and 86400 seconds".into());
     }
-    if args.get(0).is_some_and(|a|a=="call") && args.get(1).is_some_and(|a|a=="set_deployment_secret")
+    if words.first() == Some(&"call") && words.get(1) == Some(&"set_deployment_secret")
         && (flags.contains_key("json") || flags.contains_key("value")) {
         return Err("Application secrets must be supplied through --file - or a private JSON file, never shell arguments".into());
     }
@@ -1003,6 +1003,13 @@ mod tests {
     #[test]
     fn protected_deployment_values_never_accept_shell_argument_input() {
         assert!(run(&["call","set_deployment_secret","--json",r#"{"name":"x","value":"private"}"#,"--yes"]).unwrap_err().contains("never shell arguments"));
+        for args in [
+            vec!["--no-wait", "call", "set_deployment_secret", "--json", r#"{"name":"x","value":"private"}"#, "--yes"],
+            vec!["call", "--dry-run", "set_deployment_secret", "--json", r#"{"name":"x","value":"private"}"#],
+            vec!["call", "--yes", "set_deployment_secret", "--name", "x", "--value", "private"],
+        ] {
+            assert!(run(&args).unwrap_err().contains("never shell arguments"), "{args:?}");
+        }
         let request=parse(&["call","set_deployment_secret","--file","-","--yes"].map(str::to_owned),|_|Ok(json!({"name":"x","value":"private"}))).unwrap();
         assert_eq!(request.request.method,"set_deployment_secret");
     }

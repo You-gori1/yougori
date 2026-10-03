@@ -47,11 +47,49 @@ pub(crate) fn validate_open(open: &Open) -> Result<(), String> {
     Ok(())
 }
 
+#[derive(Default)]
+struct FrameReceiver {
+    prefix: [u8; 4],
+    prefix_bytes: usize,
+    frame: Vec<u8>,
+    frame_bytes: usize,
+}
+impl FrameReceiver {
+    // read is cancellation safe. Keep partial prefix/body state outside the
+    // select future so heartbeat and WebSocket events cannot discard bytes.
+    async fn receive(&mut self, socket: &mut TcpStream) -> std::io::Result<Vec<u8>> {
+        loop {
+            if self.prefix_bytes < self.prefix.len() {
+                let read = socket.read(&mut self.prefix[self.prefix_bytes..]).await?;
+                if read == 0 { return Err(std::io::ErrorKind::UnexpectedEof.into()); }
+                self.prefix_bytes += read;
+                if self.prefix_bytes < self.prefix.len() { continue; }
+            }
+            if self.frame.is_empty() {
+                let size = u32::from_be_bytes(self.prefix) as usize;
+                if !(14..=65536).contains(&size) {
+                    return Err(std::io::Error::other("Invalid private network frame size"));
+                }
+                self.frame.resize(size, 0);
+            }
+            let read = socket.read(&mut self.frame[self.frame_bytes..]).await?;
+            if read == 0 { return Err(std::io::ErrorKind::UnexpectedEof.into()); }
+            self.frame_bytes += read;
+            if self.frame_bytes == self.frame.len() {
+                self.prefix_bytes = 0;
+                self.frame_bytes = 0;
+                return Ok(std::mem::take(&mut self.frame));
+            }
+        }
+    }
+}
+
 pub(crate) async fn relay<S>(websocket: &mut WebSocketStream<S>, mut socket: TcpStream, cancel: CancellationToken, fabric: crate::runtime::fabric::Fabric, real_peer_id: &str) -> Result<(), String>
 where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin {
     let mut heartbeat = tokio::time::interval(Duration::from_secs(20));
     let mut check_peer = tokio::time::interval(Duration::from_secs(5));
     let mut last_response = tokio::time::Instant::now();
+    let mut frames = FrameReceiver::default();
     loop {
         tokio::select! {
             biased;
@@ -72,13 +110,7 @@ where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin {
                 Some(Ok(Message::Close(_))) | None => return Ok(()),
                 _ => return Err("Invalid private network frame".into()),
             },
-            frame = async {
-                let size = socket.read_u32().await? as usize;
-                if !(14..=65536).contains(&size) { return Err(std::io::Error::other("Invalid private network frame size")); }
-                let mut frame = vec![0; size];
-                socket.read_exact(&mut frame).await?;
-                Ok::<_, std::io::Error>(frame)
-            } => {
+            frame = frames.receive(&mut socket) => {
                 let frame = frame.map_err(|_| "Private network adapter stopped")?;
                 websocket.send(Message::Binary(frame.into())).await.map_err(|_| "Private connection interrupted")?;
             },
@@ -241,6 +273,58 @@ mod tests {
         }).await.unwrap();
         assert_eq!(echoed, outbound);
         relay_task.abort();
+    }
+
+    #[tokio::test]
+    async fn websocket_bridge_keeps_partial_frames_when_other_events_arrive() {
+        let fabric = crate::runtime::fabric::Fabric::default();
+        let (real, _real_guest) = pair().await;
+        fabric.attach("env-real", real).unwrap();
+        let (bridge_socket, mut peer_socket) = pair().await;
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            tokio_tungstenite::accept_async(socket).await.unwrap()
+        });
+        let (mut client, _) = tokio_tungstenite::connect_async(format!("ws://{address}")).await.unwrap();
+        let mut server = server.await.unwrap();
+        let cancel = CancellationToken::new();
+        let shutdown = cancel.clone();
+        let relay_task = tokio::spawn(async move { relay(&mut server, bridge_socket, cancel, fabric, "env-real").await });
+        let frame = vec![0xab_u8; 42];
+        let prefix = (frame.len() as u32).to_be_bytes();
+        // Both a prefix and a payload can be incomplete when a WebSocket event
+        // wins select. Each interruption must retain the bytes already read.
+        for fragment in [&prefix[..2], &prefix[2..], &frame[..7]] {
+            peer_socket.write_all(fragment).await.unwrap();
+            tokio::time::sleep(Duration::from_millis(40)).await;
+            client.send(Message::Ping(vec![3].into())).await.unwrap();
+            tokio::time::timeout(Duration::from_secs(2), async {
+                loop {
+                    match client.next().await {
+                        Some(Ok(Message::Pong(data))) if data.as_ref() == [3] => break,
+                        Some(Ok(Message::Ping(data))) => client.send(Message::Pong(data)).await.unwrap(),
+                        Some(Ok(_)) => {},
+                        reply => panic!("bridge ended during partial frame: {reply:?}"),
+                    }
+                }
+            }).await.unwrap();
+        }
+        peer_socket.write_all(&frame[7..]).await.unwrap();
+        let received = tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                match client.next().await {
+                    Some(Ok(Message::Binary(data))) => break data.to_vec(),
+                    Some(Ok(Message::Ping(data))) => client.send(Message::Pong(data)).await.unwrap(),
+                    Some(Ok(_)) => {},
+                    reply => panic!("partial frame was lost: {reply:?}"),
+                }
+            }
+        }).await.unwrap();
+        shutdown.cancel();
+        let _ = relay_task.await.unwrap();
+        assert_eq!(received, frame);
     }
 
     #[tokio::test]

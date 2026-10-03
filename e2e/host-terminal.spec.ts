@@ -49,6 +49,9 @@ test("host CLI restores the startup shell, preserves it across views, and closes
 test("Edit the App opens a separate terminal in the source checkout with editing guidance", async ({ page }) => {
   await page.goto("/")
   const views = page.getByRole("group", { name: "Environment view" })
+  // Navigation completes at the lightweight loading document. Assert the
+  // workspace is ready before checking controls that only exist inside it.
+  await expect(views).toBeVisible({ timeout: 60000 })
   await expect(views.getByRole("button", { name: "Edit the App" })).toHaveCount(0)
   const editButton = page.getByRole("button", { name: "Edit the App" })
   await expect(editButton).toBeVisible()
